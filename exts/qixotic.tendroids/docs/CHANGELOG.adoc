@@ -1,0 +1,39 @@
+= Tendroids Changelog
+:toc:
+
+== Version 1.0.0 (Current)
+
+=== Initial Release
+
+==== Features
+
+* Procedural cylinder mesh generation with flared bases
+* Transform-based breathing animation system
+* Idle motion with swaying and rotation
+* Multi-Tendroid scene management
+* Simple UI control panel
+* Fabric/USDRT integration for performance
+
+==== Architecture
+
+* Modular folder-based organization
+* Clean separation of concerns (core, animation, scene, ui, utils)
+* Minimal codebase (~400 lines vs. 2500+ in previous attempt)
+* No over-engineering or premature optimization
+
+==== Known Limitations
+
+* Phase 1 implementation uses simplified segment animation
+* Bubble emission placeholder (not yet implemented)
+* No vertex-level deformation yet
+* No real-time interaction system yet
+
+==== Performance
+
+* Target: 60 fps with 15 Tendroids
+* Minimum: 30 fps acceptable
+* Not yet profiled in production
+
+=== Future Plans
+
+See PROJECT_OVERVIEW.adoc for Phase 2 and Phase 3 roadmap.

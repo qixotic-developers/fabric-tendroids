@@ -1,0 +1,239 @@
+= Tendroids Extension
+:toc:
+:toclevels: 2
+
+== Overview
+
+Tendroids is an Omniverse extension for creating and animating interactive cylinder-based wormlike sea creatures. It uses Fabric/USDRT for optimal performance and supports real-time interaction.
+
+== Features
+
+* *Procedural Geometry*: Dynamically generated cylinder meshes with flared bases
+* *Transform-Based Animation*: Breathing wave effect using segment scaling
+* *Idle Motion*: Subtle swaying for organic appearance
+* *Performance Optimized*: Targets 60fps with 15 creatures
+* *Simple UI*: Easy-to-use control panel for spawning and managing Tendroids
+
+== Installation
+
+=== Requirements
+
+* NVIDIA Omniverse (Composer or Create)
+* Python 3.10+
+* Fabric/USDRT 7.6.1+
+
+=== Setup
+
+1. Copy the extension folder to your Omniverse extensions directory:
++
+----
+<omniverse-app>/exts/qixotic.tendroids/
+----
+
+2. Enable the extension in Omniverse:
++
+* Open Extension Manager (Window → Extensions)
+* Search for "Tendroids"
+* Enable the extension
+
+== Quick Start
+
+=== Basic Usage
+
+1. *Open Tendroid Controls window* (Window → Tendroid Controls)
+2. *Configure spawn settings*:
+   - Count: Number of Tendroids (1-50)
+   - Area Width/Depth: Spawn region size
+   - Segments: Animation resolution (8-32)
+3. *Click "Spawn Tendroids"* to create creatures
+4. *Click "Start Animation"* to begin breathing animation
+5. *Click "Stop Animation"* to pause
+6. *Click "Clear All"* to remove all Tendroids
+
+=== Performance Tips
+
+* Start with 5-10 Tendroids to test performance
+* Reduce segment count (12-16) for better performance
+* Smaller spawn areas reduce viewport overhead
+
+== Architecture
+
+=== Module Structure
+
+----
+qixotic.tendroids/
+├── core/               # Core Tendroid classes
+│   ├── tendroid.py     # Single Tendroid management
+│   └── cylinder_generator.py  # Procedural geometry
+├── animation/          # Animation systems
+│   ├── breathing.py    # Breathing wave animation
+│   └── idle_motion.py  # Idle swaying motion
+├── scene/             # Scene management
+│   └── manager.py     # Multi-Tendroid coordinator
+├── ui/                # User interface
+│   └── control_panel.py  # Control window
+└── utils/             # Utilities
+    └── math_helpers.py   # Math functions
+----
+
+=== Animation System
+
+==== Breathing Animation
+
+* Traveling sine wave moves up Tendroid length
+* Gaussian envelope creates smooth wave focus
+* Positive-only wave (expansion, not contraction)
+* Configurable speed, wavelength, amplitude
+* Delay between cycles
+
+==== Idle Motion
+
+* Subtle side-to-side sway
+* Gentle rotation oscillation
+* Different frequencies for organic appearance
+* Can be enabled/disabled per Tendroid
+
+== Configuration
+
+=== Tendroid Parameters
+
+[cols="1,2,1"]
+|===
+|Parameter |Description |Default
+
+|`radius`
+|Cylinder radius
+|10.0
+
+|`length`
+|Total length
+|100.0
+
+|`num_segments`
+|Animation segments
+|16
+
+|`radial_resolution`
+|Vertices per ring
+|16
+|===
+
+=== Animation Parameters
+
+[cols="1,2,1"]
+|===
+|Parameter |Description |Default
+
+|`wave_speed`
+|Wave travel speed
+|50.0
+
+|`wave_length`
+|Wavelength
+|40.0
+
+|`amplitude`
+|Max expansion (0-1)
+|0.3
+
+|`cycle_delay`
+|Delay between waves
+|2.0 sec
+|===
+
+== Troubleshooting
+
+=== Common Issues
+
+==== Extension Won't Load
+
+* Check Omniverse version compatibility
+* Verify extension.toml is correct
+* Check console for Python errors
+
+==== Poor Performance
+
+* Reduce Tendroid count
+* Decrease segment count
+* Disable idle motion
+* Close other extensions
+
+==== Animation Not Updating
+
+* Ensure "Start Animation" was clicked
+* Check console for errors
+* Verify stage is valid
+
+== Development
+
+=== Phase 1 Status (Current)
+
+* ✅ Transform-based segment animation
+* ✅ Procedural cylinder generation
+* ✅ Breathing wave animation
+* ✅ Idle motion system
+* ✅ Multi-Tendroid management
+* ✅ Basic UI controls
+
+=== Phase 2 Planned
+
+* Vertex-level deformation (if needed)
+* Bubble generation and physics
+* Environmental flora
+* Real-time user interaction
+* Material effects
+* Performance optimization
+
+== API Reference
+
+=== TendroidSceneManager
+
+Primary interface for managing Tendroids.
+
+==== Methods
+
+`create_tendroids(count, spawn_area, radius_range, length_range, num_segments)`::
+Create multiple Tendroids with random positions and sizes.
+
+`start_animation()`::
+Begin animating all Tendroids.
+
+`stop_animation()`::
+Pause animation.
+
+`clear_tendroids(stage)`::
+Remove all Tendroids from scene.
+
+=== Tendroid
+
+Individual Tendroid creature.
+
+==== Methods
+
+`create(stage, parent_path)`::
+Create Tendroid geometry in USD stage.
+
+`update(dt)`::
+Update animation for one frame.
+
+`set_active(active)`::
+Enable/disable this Tendroid.
+
+`destroy(stage)`::
+Remove from scene.
+
+== Support
+
+For issues, questions, or contributions:
+
+* Project repository: (Add your repo URL)
+* Documentation: This file and PROJECT_OVERVIEW.adoc
+
+== License
+
+(Add your license information)
+
+== Credits
+
+Developed by Qixotic Software
+Built with NVIDIA Omniverse

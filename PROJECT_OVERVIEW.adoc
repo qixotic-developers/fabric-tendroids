@@ -1,0 +1,176 @@
+= Tendroids Project Overview
+:toc:
+:toclevels: 3
+:numbered:
+
+== Project Goal
+
+Create 15 interactive, cylinder-based wormlike sea creatures (Tendroids) in Omniverse using Fabric/USDRT, optimized for real-time interaction.
+
+== Technical Requirements
+
+=== Performance Targets
+* *Primary target*: 60 fps
+* *Minimum acceptable*: 30 fps
+* *Creature count*: 15 Tendroids simultaneously
+* *Interaction*: Real-time user interaction capability
+
+=== Scene Composition
+* 15 Tendroids
+* Environment flora
+* Bubbles (expelled by Tendroids)
+* Seafloor attachment points
+
+== Technical Stack
+
+=== Framework
+* *Platform*: NVIDIA Omniverse
+* *API*: Fabric/USDRT 7.6.1
+* *Documentation*: https://docs.omniverse.nvidia.com/kit/docs/usdrt.scenegraph/latest/overview.html
+
+=== Language
+* *Primary*: Python
+* *Rationale*: Fast iteration, Fabric's Python API is well-optimized
+* *Future option*: Migrate hot paths to C++ if profiling shows Python overhead
+
+== Architecture Design
+
+=== Tendroid Structure
+* *Base geometry*: Cylindrical segments
+* *Segment count*: 12-16 segments per Tendroid
+* *Base attachment*: Flared base anchored to seafloor
+* *Surface*: Textured for organic creature appearance
+
+=== Animation System (Hybrid Approach)
+
+==== Procedural Components
+1. *Idle wave motion*: Subtle swaying/undulation
+2. *Breathing effect*: Sine wave traveling up length
+   - Positive phase creates radial expansion
+   - Wave travels from base to tip
+   - "Burp" at top expels bubble
+   - Wave creates smooth breathing rhythm
+
+==== Physics-Based Components
+* Real-time interaction response
+* Collision detection with user input
+* Dynamic reaction to environmental forces
+
+== Phase 1: Transform-Based Implementation
+
+=== Deformation Approach
+* *Method*: Transform-based segment scaling (NOT vertex-level deformation)
+* *Rationale*: 
+  - Simpler to implement and debug
+  - More stable with transparent/refractive materials
+  - Avoids Warp GPU memory conflicts
+  - Sufficient for proof-of-concept
+  - Known performance characteristics
+
+=== Breathing Wave Mechanism
+* Each cylinder segment scales radially as wave passes through
+* Wave position calculated procedurally
+* Segment radius modulated by: `base_radius * (1 + amplitude * sin(phase))`
+* Creates "stepped" wave approximation
+* With 12-16 segments, should appear reasonably smooth
+
+=== Material Strategy
+* Keep material and geometry updates completely separate
+* Static, pre-baked materials (no runtime material changes)
+* Transparency/refraction defined at creation time
+* Avoid simultaneous mesh and material updates
+
+== Phase 2: Vertex Deformation (Reserve Option)
+
+If Phase 1 produces overly mechanical appearance:
+
+* Migrate to vertex-level deformation for smooth organic wave
+* Use CPU-based Fabric updates (NOT GPU-direct)
+* Maintain strict separation between vertex updates and material rendering
+* Only proceed if Phase 1 validates architecture and performance
+
+== Testing Strategy
+
+=== Approach
+* Ad hoc testing based on needs as they arise
+* No comprehensive unit test suite planned
+* Focus on pragmatic validation
+
+=== Potentially Valuable Tests
+* Performance monitoring (frame rate, memory)
+* Math validation (sine wave calculations, transforms)
+* Boundary condition checks (extreme parameters)
+* Smoke tests (scene creation, instantiation)
+
+=== Testing Philosophy
+* Add tests reactively when issues emerge
+* Prioritize performance profiling over unit coverage
+* Visual validation requires human observation
+* Keep testing lightweight and practical
+
+== Lessons Learned from Previous Attempt
+
+=== Issues to Avoid
+* Over-engineering and feature creep
+* Warp memory exceptions with transparent materials
+* Simultaneous mesh deformation and material updates
+* Code layering without clear performance validation
+* Telemetry systems (500+ lines unnecessary)
+* GPU-direct optimization (caused race conditions)
+* Premature LOD systems
+
+=== Strategy
+* Start minimal and working
+* Validate performance at each step
+* Profile before optimizing
+* Keep concerns separated (geometry, materials, physics)
+
+== Development Phases
+
+=== Phase 1: Core Implementation
+1. Single Tendroid with transform-based breathing
+2. Validate 60fps with single creature
+3. Scale to 15 Tendroids
+4. Add basic interaction
+
+=== Phase 2: Enhancement
+1. Bubble generation and physics
+2. Environmental flora
+3. Polish animation timing
+4. Consider vertex deformation if needed
+
+=== Phase 3: Optimization
+1. Profile actual performance
+2. Optimize bottlenecks
+3. Consider C++ migration if needed
+
+== Success Criteria
+
+* [ ] 15 Tendroids running at minimum 30fps
+* [ ] Smooth breathing animation visible and appealing
+* [ ] Real-time user interaction responsive
+* [ ] Bubble expulsion functional
+* [ ] No memory exceptions or crashes
+* [ ] Clean, maintainable codebase
+
+== Code Salvaged from Previous Attempt
+
+=== Reused Components
+* Cylinder generation algorithm (procedural mesh creation)
+* Flared base interpolation math
+* Wave mathematics (as reference for transform calculations)
+
+=== Avoided Components
+* Warp GPU-direct pipeline (caused memory exceptions)
+* Comprehensive telemetry system (over-engineering)
+* LOD system (premature optimization)
+* Camera utilities (unnecessary)
+* Extensive test suites for visual effects
+
+== Notes
+
+* Keep implementation lean and focused
+* Avoid premature optimization
+* Test performance early and often
+* Document decisions and rationale
+* All documentation in AsciiDoc (.adoc) format

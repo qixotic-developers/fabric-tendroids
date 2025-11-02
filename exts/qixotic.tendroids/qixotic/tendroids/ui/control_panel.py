@@ -29,7 +29,7 @@ class TendroidControlPanel:
         self.window = None
         
         # UI state
-        self.tendroid_count = 15
+        self.tendroid_count = 1
         self.spawn_width = 200
         self.spawn_depth = 200
         self.num_segments = 16

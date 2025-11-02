@@ -1,6 +1,11 @@
-"""Core Tendroid classes and geometry generation"""
+"""
+Core Tendroid components
 
-from .tendroid import Tendroid
+Geometry generation, deformation, and creature management.
+"""
+
 from .cylinder_generator import CylinderGenerator
+from .warp_deformer import WarpDeformer
+from .tendroid import Tendroid
 
-__all__ = ["Tendroid", "CylinderGenerator"]
+__all__ = ['CylinderGenerator', 'WarpDeformer', 'Tendroid']

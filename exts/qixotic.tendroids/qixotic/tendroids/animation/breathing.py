@@ -1,124 +1,139 @@
 """
-Breathing animation for Tendroids using transform-based segment scaling
+Breathing animation controller for Tendroids
 
-Implements traveling sine wave that creates radial expansion/contraction
-as it moves up the Tendroid's length.
+Manages traveling wave timing and parameters for smooth breathing effect.
+Wave starts above the flared base and travels upward.
 """
 
 import carb
-from ..utils.math_helpers import calculate_wave_position, calculate_segment_scale
+from ..utils.math_helpers import calculate_wave_position
 
 
 class BreathingAnimator:
     """
-    Manages breathing animation for a single Tendroid.
+    Controls breathing wave animation timing and parameters.
     
-    Uses transform-based scaling of cylinder segments to create a traveling
-    wave effect without vertex-level deformation.
+    Calculates wave center position and determines when to emit bubbles
+    as the wave reaches the top of the Tendroid.
     """
 
     def __init__(
         self,
         length: float,
-        num_segments: int,
-        flare_height: float,
-        wave_speed: float = 50.0,
-        wave_length: float = 40.0,
-        amplitude: float = 0.3,
+        deform_start_height: float,
+        wave_speed: float = 40.0,
+        wave_length: float = 30.0,
+        amplitude: float = 0.25,
         cycle_delay: float = 2.0
     ):
         """
         Initialize breathing animator.
         
         Args:
-            length: Total length of the Tendroid
-            num_segments: Number of segments in the cylinder
-            flare_height: Height of flared base (wave starts above this)
-            wave_speed: Speed of wave travel (units/second)
-            wave_length: Wavelength of the breathing wave
-            amplitude: Maximum scale multiplier (e.g., 0.3 = 30% expansion)
-            cycle_delay: Delay between wave cycles (seconds)
+            length: Total Tendroid length
+            deform_start_height: Y position where wave deformation begins
+            wave_speed: Wave travel speed (units/second)
+            wave_length: Wavelength for falloff calculation
+            amplitude: Maximum radial expansion (0.25 = 25%)
+            cycle_delay: Pause between breathing cycles (seconds)
         """
         self.length = length
-        self.num_segments = num_segments
-        self.flare_height = flare_height
+        self.deform_start_height = deform_start_height
         self.wave_speed = wave_speed
         self.wave_length = wave_length
         self.amplitude = amplitude
         self.cycle_delay = cycle_delay
         
-        # Calculate segment positions
-        self.segment_height = length / num_segments
-        self.segment_y_positions = [
-            i * self.segment_height + self.segment_height / 2
-            for i in range(num_segments)
-        ]
-        
-        # Timing state
-        self.time = 0.0
-        self.in_delay = False
-        
-        # Calculate cycle timing
-        wave_gap = self.wave_length * 0.18 * 3.0  # Gap before wave starts
-        self.wave_start_y = flare_height + wave_gap
-        travel_distance = (length - self.wave_start_y) + self.wave_length
+        # Calculate timing
+        travel_distance = (length - deform_start_height) + wave_length
         self.travel_time = travel_distance / wave_speed
         self.cycle_duration = self.travel_time + cycle_delay
         
+        # State
+        self.time = 0.0
+        self.last_bubble_time = -999.0
+        
         carb.log_info(
-            f"[BreathingAnimator] Initialized: "
-            f"segments={num_segments}, wave_speed={wave_speed}, "
-            f"cycle_duration={self.cycle_duration:.2f}s"
+            f"[BreathingAnimator] Initialized: speed={wave_speed}, "
+            f"length={wave_length}, cycle={self.cycle_duration:.2f}s"
         )
 
-    def update(self, dt: float) -> list:
+    def update(self, dt: float) -> dict:
         """
-        Update animation and return scale factors for each segment.
+        Update animation and return wave parameters.
         
         Args:
             dt: Delta time since last update (seconds)
             
         Returns:
-            List of scale factors, one per segment (1.0 = no scaling)
+            Dictionary with:
+                - wave_center: Current Y position of wave center
+                - wave_length: Wavelength
+                - amplitude: Expansion amplitude
+                - active: Whether wave is currently traveling
         """
         self.time += dt
-        
-        # Calculate cycle time
         cycle_time = self.time % self.cycle_duration
         
-        # Check if we're in delay period
+        # Check if in delay period
         if cycle_time >= self.travel_time:
-            # In delay - no wave, all segments at base scale
-            return [1.0] * self.num_segments
+            return {
+                'wave_center': -1000.0,  # Wave off-screen
+                'wave_length': self.wave_length,
+                'amplitude': 0.0,  # No deformation during delay
+                'active': False
+            }
         
-        # Calculate wave center position
+        # Calculate active wave position
         wave_center = calculate_wave_position(
             cycle_time,
             self.wave_speed,
-            self.wave_start_y
+            self.deform_start_height
         )
         
-        # Calculate scale for each segment
-        scales = []
-        for seg_y in self.segment_y_positions:
-            # Below wave start - no scaling
-            if seg_y < self.wave_start_y:
-                scales.append(1.0)
-            else:
-                scale = calculate_segment_scale(
-                    seg_y,
-                    wave_center,
-                    self.wave_length,
-                    self.amplitude
-                )
-                scales.append(scale)
+        return {
+            'wave_center': wave_center,
+            'wave_length': self.wave_length,
+            'amplitude': self.amplitude,
+            'active': True
+        }
+
+    def should_emit_bubble(self) -> bool:
+        """
+        Check if wave has reached top (bubble emission trigger).
         
-        return scales
+        Returns:
+            True if bubble should be emitted this frame
+        """
+        cycle_time = self.time % self.cycle_duration
+        
+        # Only emit during active wave
+        if cycle_time >= self.travel_time:
+            return False
+        
+        wave_center = calculate_wave_position(
+            cycle_time,
+            self.wave_speed,
+            self.deform_start_height
+        )
+        
+        # Emit when wave passes 95% of length
+        top_threshold = self.length * 0.95
+        
+        # Prevent duplicate emissions in same cycle
+        if self.time - self.last_bubble_time < self.cycle_duration * 0.5:
+            return False
+        
+        if wave_center >= top_threshold:
+            self.last_bubble_time = self.time
+            return True
+        
+        return False
 
     def reset(self):
-        """Reset animation to beginning of cycle."""
+        """Reset animation to start of cycle."""
         self.time = 0.0
-        self.in_delay = False
+        self.last_bubble_time = -999.0
 
     def set_parameters(
         self,
@@ -127,15 +142,7 @@ class BreathingAnimator:
         amplitude: float = None,
         cycle_delay: float = None
     ):
-        """
-        Update animation parameters at runtime.
-        
-        Args:
-            wave_speed: New wave speed (if provided)
-            wave_length: New wavelength (if provided)
-            amplitude: New amplitude (if provided)
-            cycle_delay: New cycle delay (if provided)
-        """
+        """Update animation parameters at runtime."""
         if wave_speed is not None:
             self.wave_speed = wave_speed
         if wave_length is not None:
@@ -146,38 +153,6 @@ class BreathingAnimator:
             self.cycle_delay = cycle_delay
         
         # Recalculate timing
-        wave_gap = self.wave_length * 0.18 * 3.0
-        self.wave_start_y = self.flare_height + wave_gap
-        travel_distance = (self.length - self.wave_start_y) + self.wave_length
+        travel_distance = (self.length - self.deform_start_height) + self.wave_length
         self.travel_time = travel_distance / self.wave_speed
         self.cycle_duration = self.travel_time + self.cycle_delay
-
-    def should_emit_bubble(self) -> bool:
-        """
-        Check if wave has reached top (time to emit bubble).
-        
-        Returns:
-            True if bubble should be emitted this frame
-        """
-        cycle_time = self.time % self.cycle_duration
-        
-        # Emit when wave center reaches near the top
-        if cycle_time < self.travel_time:
-            wave_center = calculate_wave_position(
-                cycle_time,
-                self.wave_speed,
-                self.wave_start_y
-            )
-            
-            # Check if wave just passed the top
-            prev_time = max(0.0, cycle_time - 0.016)
-            prev_wave_center = calculate_wave_position(
-                prev_time,
-                self.wave_speed,
-                self.wave_start_y
-            )
-            
-            top_threshold = self.length * 0.95
-            return prev_wave_center < top_threshold <= wave_center
-        
-        return False

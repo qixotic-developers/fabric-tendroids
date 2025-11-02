@@ -1,13 +1,21 @@
-"""Utility functions for Tendroids"""
+"""
+Utility functions and helpers
+
+Mathematical functions, constants, and shared utilities.
+"""
 
 from .math_helpers import (
-    calculate_wave_position,
-    calculate_segment_scale,
-    interpolate_flare_radius
+    smooth_step,
+    ease_out_quartic,
+    calculate_flare_radius,
+    calculate_wave_displacement,
+    calculate_wave_position
 )
 
 __all__ = [
-    "calculate_wave_position",
-    "calculate_segment_scale",
-    "interpolate_flare_radius"
+    'smooth_step',
+    'ease_out_quartic',
+    'calculate_flare_radius',
+    'calculate_wave_displacement',
+    'calculate_wave_position'
 ]

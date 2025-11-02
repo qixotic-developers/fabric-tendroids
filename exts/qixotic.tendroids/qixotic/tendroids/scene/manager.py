@@ -28,7 +28,7 @@ class TendroidSceneManager:
 
     def create_tendroids(
         self,
-        count: int = 15,
+        count: int = 1,
         spawn_area: tuple = (200, 200),
         radius_range: tuple = (8, 12),
         length_range: tuple = (80, 120),

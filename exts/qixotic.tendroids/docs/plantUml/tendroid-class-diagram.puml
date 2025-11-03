@@ -19,7 +19,6 @@ package "Extension Entry Point" {
 package "Core Controllers" {
     class SceneManager {
         - _tendroids: List[Tendroid]
-        - _max_count: int
         - _stage: Usd.Stage
         + spawn_tendroid(position)
         + clear_all()

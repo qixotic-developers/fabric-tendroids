@@ -5,8 +5,8 @@ Manages a single Tendroid creature with GPU-accelerated breathing animation.
 """
 
 import carb
+import omni.usd
 from pxr import Gf, UsdGeom, Vt
-
 from .cylinder_generator import CylinderGenerator
 from .warp_deformer import WarpDeformer
 from ..animation.breathing import BreathingAnimator
@@ -17,7 +17,7 @@ class Tendroid:
   A single Tendroid creature with smooth vertex deformation.
 
   Uses Warp for GPU-accelerated mesh deformation to create realistic
-  breathing animation with a traveling wave effect.
+  breathing animation with a single traveling bulge effect.
   """
 
   def __init__(
@@ -100,13 +100,13 @@ class Tendroid:
       # Initialize Warp deformer
       self.warp_deformer = WarpDeformer(vertices, deform_start)
 
-      # Initialize breathing animator
+      # Initialize breathing animator with updated defaults
       self.breathing_animator = BreathingAnimator(
         length=self.length,
         deform_start_height=deform_start,
         wave_speed=40.0,
-        wave_length=30.0,
-        amplitude=0.25,
+        bulge_length_percent=40.0,
+        amplitude=0.35,
         cycle_delay=2.0
       )
 
@@ -138,7 +138,7 @@ class Tendroid:
       if wave_params['active']:
         deformed_vertices = self.warp_deformer.update(
           wave_center=wave_params['wave_center'],
-          wave_length=wave_params['wave_length'],
+          bulge_length=wave_params['bulge_length'],
           amplitude=wave_params['amplitude']
         )
 

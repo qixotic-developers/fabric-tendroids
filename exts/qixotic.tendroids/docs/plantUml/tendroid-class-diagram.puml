@@ -1,0 +1,133 @@
+@startuml
+title Tendroids Project - Class Diagram
+
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+
+package "Extension Entry Point" {
+    class TendroidsExtension {
+        - _window: ui.Window
+        - _scene_manager: SceneManager
+        + on_startup()
+        + on_shutdown()
+        + _build_ui()
+        + _on_spawn_tendroid()
+        + _on_clear_all()
+    }
+}
+
+package "Core Controllers" {
+    class SceneManager {
+        - _tendroids: List[Tendroid]
+        - _stage: Usd.Stage
+        + spawn_tendroid(position)
+        + clear_all()
+        + update(dt)
+        + get_tendroid_count()
+    }
+
+    class Tendroid {
+        - _prim_path: str
+        - _cylinder_generator: CylinderGenerator
+        - _warp_deformer: WarpDeformer
+        - _breathing_animator: BreathingAnimator
+        - _mesh_prim: UsdGeom.Mesh
+        - _is_active: bool
+        + create(stage, position)
+        + update(dt)
+        + destroy()
+        + get_position()
+        + set_position(position)
+    }
+}
+
+package "Core Components" {
+    class CylinderGenerator {
+        - _segments: int
+        - _height: float
+        - _radius: float
+        - _flare_factor: float
+        + generate_mesh()
+        + get_vertex_count()
+        + get_face_count()
+        + create_usd_mesh(stage, path)
+    }
+
+    class WarpDeformer {
+        - _device: str
+        - _vertex_positions: wp.array
+        - _deformed_positions: wp.array
+        + initialize(vertices)
+        + apply_wave_deformation(time, amplitude, frequency)
+        + get_deformed_vertices()
+        + cleanup()
+    }
+}
+
+package "Animation" {
+    class BreathingAnimator {
+        - _time: float
+        - _frequency: float
+        - _amplitude: float
+        - _wave_speed: float
+        - _phase_offset: float
+        + update(dt)
+        + get_wave_parameters(segment_index)
+        + reset()
+        + set_frequency(freq)
+        + set_amplitude(amp)
+    }
+}
+
+package "Utils/Helpers" {
+    class MathHelpers <<helper>> {
+        + {static} calculate_wave(time, freq, amp, phase)
+        + {static} calculate_flare(y_position, height, factor)
+        + {static} interpolate_smooth(value, target, factor)
+        + {static} vector3_distance(v1, v2)
+    }
+
+    class USDHelpers <<helper>> {
+        + {static} get_or_create_prim(stage, path, type)
+        + {static} set_mesh_vertices(mesh_prim, vertices)
+        + {static} create_material(stage, path, color)
+        + {static} apply_material_binding(prim, material)
+    }
+}
+
+' Relationships
+TendroidsExtension *-- SceneManager : manages
+SceneManager "1" *-- "0..15" Tendroid : contains
+Tendroid *-- CylinderGenerator : uses
+Tendroid *-- WarpDeformer : uses
+Tendroid *-- BreathingAnimator : uses
+
+CylinderGenerator ..> MathHelpers : uses
+WarpDeformer ..> MathHelpers : uses
+BreathingAnimator ..> MathHelpers : uses
+Tendroid ..> USDHelpers : uses
+CylinderGenerator ..> USDHelpers : uses
+
+' Notes
+note right of Tendroid
+    Core entity representing
+    a single Tendroid creature.
+    Combines mesh generation,
+    GPU deformation, and
+    breathing animation.
+end note
+
+note right of WarpDeformer
+    GPU-accelerated vertex
+    deformation using NVIDIA
+    Warp kernels for smooth,
+    organic breathing motion.
+end note
+
+note bottom of SceneManager
+    Manages up to 15 Tendroids
+    Target: 60fps (min 30fps)
+    Updates all Tendroids each frame
+end note
+
+@enduml

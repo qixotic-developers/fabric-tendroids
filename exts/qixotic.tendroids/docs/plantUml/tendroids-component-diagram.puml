@@ -1,0 +1,112 @@
+@startuml
+title Tendroids Project - Component Diagram: System Architecture
+
+skinparam componentStyle rectangle
+
+package "Omniverse USD Composer" {
+    [Viewport] as Viewport
+    [Stage Manager] as StageManager
+    [Extensions System] as ExtSystem
+}
+
+package "Tendroids Extension" {
+    component "UI Layer" {
+        [Control Panel] as UI
+        [Settings Window] as Settings
+    }
+
+    component "Core Controllers" {
+        [Scene Manager] as SceneMgr
+        [Tendroid Controller] as TendroidCtrl
+    }
+
+    component "Mesh Generation" {
+        [Cylinder Generator] as CylGen
+        [Geometry Builder] as GeomBuilder
+    }
+
+    component "Animation System" {
+        [Breathing Animator] as Animator
+        [Wave Calculator] as WaveCalc
+    }
+
+    component "GPU Deformation" {
+        [Warp Deformer] as WarpDef
+        [Kernel Manager] as Kernels
+    }
+
+    component "Utilities" {
+        [Math Helpers] as MathHelp
+        [USD Helpers] as USDHelp
+    }
+}
+
+package "NVIDIA Technologies" {
+    [Warp Runtime] as Warp
+    [CUDA] as CUDA
+    database "GPU Memory" as GPUMem
+}
+
+package "USD Framework" {
+    [USD Stage API] as USDStage
+    [USDGeom] as USDGeom
+    [USDShade] as USDShade
+}
+
+' Connections - UI Layer
+ExtSystem --> UI : loads
+UI --> SceneMgr : spawn/clear commands
+Settings --> SceneMgr : parameter updates
+
+' Connections - Core
+SceneMgr --> TendroidCtrl : manages instances
+TendroidCtrl --> CylGen : requests mesh
+TendroidCtrl --> WarpDef : vertex deformation
+TendroidCtrl --> Animator : animation updates
+
+' Connections - Mesh Generation
+CylGen --> GeomBuilder : vertex/face data
+CylGen --> MathHelp : flare calculations
+GeomBuilder --> USDGeom : creates mesh prims
+
+' Connections - Animation
+Animator --> WaveCalc : wave parameters
+WaveCalc --> MathHelp : sine/cosine math
+Animator --> WarpDef : deformation params
+
+' Connections - GPU
+WarpDef --> Kernels : kernel execution
+Kernels --> Warp : GPU operations
+Warp --> CUDA : CUDA calls
+Warp --> GPUMem : memory allocation
+
+' Connections - USD
+TendroidCtrl --> USDHelp : prim operations
+USDHelp --> USDStage : stage modifications
+USDStage --> StageManager : stage updates
+StageManager --> Viewport : viewport refresh
+
+' Connections - Materials
+GeomBuilder --> USDShade : material binding
+
+note right of WarpDef
+    GPU-accelerated vertex
+    deformation for smooth
+    breathing animation
+    (60fps target)
+end note
+
+note bottom of SceneMgr
+    Manages up to 15
+    concurrent Tendroids
+    with performance monitoring
+end note
+
+note left of Warp
+    NVIDIA Warp provides
+    Python → CUDA bridge
+    for high-performance
+    parallel processing
+end note
+
+@enduml

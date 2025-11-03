@@ -1,0 +1,121 @@
+@startuml
+title Tendroids Project - Spawn and Animation Sequence
+
+actor User
+participant "TendroidsExtension\n(UI)" as Extension
+participant "SceneManager" as Manager
+participant "Tendroid" as Tendroid
+participant "CylinderGenerator" as Generator
+participant "WarpDeformer" as Deformer
+participant "BreathingAnimator" as Animator
+participant "MathHelpers" as Math
+database "USD Stage" as Stage
+
+== Tendroid Spawning ==
+
+User -> Extension: Click "Spawn Tendroid"
+activate Extension
+
+Extension -> Manager: spawn_tendroid(position)
+activate Manager
+
+Manager -> Manager: Check count < 15
+Manager -> Tendroid: create()
+activate Tendroid
+
+Tendroid -> Generator: generate_mesh()
+activate Generator
+
+Generator -> Math: calculate_flare(y, height, factor)
+activate Math
+Math --> Generator: flare_radius
+deactivate Math
+
+Generator -> Generator: Create vertices\nwith flared base
+Generator -> Generator: Create faces (triangles)
+Generator --> Tendroid: vertices, faces, normals
+deactivate Generator
+
+Tendroid -> Generator: create_usd_mesh(stage, path)
+activate Generator
+Generator -> Stage: Create UsdGeom.Mesh
+Stage --> Generator: mesh_prim
+Generator --> Tendroid: mesh_prim
+deactivate Generator
+
+Tendroid -> Deformer: initialize(vertices)
+activate Deformer
+Deformer -> Deformer: Allocate GPU arrays\n(wp.array)
+Deformer --> Tendroid: ready
+deactivate Deformer
+
+Tendroid -> Animator: reset()
+activate Animator
+Animator -> Animator: time = 0\nphase_offset = random
+Animator --> Tendroid: ready
+deactivate Animator
+
+Tendroid --> Manager: tendroid_instance
+deactivate Tendroid
+
+Manager -> Manager: Add to _tendroids list
+Manager --> Extension: success
+deactivate Manager
+
+Extension --> User: Tendroid spawned
+deactivate Extension
+
+== Animation Loop (Every Frame) ==
+
+loop Every Frame (60fps target)
+    Extension -> Manager: update(dt)
+    activate Manager
+
+    loop For each Tendroid
+        Manager -> Tendroid: update(dt)
+        activate Tendroid
+
+        Tendroid -> Animator: update(dt)
+        activate Animator
+        Animator -> Animator: time += dt
+        Animator -> Math: calculate_wave(time, freq, amp, phase)
+        activate Math
+        Math --> Animator: wave_parameters
+        deactivate Math
+        Animator --> Tendroid: wave_parameters
+        deactivate Animator
+
+        Tendroid -> Deformer: apply_wave_deformation(\ntime, amplitude, frequency)
+        activate Deformer
+
+        Deformer -> Deformer: **GPU Kernel Execution**\nDeform vertices\nwith wave pattern
+
+        Deformer --> Tendroid: deformed_vertices
+        deactivate Deformer
+
+        Tendroid -> Stage: Update mesh points\n(SetPointsAttr)
+        activate Stage
+        Stage --> Tendroid: updated
+        deactivate Stage
+
+        Tendroid --> Manager: frame complete
+        deactivate Tendroid
+    end
+
+    Manager --> Extension: all updated
+    deactivate Manager
+end
+
+note over Deformer
+    GPU-accelerated deformation
+    using NVIDIA Warp kernels
+    for optimal performance
+end note
+
+note over Stage
+    USD Stage updates trigger
+    viewport refresh in
+    Omniverse Composer
+end note
+
+@enduml

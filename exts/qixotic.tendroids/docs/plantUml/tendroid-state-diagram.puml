@@ -1,0 +1,100 @@
+@startuml
+title Tendroids Project - Tendroid Lifecycle State Diagram
+
+[*] --> Uninitialized
+
+Uninitialized --> Creating : spawn_tendroid()
+note on link
+    User clicks "Spawn Tendroid"
+    in control panel
+end note
+
+state Creating {
+    [*] --> GeneratingMesh
+    GeneratingMesh --> InitializingGPU : mesh created
+    InitializingGPU --> SettingUpAnimation : GPU arrays allocated
+    SettingUpAnimation --> [*] : animator ready
+}
+
+Creating --> Idle : create() complete
+note on link
+    Tendroid fully initialized
+    Added to SceneManager
+end note
+
+state Active {
+    state "Breathing Animation" as Breathing
+
+    Idle --> Breathing : first update(dt)
+
+    state Breathing {
+        [*] --> CalculatingWave
+        CalculatingWave --> DeformingMesh : wave parameters ready
+        DeformingMesh --> UpdatingStage : vertices deformed
+        UpdatingStage --> [*] : stage updated
+    }
+
+    Breathing --> Breathing : update(dt) every frame
+
+    note bottom of Breathing
+        Target: 60fps (min 30fps)
+        - Calculate wave parameters
+        - Apply GPU deformation
+        - Update USD mesh points
+    end note
+}
+
+Active --> Paused : performance degradation
+note on link
+    Optional: if FPS drops
+    below threshold
+end note
+
+Paused --> Active : performance restored
+note on link
+    Resume animation
+    when resources available
+end note
+
+Active --> BeingDestroyed : destroy() called
+Paused --> BeingDestroyed : destroy() called
+Idle --> BeingDestroyed : clear_all()
+
+state BeingDestroyed {
+    [*] --> CleaningGPU
+    CleaningGPU --> RemovingFromStage : GPU resources freed
+    RemovingFromStage --> [*] : prim removed
+}
+
+BeingDestroyed --> [*] : cleanup complete
+
+note right of Uninitialized
+    Before spawn_tendroid()
+    is called
+end note
+
+note right of Idle
+    Created but not yet
+    animating. Waiting for
+    first update() call.
+end note
+
+note left of Active
+    Normal operational state
+    Continuously updating and
+    deforming mesh every frame
+end note
+
+note left of Paused
+    Optional state for
+    performance management
+    (not yet implemented)
+end note
+
+note bottom of BeingDestroyed
+    User clicked "Clear All"
+    or individual Tendroid
+    removal requested
+end note
+
+@enduml

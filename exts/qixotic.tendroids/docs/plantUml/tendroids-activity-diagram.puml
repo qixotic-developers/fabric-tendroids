@@ -1,0 +1,70 @@
+@startuml
+title Tendroids Project - Activity Diagram: Spawn Tendroid Workflow
+
+start
+
+:User clicks "Spawn Tendroid" button;
+
+:SceneManager receives spawn request;
+
+if (Current Tendroid count < 15?) then (yes)
+    :Generate random spawn position;
+
+    :Create new Tendroid instance;
+
+    fork
+        :CylinderGenerator creates mesh geometry;
+        :Calculate flare factor for trumpet base;
+        :Generate vertices (16 segments);
+        :Generate triangle faces;
+        :Calculate surface normals;
+    fork again
+        :Initialize random phase offset;
+        :Set breathing frequency (0.5-1.5 Hz);
+        :Set amplitude parameters;
+    end fork
+
+    :Create USD prim at /World/Tendroids/Tendroid_N;
+
+    :Assign mesh geometry to prim;
+
+    if (Warp GPU available?) then (yes)
+        :Allocate GPU memory arrays;
+        :Copy vertices to GPU (wp.array);
+        :Initialize WarpDeformer;
+        note right
+            GPU acceleration enabled
+            for smooth deformation
+        end note
+    else (no)
+        :Use CPU fallback mode;
+        note right
+            Fallback for systems
+            without CUDA support
+        end note
+    endif
+
+    :Apply default material (translucent);
+
+    :Add Tendroid to SceneManager list;
+
+    fork
+        :Start breathing animation loop;
+    fork again
+        :Register for update callbacks;
+    fork again
+        :Log creation event;
+    end fork
+
+    :Display success message in UI;
+    :Update Tendroid counter display;
+
+    stop
+
+else (no)
+    :Display error: "Maximum 15 Tendroids reached";
+    :Show count in status bar;
+    stop
+endif
+
+@enduml

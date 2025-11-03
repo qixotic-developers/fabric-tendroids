@@ -1,0 +1,158 @@
+@startuml
+title Tendroids Project - Package Diagram: Python Module Structure
+
+skinparam packageStyle rectangle
+
+package "exts/qixotic.tendroids" {
+
+    package "config" <<Folder>> {
+        [extension.toml] as ExtToml
+        note bottom of ExtToml
+            Extension metadata
+            - Name: qixotic.tendroids
+            - Version: 1.0.0
+            - Dependencies: omni.kit.*
+        end note
+    }
+
+    package "qixotic.tendroids" <<Python Package>> {
+        [extension.py] as Extension
+        [__init__.py] as RootInit
+
+        package "core" <<Python Package>> {
+            [scene_manager.py] as SceneMgr
+            [tendroid.py] as Tendroid
+            [cylinder_generator.py] as CylGen
+            [warp_deformer.py] as WarpDef
+            [__init__.py] as CoreInit
+
+            note right of SceneMgr
+                ~120 lines
+                Manages Tendroid lifecycle
+                Max 15 instances
+            end note
+
+            note right of Tendroid
+                ~130 lines
+                Core Tendroid class
+                Orchestrates components
+            end note
+
+            note right of CylGen
+                ~100 lines
+                Generates cylinder mesh
+                with flared base
+            end note
+
+            note right of WarpDef
+                ~120 lines
+                GPU kernel execution
+                Vertex deformation
+            end note
+        }
+
+        package "animation" <<Python Package>> {
+            [breathing.py] as Breathing
+            [__init__.py] as AnimInit
+
+            note right of Breathing
+                ~80 lines
+                Breathing wave animation
+                Frequency/amplitude control
+            end note
+        }
+
+        package "utils" <<Python Package>> {
+            [math_helpers.py] as MathHelp
+            [usd_helpers.py] as USDHelp
+            [__init__.py] as UtilsInit
+
+            note right of MathHelp
+                ~60 lines
+                Wave calculations
+                Flare math, interpolation
+            end note
+
+            note right of USDHelp
+                ~70 lines
+                USD prim operations
+                Material helpers
+            end note
+        }
+    }
+
+    package "docs" <<Folder>> {
+        [README.md] as Readme
+        [PROJECT_OVERVIEW.adoc] as Overview
+        [IMPLEMENTATION_STATUS.adoc] as Status
+        [WARP_DEFORMATION_SUMMARY.md] as WarpDoc
+    }
+}
+
+' Dependencies between packages
+Extension ..> CoreInit : imports
+Extension ..> SceneMgr : uses
+
+SceneMgr ..> Tendroid : creates/manages
+Tendroid ..> CylGen : uses
+Tendroid ..> WarpDef : uses
+Tendroid ..> Breathing : uses
+
+CylGen ..> MathHelp : uses
+CylGen ..> USDHelp : uses
+WarpDef ..> MathHelp : uses
+Breathing ..> MathHelp : uses
+Tendroid ..> USDHelp : uses
+
+' Init file purposes
+note bottom of RootInit
+    Package initialization
+    Version info
+end note
+
+note bottom of CoreInit
+    Exports:
+    - SceneManager
+    - Tendroid
+    - CylinderGenerator
+    - WarpDeformer
+end note
+
+note bottom of AnimInit
+    Exports:
+    - BreathingAnimator
+end note
+
+note bottom of UtilsInit
+    Exports:
+    - Math helpers
+    - USD helpers
+end note
+
+' External dependencies
+package "External Dependencies" {
+    [omni.kit.ui] as KitUI
+    [omni.usd] as OmniUSD
+    [pxr (USD)] as PXR
+    [warp] as Warp
+    [numpy] as Numpy
+}
+
+Extension ..> KitUI : UI components
+SceneMgr ..> OmniUSD : stage access
+Tendroid ..> PXR : USDGeom
+WarpDef ..> Warp : GPU kernels
+MathHelp ..> Numpy : arrays
+
+legend right
+    **File Size Guidelines**
+    Controllers: 100-150 lines
+    Helpers: 60-100 lines
+    __init__.py: Minimal
+
+    **Total Project Size**
+    ~850 lines of code
+    (excluding comments/blanks)
+endlegend
+
+@enduml

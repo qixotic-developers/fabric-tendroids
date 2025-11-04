@@ -1,70 +1,101 @@
 @startuml
-title Tendroids Project - Activity Diagram: Spawn Tendroid Workflow
+title Tendroids Project - Activity Diagram: Spawn Tendroid Workflow (Refactored)
 
 start
 
-:User clicks "Spawn Tendroid" button;
+:User clicks "Spawn Tendroids" button;
 
-:SceneManager receives spawn request;
+:ActionButtons receives click event;
 
-if (Current Tendroid count < 15?) then (yes)
-    :Generate random spawn position;
+if (Spawn count == 1?) then (yes)
+    :Use single Tendroid mode;
+    partition "Single Tendroid Creation" {
+        :Read custom parameters from SpawnSettingsUI;
+        :SceneManager.create_single_tendroid();
+        :TendroidFactory.create_single();
+    }
+else (no)
+    :Use multi-Tendroid batch mode;
+    partition "Batch Tendroid Creation" {
+        if (Current Tendroid count < max?) then (yes)
+            :Read spawn area from SpawnSettingsUI;
+            :SceneManager.create_tendroids();
+            :TendroidFactory.create_batch();
+            :Generate random positions;
+        else (no)
+            :Display error: "Maximum count reached";
+            stop
+        endif
+    }
+endif
 
+partition "Tendroid Construction" {
     :Create new Tendroid instance;
+    :Tendroid.create(stage, parent_path);
+    :TendroidBuilder.create_in_stage();
 
     fork
-        :CylinderGenerator creates mesh geometry;
-        :Calculate flare factor for trumpet base;
-        :Generate vertices (16 segments);
-        :Generate triangle faces;
-        :Calculate surface normals;
+        partition "USD Geometry" {
+            :Builder._create_usd_geometry();
+            :Create base Xform at /World/Tendroids/;
+            :CylinderGenerator.create_tendroid_cylinder();
+            :Generate vertices with flared base;
+            :Create UsdGeom.Mesh prim;
+        }
     fork again
-        :Initialize random phase offset;
-        :Set breathing frequency (0.5-1.5 Hz);
-        :Set amplitude parameters;
+        partition "Component Initialization" {
+            :Builder._initialize_components();
+            
+            :MaterialSafetyChecker(mesh_path);
+            :Check for glass/transparent materials;
+            note right
+                CRITICAL: Glass materials
+                can cause GPU crashes
+                with dynamic geometry
+            end note
+            
+            :MeshVertexUpdater(mesh_prim);
+            :WarpDeformer(vertices);
+            if (Warp GPU available?) then (yes)
+                :Allocate GPU memory arrays;
+                note right: GPU-accelerated
+            else (no)
+                :CPU fallback mode;
+            endif
+            
+            :BreathingAnimator(params);
+            :Initialize wave parameters;
+        }
     end fork
-
-    :Create USD prim at /World/Tendroids/Tendroid_N;
-
-    :Assign mesh geometry to prim;
-
-    if (Warp GPU available?) then (yes)
-        :Allocate GPU memory arrays;
-        :Copy vertices to GPU (wp.array);
-        :Initialize WarpDeformer;
+    
+    if (Glass material detected?) then (yes)
+        :Log critical warning;
+        :Block animation for safety;
         note right
-            GPU acceleration enabled
-            for smooth deformation
+            Animation will be disabled
+            to prevent GPU crash
         end note
     else (no)
-        :Use CPU fallback mode;
-        note right
-            Fallback for systems
-            without CUDA support
-        end note
+        :Enable animation;
     endif
+}
 
-    :Apply default material (translucent);
+:Add Tendroid to SceneManager list;
 
-    :Add Tendroid to SceneManager list;
+partition "Animation Setup" {
+    :AnimationController.set_tendroids();
+    if (Animation not running?) then (yes)
+        :User clicks "Start Animation";
+        :AnimationController.start();
+        :Subscribe to update events;
+    endif
+}
 
-    fork
-        :Start breathing animation loop;
-    fork again
-        :Register for update callbacks;
-    fork again
-        :Log creation event;
-    end fork
+:StatusDisplay.update_count();
+:StatusDisplay.update_status("Created!");
 
-    :Display success message in UI;
-    :Update Tendroid counter display;
+:Display success in UI;
 
-    stop
-
-else (no)
-    :Display error: "Maximum 15 Tendroids reached";
-    :Show count in status bar;
-    stop
-endif
+stop
 
 @enduml

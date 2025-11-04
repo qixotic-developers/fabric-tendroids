@@ -1,5 +1,5 @@
 @startuml
-title Tendroids Project - Package Diagram: Python Module Structure
+title Tendroids Project - Package Diagram: Refactored Python Module Structure
 
 skinparam packageStyle rectangle
 
@@ -20,34 +20,68 @@ package "exts/qixotic.tendroids" {
         [__init__.py] as RootInit
 
         package "core" <<Python Package>> {
-            [scene_manager.py] as SceneMgr
             [tendroid.py] as Tendroid
+            [tendroid_builder.py] as Builder
+            [tendroid_lifecycle.py] as Lifecycle
+            [material_safety.py] as Safety
+            [mesh_updater.py] as Updater
             [cylinder_generator.py] as CylGen
             [warp_deformer.py] as WarpDef
             [__init__.py] as CoreInit
 
-            note right of SceneMgr
-                ~120 lines
-                Manages Tendroid lifecycle
-                Max 15 instances
-            end note
-
             note right of Tendroid
-                ~130 lines
+                ~165 lines (was 325)
                 Core Tendroid class
-                Orchestrates components
+                Delegates to Builder & Lifecycle
             end note
 
-            note right of CylGen
-                ~100 lines
-                Generates cylinder mesh
-                with flared base
+            note right of Builder
+                ~145 lines (NEW)
+                Builder pattern for
+                USD geometry creation
             end note
 
-            note right of WarpDef
-                ~120 lines
-                GPU kernel execution
-                Vertex deformation
+            note right of Lifecycle
+                ~126 lines (NEW)
+                Lifecycle management
+                (activate, destroy, status)
+            end note
+
+            note right of Safety
+                ~133 lines (NEW)
+                Glass material detection
+                Prevents GPU crashes
+            end note
+
+            note right of Updater
+                ~57 lines (NEW)
+                USD mesh vertex updates
+                Clean abstraction
+            end note
+        }
+
+        package "scene" <<Python Package>> {
+            [manager.py] as SceneMgr
+            [tendroid_factory.py] as Factory
+            [animation_controller.py] as AnimCtrl
+            [__init__.py] as SceneInit
+
+            note right of SceneMgr
+                ~165 lines (was 269)
+                Scene coordinator
+                Delegates to Factory & Controller
+            end note
+
+            note right of Factory
+                ~136 lines (NEW)
+                Factory pattern for
+                Tendroid creation
+            end note
+
+            note right of AnimCtrl
+                ~98 lines (NEW)
+                Animation lifecycle
+                Update loop management
             end note
         }
 
@@ -56,78 +90,83 @@ package "exts/qixotic.tendroids" {
             [__init__.py] as AnimInit
 
             note right of Breathing
-                ~80 lines
+                ~180 lines
                 Breathing wave animation
                 Frequency/amplitude control
             end note
         }
 
-        package "utils" <<Python Package>> {
-            [math_helpers.py] as MathHelp
-            [usd_helpers.py] as USDHelp
-            [__init__.py] as UtilsInit
+        package "ui" <<Python Package>> {
+            [control_panel.py] as ControlPanel
+            [spawn_settings_ui.py] as SpawnUI
+            [action_buttons.py] as Actions
+            [status_display.py] as Status
+            [__init__.py] as UIInit
 
-            note right of MathHelp
-                ~60 lines
-                Wave calculations
-                Flare math, interpolation
+            note right of ControlPanel
+                ~102 lines (was 401)
+                Main UI coordinator
+                Delegates to specialized UIs
             end note
 
-            note right of USDHelp
-                ~70 lines
-                USD prim operations
-                Material helpers
+            note right of SpawnUI
+                ~179 lines (NEW)
+                Spawn parameter controls
+                Single/multi mode switching
+            end note
+
+            note right of Actions
+                ~180 lines (NEW)
+                Button handlers
+                Spawn/start/stop/clear
+            end note
+
+            note right of Status
+                ~61 lines (NEW)
+                Status label management
+                Clean updates
             end note
         }
     }
 
     package "docs" <<Folder>> {
-        [README.md] as Readme
+        [README.adoc] as Readme
+        [CHANGELOG.adoc] as Changelog
         [PROJECT_OVERVIEW.adoc] as Overview
         [IMPLEMENTATION_STATUS.adoc] as Status
-        [WARP_DEFORMATION_SUMMARY.md] as WarpDoc
+        
+        package "plantUml" <<Folder>> {
+            [tendroid-class-diagram.puml]
+            [tendroid-sequence-diagram.puml]
+            [tendroid-state-diagram.puml]
+            [tendroids-activity-diagram.puml]
+            [tendroids-component-diagram.puml]
+            [tendroids-package-diagram.puml]
+        }
     }
 }
 
 ' Dependencies between packages
 Extension ..> CoreInit : imports
-Extension ..> SceneMgr : uses
+Extension ..> ControlPanel : creates
 
-SceneMgr ..> Tendroid : creates/manages
-Tendroid ..> CylGen : uses
-Tendroid ..> WarpDef : uses
-Tendroid ..> Breathing : uses
+ControlPanel ..> SpawnUI : contains
+ControlPanel ..> Actions : contains
+ControlPanel ..> Status : contains
+Actions ..> SceneMgr : controls
 
-CylGen ..> MathHelp : uses
-CylGen ..> USDHelp : uses
-WarpDef ..> MathHelp : uses
-Breathing ..> MathHelp : uses
-Tendroid ..> USDHelp : uses
+SceneMgr ..> Factory : creates via
+SceneMgr ..> AnimCtrl : delegates to
+Factory ..> Tendroid : creates
+AnimCtrl ..> Tendroid : animates
 
-' Init file purposes
-note bottom of RootInit
-    Package initialization
-    Version info
-end note
-
-note bottom of CoreInit
-    Exports:
-    - SceneManager
-    - Tendroid
-    - CylinderGenerator
-    - WarpDeformer
-end note
-
-note bottom of AnimInit
-    Exports:
-    - BreathingAnimator
-end note
-
-note bottom of UtilsInit
-    Exports:
-    - Math helpers
-    - USD helpers
-end note
+Tendroid ..> Builder : delegates creation
+Tendroid ..> Lifecycle : delegates lifecycle
+Builder ..> CylGen : uses
+Builder ..> Safety : creates
+Builder ..> Updater : creates
+Builder ..> WarpDef : creates
+Builder ..> Breathing : creates
 
 ' External dependencies
 package "External Dependencies" {
@@ -138,21 +177,29 @@ package "External Dependencies" {
     [numpy] as Numpy
 }
 
-Extension ..> KitUI : UI components
+ControlPanel ..> KitUI : UI components
 SceneMgr ..> OmniUSD : stage access
-Tendroid ..> PXR : USDGeom
+Tendroid ..> PXR : UsdGeom
 WarpDef ..> Warp : GPU kernels
-MathHelp ..> Numpy : arrays
 
 legend right
-    **File Size Guidelines**
-    Controllers: 100-150 lines
-    Helpers: 60-100 lines
-    __init__.py: Minimal
-
-    **Total Project Size**
-    ~850 lines of code
-    (excluding comments/blanks)
+    **Refactoring Results**
+    
+    **Files Refactored:**
+    • control_panel.py: 401 → 102 lines (-75%)
+    • tendroid.py: 325 → 165 lines (-50%)
+    • manager.py: 269 → 165 lines (-39%)
+    
+    **New Modules Created: 9**
+    UI: spawn_settings_ui, action_buttons, status_display
+    Core: tendroid_builder, tendroid_lifecycle,
+          material_safety, mesh_updater
+    Scene: tendroid_factory, animation_controller
+    
+    **Total Project Size:**
+    ~2,200 lines (including new modules)
+    All files now under 200 lines
+    Clean separation of concerns
 endlegend
 
 @enduml

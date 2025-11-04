@@ -1,5 +1,5 @@
 @startuml
-title Tendroids Project - Component Diagram: System Architecture
+title Tendroids Project - Component Diagram: Refactored System Architecture
 
 skinparam componentStyle rectangle
 
@@ -9,35 +9,35 @@ package "Omniverse USD Composer" {
     [Extensions System] as ExtSystem
 }
 
-package "Tendroids Extension" {
-    component "UI Layer" {
-        [Control Panel] as UI
-        [Settings Window] as Settings
+package "Tendroids Extension (Refactored)" {
+    component "UI Layer (4 modules)" {
+        [Control Panel\n~102 lines] as UI
+        [Spawn Settings UI\n~179 lines] as SpawnUI
+        [Action Buttons\n~180 lines] as Actions
+        [Status Display\n~61 lines] as Status
     }
 
-    component "Core Controllers" {
-        [Scene Manager] as SceneMgr
-        [Tendroid Controller] as TendroidCtrl
+    component "Scene Management (3 modules)" {
+        [Scene Manager\n~165 lines] as SceneMgr
+        [Tendroid Factory\n~136 lines] as Factory
+        [Animation Controller\n~98 lines] as AnimCtrl
     }
 
-    component "Mesh Generation" {
-        [Cylinder Generator] as CylGen
-        [Geometry Builder] as GeomBuilder
+    component "Core - Tendroid (3 modules)" {
+        [Tendroid\n~165 lines] as Tendroid
+        [Tendroid Builder\n~145 lines] as Builder
+        [Tendroid Lifecycle\n~126 lines] as Lifecycle
     }
 
-    component "Animation System" {
-        [Breathing Animator] as Animator
-        [Wave Calculator] as WaveCalc
+    component "Core - Components (4 modules)" {
+        [Material Safety Checker\n~133 lines] as Safety
+        [Mesh Vertex Updater\n~57 lines] as Updater
+        [Cylinder Generator\n~200 lines] as CylGen
+        [Warp Deformer\n~250 lines] as WarpDef
     }
 
-    component "GPU Deformation" {
-        [Warp Deformer] as WarpDef
-        [Kernel Manager] as Kernels
-    }
-
-    component "Utilities" {
-        [Math Helpers] as MathHelp
-        [USD Helpers] as USDHelp
+    component "Animation System (1 module)" {
+        [Breathing Animator\n~180 lines] as Animator
     }
 }
 
@@ -49,64 +49,101 @@ package "NVIDIA Technologies" {
 
 package "USD Framework" {
     [USD Stage API] as USDStage
-    [USDGeom] as USDGeom
-    [USDShade] as USDShade
+    [UsdGeom] as USDGeom
+    [UsdShade] as USDShade
 }
 
-' Connections - UI Layer
+' Connections - Extension Entry
 ExtSystem --> UI : loads
-UI --> SceneMgr : spawn/clear commands
-Settings --> SceneMgr : parameter updates
 
-' Connections - Core
-SceneMgr --> TendroidCtrl : manages instances
-TendroidCtrl --> CylGen : requests mesh
-TendroidCtrl --> WarpDef : vertex deformation
-TendroidCtrl --> Animator : animation updates
+' Connections - UI Layer
+UI *-- SpawnUI : contains
+UI *-- Actions : contains  
+UI *-- Status : contains
+Actions --> SceneMgr : controls
+SpawnUI --> Actions : provides settings
+Actions --> Status : updates
 
-' Connections - Mesh Generation
-CylGen --> GeomBuilder : vertex/face data
-CylGen --> MathHelp : flare calculations
-GeomBuilder --> USDGeom : creates mesh prims
+' Connections - Scene Management
+SceneMgr *-- AnimCtrl : delegates animation
+SceneMgr ..> Factory : creates tendroids via
+AnimCtrl --> Tendroid : animates multiple
 
-' Connections - Animation
-Animator --> WaveCalc : wave parameters
-WaveCalc --> MathHelp : sine/cosine math
-Animator --> WarpDef : deformation params
+' Connections - Tendroid Core
+Factory --> Tendroid : creates
+Tendroid ..> Builder : delegates creation
+Tendroid ..> Lifecycle : delegates lifecycle
+Builder --> CylGen : generates mesh
+Builder --> Safety : creates
+Builder --> Updater : creates
+Builder --> WarpDef : creates
+Builder --> Animator : creates
+
+' Connections - Component Usage
+Tendroid --> Safety : monitors material
+Tendroid --> Updater : updates vertices
+Tendroid --> WarpDef : applies deformation
+Tendroid --> Animator : gets wave params
+
+' Connections - Geometry
+CylGen --> USDGeom : creates mesh prims
+Safety --> USDShade : checks materials
 
 ' Connections - GPU
-WarpDef --> Kernels : kernel execution
-Kernels --> Warp : GPU operations
+WarpDef --> Warp : GPU operations
 Warp --> CUDA : CUDA calls
 Warp --> GPUMem : memory allocation
 
 ' Connections - USD
-TendroidCtrl --> USDHelp : prim operations
-USDHelp --> USDStage : stage modifications
-USDStage --> StageManager : stage updates
+Updater --> USDGeom : vertex updates
+USDGeom --> StageManager : stage updates
 StageManager --> Viewport : viewport refresh
 
-' Connections - Materials
-GeomBuilder --> USDShade : material binding
+note right of UI
+    Refactored from 401 lines
+    to 4 focused modules:
+    - Main coordinator (102)
+    - Settings UI (179)
+    - Action handlers (180)
+    - Status display (61)
+end note
 
-note right of WarpDef
+note right of Tendroid
+    Refactored from 325 lines
+    to 3 focused modules:
+    - Core logic (165)
+    - Builder pattern (145)
+    - Lifecycle methods (126)
+end note
+
+note right of SceneMgr
+    Refactored from 269 lines
+    to 3 focused modules:
+    - Manager coordinator (165)
+    - Factory pattern (136)
+    - Animation control (98)
+end note
+
+note right of Safety
+    CRITICAL component
+    Detects glass/transparent
+    materials that cause GPU
+    crashes with dynamic geometry
+    Periodic checking (every 30 frames)
+end note
+
+note bottom of WarpDef
     GPU-accelerated vertex
-    deformation for smooth
-    breathing animation
-    (60fps target)
+    deformation using NVIDIA Warp
+    for smooth breathing animation
+    (60fps target, 15 tendroids)
 end note
 
-note bottom of SceneMgr
-    Manages up to 15
-    concurrent Tendroids
-    with performance monitoring
-end note
-
-note left of Warp
-    NVIDIA Warp provides
-    Python → CUDA bridge
-    for high-performance
-    parallel processing
+note left of Factory
+    Creation patterns:
+    - Single tendroid with params
+    - Batch creation with
+      randomized positions
 end note
 
 @enduml

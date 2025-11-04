@@ -1,115 +1,183 @@
 @startuml
-title Tendroids Project - Spawn and Animation Sequence
+title Tendroids Project - Spawn and Animation Sequence (Refactored)
 
 actor User
-participant "TendroidsExtension\n(UI)" as Extension
-participant "SceneManager" as Manager
+participant "TendroidControlPanel" as UI
+participant "ActionButtons" as Actions
+participant "TendroidSceneManager" as Manager
+participant "TendroidFactory" as Factory
 participant "Tendroid" as Tendroid
+participant "TendroidBuilder" as Builder
 participant "CylinderGenerator" as Generator
+participant "MaterialSafetyChecker" as Safety
 participant "WarpDeformer" as Deformer
 participant "BreathingAnimator" as Animator
-participant "MathHelpers" as Math
+participant "MeshVertexUpdater" as Updater
+participant "AnimationController" as Controller
 database "USD Stage" as Stage
 
-== Tendroid Spawning ==
+== Tendroid Spawning (Single Mode) ==
 
-User -> Extension: Click "Spawn Tendroid"
-activate Extension
+User -> UI: Click "Spawn Tendroids"
+activate UI
 
-Extension -> Manager: spawn_tendroid(position)
+UI -> Actions: _on_spawn_clicked()
+activate Actions
+
+Actions -> Manager: create_single_tendroid(position, params)
 activate Manager
 
-Manager -> Manager: Check count < 15
-Manager -> Tendroid: create()
+Manager -> Factory: create_single(stage, params)
+activate Factory
+
+Factory -> Tendroid: new Tendroid(name, position, ...)
 activate Tendroid
-
-Tendroid -> Generator: generate_mesh()
-activate Generator
-
-Generator -> Math: calculate_flare(y, height, factor)
-activate Math
-Math --> Generator: flare_radius
-deactivate Math
-
-Generator -> Generator: Create vertices\nwith flared base
-Generator -> Generator: Create faces (triangles)
-Generator --> Tendroid: vertices, faces, normals
-deactivate Generator
-
-Tendroid -> Generator: create_usd_mesh(stage, path)
-activate Generator
-Generator -> Stage: Create UsdGeom.Mesh
-Stage --> Generator: mesh_prim
-Generator --> Tendroid: mesh_prim
-deactivate Generator
-
-Tendroid -> Deformer: initialize(vertices)
-activate Deformer
-Deformer -> Deformer: Allocate GPU arrays\n(wp.array)
-Deformer --> Tendroid: ready
-deactivate Deformer
-
-Tendroid -> Animator: reset()
-activate Animator
-Animator -> Animator: time = 0\nphase_offset = random
-Animator --> Tendroid: ready
-deactivate Animator
-
-Tendroid --> Manager: tendroid_instance
+Tendroid --> Factory: tendroid instance
 deactivate Tendroid
 
-Manager -> Manager: Add to _tendroids list
-Manager --> Extension: success
+Factory -> Tendroid: create(stage, parent_path)
+activate Tendroid
+
+Tendroid -> Builder: create_in_stage(tendroid, stage)
+activate Builder
+
+== USD Geometry Creation ==
+
+Builder -> Builder: _create_usd_geometry()
+activate Builder
+
+Builder -> Generator: create_tendroid_cylinder(...)
+activate Generator
+Generator -> Generator: Generate vertices\nwith flared base
+Generator -> Stage: Create UsdGeom.Mesh
+Generator --> Builder: mesh_prim, vertices, deform_start
+deactivate Generator
+
+deactivate Builder
+
+== Component Initialization ==
+
+Builder -> Builder: _initialize_components()
+activate Builder
+
+Builder -> Safety: new MaterialSafetyChecker(mesh_path)
+activate Safety
+Safety -> Safety: check_material()
+Safety -> Stage: Check material binding
+Stage --> Safety: material info
+Safety --> Builder: is_safe
+deactivate Safety
+
+Builder -> Updater: new MeshVertexUpdater(mesh_prim)
+activate Updater
+Updater --> Builder: updater instance
+deactivate Updater
+
+Builder -> Deformer: new WarpDeformer(vertices, deform_start)
+activate Deformer
+Deformer -> Deformer: Allocate GPU arrays\n(wp.array)
+Deformer --> Builder: deformer instance
+deactivate Deformer
+
+Builder -> Animator: new BreathingAnimator(length, ...)
+activate Animator
+Animator -> Animator: Initialize parameters
+Animator --> Builder: animator instance
+deactivate Animator
+
+deactivate Builder
+
+Builder --> Tendroid: creation complete
+deactivate Builder
+
+Tendroid --> Factory: tendroid instance
+deactivate Tendroid
+
+Factory --> Manager: created tendroid
+deactivate Factory
+
+Manager -> Manager: tendroids = [tendroid]
+Manager -> Controller: set_tendroids([tendroid])
+Manager --> Actions: success
 deactivate Manager
 
-Extension --> User: Tendroid spawned
-deactivate Extension
+Actions -> UI: update_status("Created!")
+UI --> User: Status updated
+deactivate Actions
+deactivate UI
 
 == Animation Loop (Every Frame) ==
 
 loop Every Frame (60fps target)
-    Extension -> Manager: update(dt)
-    activate Manager
+    Controller -> Controller: _on_update(event)
+    activate Controller
 
     loop For each Tendroid
-        Manager -> Tendroid: update(dt)
+        Controller -> Tendroid: update(dt)
         activate Tendroid
 
-        Tendroid -> Animator: update(dt)
-        activate Animator
-        Animator -> Animator: time += dt
-        Animator -> Math: calculate_wave(time, freq, amp, phase)
-        activate Math
-        Math --> Animator: wave_parameters
-        deactivate Math
-        Animator --> Tendroid: wave_parameters
-        deactivate Animator
+        Tendroid -> Safety: should_check_now()
+        activate Safety
+        Safety --> Tendroid: check this frame?
+        deactivate Safety
 
-        Tendroid -> Deformer: apply_wave_deformation(\ntime, amplitude, frequency)
-        activate Deformer
+        opt Periodic Check
+            Tendroid -> Safety: check_material()
+            activate Safety
+            Safety --> Tendroid: is_safe
+            deactivate Safety
+        end
 
-        Deformer -> Deformer: **GPU Kernel Execution**\nDeform vertices\nwith wave pattern
+        alt Glass Material Detected
+            Tendroid -> Tendroid: **BLOCK UPDATE**
+            note right: Animation disabled\nfor safety
+        else Safe Material
+            Tendroid -> Animator: update(dt)
+            activate Animator
+            Animator -> Animator: Calculate wave position
+            Animator --> Tendroid: wave_parameters
+            deactivate Animator
 
-        Deformer --> Tendroid: deformed_vertices
-        deactivate Deformer
+            alt Wave Active
+                Tendroid -> Deformer: update(wave_center, bulge_length, amplitude)
+                activate Deformer
+                Deformer -> Deformer: **GPU Kernel Execution**\nDeform vertices\nwith wave pattern
+                Deformer --> Tendroid: deformed_vertices
+                deactivate Deformer
 
-        Tendroid -> Stage: Update mesh points\n(SetPointsAttr)
-        activate Stage
-        Stage --> Tendroid: updated
-        deactivate Stage
+                Tendroid -> Updater: update_vertices(deformed_vertices)
+                activate Updater
+                Updater -> Stage: Set points attribute
+                Stage --> Updater: updated
+                Updater --> Tendroid: success
+                deactivate Updater
+            end
 
-        Tendroid --> Manager: frame complete
+            opt Bubble Emission
+                Tendroid -> Animator: should_emit_bubble()
+                Animator --> Tendroid: true
+                Tendroid -> Tendroid: _emit_bubble()
+            end
+        end
+
+        Tendroid --> Controller: frame complete
         deactivate Tendroid
     end
 
-    Manager --> Extension: all updated
-    deactivate Manager
+    Controller --> Controller: all updated
+    deactivate Controller
 end
 
-note over Deformer
-    GPU-accelerated deformation
-    using NVIDIA Warp kernels
-    for optimal performance
+note over Safety
+    Periodic glass material detection
+    CRITICAL for preventing GPU
+    crashes with transparent materials
+end note
+
+note over Builder
+    Builder pattern separates
+    complex creation logic
+    from main Tendroid class
 end note
 
 note over Stage

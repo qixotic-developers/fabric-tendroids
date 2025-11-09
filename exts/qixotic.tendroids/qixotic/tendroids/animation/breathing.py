@@ -1,7 +1,7 @@
 """
 Breathing animation controller for Tendroids
 
-Manages single traveling bulge timing and parameters.
+Manages single traveling bulge timing and parameters with wave growth effect.
 """
 
 import carb
@@ -12,7 +12,7 @@ class BreathingAnimator:
   """
   Controls single bulge breathing animation.
 
-  Bulge starts at zero, grows smoothly, shrinks to zero at top.
+  Bulge grows from zero at start, travels upward, shrinks to zero at top.
   """
 
   def __init__(
@@ -21,7 +21,7 @@ class BreathingAnimator:
     deform_start_height: float,
     wave_speed: float = 40.0,
     bulge_length_percent: float = 40.0,
-    amplitude: float = 0.35,
+    amplitude: float = 0.5,
     cycle_delay: float = 2.0
   ):
     """
@@ -32,7 +32,7 @@ class BreathingAnimator:
         deform_start_height: Y position where deformation begins
         wave_speed: Bulge travel speed (units/second)
         bulge_length_percent: Bulge size as % of total length (5-50)
-        amplitude: Maximum radial expansion (0.35 = 35%)
+        amplitude: Maximum radial expansion (0.5 = 50%)
         cycle_delay: Pause between cycles (seconds)
     """
     self.length = length
@@ -44,6 +44,9 @@ class BreathingAnimator:
 
     # Calculate bulge length
     self.bulge_length = length * (bulge_length_percent / 100.0)
+    
+    # Wave growth distance (distance needed for wave to reach full size)
+    self.wave_growth_distance = self.bulge_length * 0.5
 
     # Calculate timing
     travel_distance = (length - deform_start_height) + self.bulge_length
@@ -57,7 +60,8 @@ class BreathingAnimator:
     carb.log_info(
       f"[BreathingAnimator] Single bulge mode: speed={wave_speed}, "
       f"bulge={bulge_length_percent}% ({self.bulge_length:.1f} units), "
-      f"amplitude={amplitude:.2f}, cycle={self.cycle_duration:.2f}s"
+      f"amplitude={amplitude:.2f}, growth_dist={self.wave_growth_distance:.1f}, "
+      f"cycle={self.cycle_duration:.2f}s"
     )
 
   def update(self, dt: float) -> dict:
@@ -68,7 +72,7 @@ class BreathingAnimator:
         dt: Delta time since last update (seconds)
 
     Returns:
-        Dictionary with wave_center, bulge_length, amplitude, active
+        Dictionary with wave_center, bulge_length, amplitude, wave_growth, active
     """
     self.time += dt
     cycle_time = self.time % self.cycle_duration
@@ -79,6 +83,7 @@ class BreathingAnimator:
         'wave_center': -1000.0,  # Off-screen
         'bulge_length': self.bulge_length,
         'amplitude': 0.0,  # No deformation during delay
+        'wave_growth_distance': self.wave_growth_distance,
         'active': False
       }
 
@@ -88,11 +93,16 @@ class BreathingAnimator:
       self.wave_speed,
       self.deform_start_height
     )
+    
+    # Calculate how far wave has traveled from start
+    distance_traveled = wave_center - self.deform_start_height
 
     return {
       'wave_center': wave_center,
       'bulge_length': self.bulge_length,
       'amplitude': self.amplitude,
+      'wave_growth_distance': self.wave_growth_distance,
+      'distance_traveled': distance_traveled,
       'active': True
     }
 
@@ -140,6 +150,7 @@ class BreathingAnimator:
     if bulge_length_percent is not None:
       self.bulge_length_percent = bulge_length_percent
       self.bulge_length = self.length * (bulge_length_percent / 100.0)
+      self.wave_growth_distance = self.bulge_length * 0.5
     if amplitude is not None:
       self.amplitude = amplitude
     if cycle_delay is not None:

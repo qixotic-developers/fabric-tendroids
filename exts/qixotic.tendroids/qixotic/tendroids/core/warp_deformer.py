@@ -1,7 +1,7 @@
 """
 Warp-based vertex deformer for smooth Tendroid breathing animation
 
-Uses GPU-accelerated Warp kernels with single traveling bulge effect.
+Uses GPU-accelerated Warp kernels with single traveling bulge and fade-in effect.
 """
 
 import warp as wp
@@ -16,13 +16,15 @@ def deform_breathing_bulge(
   wave_center: float,
   bulge_length: float,
   amplitude: float,
-  deform_start_y: float
+  deform_start_y: float,
+  wave_growth_distance: float,
+  distance_traveled: float
 ):
   """
-  Warp kernel: Single traveling bulge breathing effect.
+  Warp kernel: Single traveling bulge breathing effect with fade-in.
 
-  Creates a smooth bulge that starts at zero, peaks at center, returns to zero.
-  Uses raised cosine envelope for smooth zero crossings.
+  Wave grows from zero at leading edge to full size, then shrinks to zero.
+  Uses raised cosine envelope for smooth zero crossings plus growth factor.
   """
   tid = wp.tid()
 
@@ -59,9 +61,21 @@ def deform_breathing_bulge(
   # Gives smooth zero-to-one-to-zero profile
   normalized_dist = distance_from_center / half_bulge
   envelope = 0.5 * (1.0 + wp.cos(3.14159265 * normalized_dist))
+  
+  # Calculate wave growth factor (fade-in from leading edge)
+  # Wave grows from 0 to full size over wave_growth_distance
+  growth_factor = 1.0
+  if distance_traveled < wave_growth_distance:
+    if wave_growth_distance > 0.001:
+      growth_factor = distance_traveled / wave_growth_distance
+      # Smooth the growth with ease-out
+      growth_factor = 1.0 - wp.pow(1.0 - growth_factor, 2.0)
+  
+  # Combine envelope with growth factor
+  final_envelope = envelope * growth_factor
 
   # Apply radial displacement
-  displacement = 1.0 + (envelope * amplitude)
+  displacement = 1.0 + (final_envelope * amplitude)
   new_x = x * displacement
   new_z = z * displacement
 
@@ -72,7 +86,8 @@ class WarpDeformer:
   """
   GPU-accelerated mesh deformer using Warp.
 
-  Manages vertex buffers and applies single traveling bulge deformation.
+  Manages vertex buffers and applies single traveling bulge deformation
+  with smooth fade-in effect.
   """
 
   def __init__(self, original_vertices: list, deform_start_height: float):
@@ -100,7 +115,9 @@ class WarpDeformer:
     self,
     wave_center: float,
     bulge_length: float,
-    amplitude: float
+    amplitude: float,
+    wave_growth_distance: float = 0.0,
+    distance_traveled: float = 0.0
   ) -> list:
     """
     Apply deformation and return updated vertex positions.
@@ -109,6 +126,8 @@ class WarpDeformer:
         wave_center: Current Y position of bulge center
         bulge_length: Length of the bulge (controls spread)
         amplitude: Maximum radial expansion factor
+        wave_growth_distance: Distance over which wave grows to full size
+        distance_traveled: How far wave has traveled from start
 
     Returns:
         List of Gf.Vec3f deformed vertices
@@ -123,7 +142,9 @@ class WarpDeformer:
         wave_center,
         bulge_length,
         amplitude,
-        self.deform_start_height
+        self.deform_start_height,
+        wave_growth_distance,
+        distance_traveled
       ],
       device="cuda"
     )

@@ -8,6 +8,7 @@ import carb
 import omni.usd
 from .tendroid_factory import TendroidFactory
 from .animation_controller import AnimationController
+from .ground_plane_helper import setup_ground_plane
 
 
 class TendroidSceneManager:
@@ -30,7 +31,6 @@ class TendroidSceneManager:
     count: int = 15,
     spawn_area: tuple = (200, 200),
     radius_range: tuple = (8, 12),
-    length_range: tuple = (80, 120),
     num_segments: int = 16
   ) -> bool:
     """
@@ -40,7 +40,6 @@ class TendroidSceneManager:
         count: Number of Tendroids to create
         spawn_area: (width, depth) of spawning area
         radius_range: (min, max) radius for random variation
-        length_range: (min, max) length for random variation
         num_segments: Number of segments per Tendroid
     
     Returns:
@@ -61,13 +60,15 @@ class TendroidSceneManager:
       # Clear existing Tendroids
       self.clear_tendroids(stage)
       
+      # Setup ground plane with material
+      setup_ground_plane(stage)
+      
       # Use factory to create batch
       self.tendroids = TendroidFactory.create_batch(
         stage=stage,
         count=count,
         spawn_area=spawn_area,
         radius_range=radius_range,
-        length_range=length_range,
         num_segments=num_segments
       )
       
@@ -126,6 +127,9 @@ class TendroidSceneManager:
       
       # Clear existing Tendroids
       self.clear_tendroids(stage)
+      
+      # Setup ground plane with material
+      setup_ground_plane(stage)
       
       # Use factory to create single
       tendroid = TendroidFactory.create_single(

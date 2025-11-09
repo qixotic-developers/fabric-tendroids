@@ -66,7 +66,11 @@ class TendroidBuilder:
       # Create base Xform
       tendroid.base_path = f"{parent_path}/{tendroid.name}"
       base_xform = UsdGeom.Xform.Define(stage, tendroid.base_path)
-      base_xform.AddTranslateOp().Set(Gf.Vec3d(*tendroid.position))
+      
+      # Use GetOrAdd to handle both new creation and re-creation
+      base_xform.ClearXformOpOrder()
+      translate_op = base_xform.AddTranslateOp()
+      translate_op.Set(Gf.Vec3d(*tendroid.position))
       
       # Create cylinder mesh with flared base
       tendroid.mesh_path = f"{tendroid.base_path}/mesh"

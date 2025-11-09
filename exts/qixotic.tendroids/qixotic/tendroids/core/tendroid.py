@@ -118,7 +118,9 @@ class Tendroid:
         deformed_vertices = self.warp_deformer.update(
           wave_center=wave_params['wave_center'],
           bulge_length=wave_params['bulge_length'],
-          amplitude=wave_params['amplitude']
+          amplitude=wave_params['amplitude'],
+          wave_growth_distance=wave_params.get('wave_growth_distance', 0.0),
+          distance_traveled=wave_params.get('distance_traveled', 0.0)
         )
         
         # Update mesh in USD

@@ -292,3 +292,13 @@ __marimo__/
 /.idea/copilot.data.migration.ask.xml
 /.idea/copilot.data.migration.ask2agent.xml
 /.idea/copilot.data.migration.edit.xml
+/exts/qixotic.tendroids/docs/previous-version/CHANGELOG.adoc
+/exts/qixotic.tendroids/docs/previous-version/IMPLEMENTATION_STATUS.adoc
+/exts/qixotic.tendroids/docs/previous-version/PROJECT_OVERVIEW.adoc
+/exts/qixotic.tendroids/docs/previous-version/README.adoc
+/exts/qixotic.tendroids/docs/previous-version/plantUml/tendroid-class-diagram.puml
+/exts/qixotic.tendroids/docs/previous-version/plantUml/tendroid-sequence-diagram.puml
+/exts/qixotic.tendroids/docs/previous-version/plantUml/tendroid-state-diagram.puml
+/exts/qixotic.tendroids/docs/previous-version/plantUml/tendroids-activity-diagram.puml
+/exts/qixotic.tendroids/docs/previous-version/plantUml/tendroids-component-diagram.puml
+/exts/qixotic.tendroids/docs/previous-version/plantUml/tendroids-package-diagram.puml

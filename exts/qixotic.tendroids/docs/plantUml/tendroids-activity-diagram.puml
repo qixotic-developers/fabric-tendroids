@@ -1,101 +1,277 @@
-@startuml
-title Tendroids Project - Activity Diagram: Spawn Tendroid Workflow (Refactored)
+@startuml tendroids-activity-diagram
 
+title Tendroid Animation Update Activity Flow
+
+|AnimationController|
 start
 
-:User clicks "Spawn Tendroids" button;
+:Wait for update event;
 
-:ActionButtons receives click event;
+:Receive update event;
 
-if (Spawn count == 1?) then (yes)
-    :Use single Tendroid mode;
-    partition "Single Tendroid Creation" {
-        :Read custom parameters from SpawnSettingsUI;
-        :SceneManager.create_single_tendroid();
-        :TendroidFactory.create_single();
-    }
-else (no)
-    :Use multi-Tendroid batch mode;
-    partition "Batch Tendroid Creation" {
-        if (Current Tendroid count < max?) then (yes)
-            :Read spawn area from SpawnSettingsUI;
-            :SceneManager.create_tendroids();
-            :TendroidFactory.create_batch();
-            :Generate random positions;
+:Extract delta time (dt);
+
+note right
+  Default: 1/60 second
+  From event payload if available
+end note
+
+|#AntiqueWhite|Tendroid Processing Loop|
+
+partition "For Each Tendroid" {
+  
+  |Tendroid|
+  
+  :update(dt) called;
+  
+  if (is_created and is_active?) then (yes)
+    
+    if (All components initialized?) then (yes)
+      
+      |MaterialSafetyChecker|
+      
+      :Increment check_counter;
+      
+      if (check_counter >= 30?) then (yes)
+        
+        :Reset check_counter = 0;
+        
+        :Get USD material binding;
+        
+        :Extract material name and path;
+        
+        :Clean strings for matching;
+        
+        if (Contains glass keywords?) then (yes)
+          
+          :Set is_glass_material = True;
+          
+          :Set animation_disabled_reason;
+          
+          :Log ERROR:\n"GLASS MATERIAL DETECTED\nAnimation BLOCKED";
+          
         else (no)
-            :Display error: "Maximum count reached";
-            stop
+          
+          :Set is_glass_material = False;
+          
+          :Log INFO: Material safe;
+          
         endif
-    }
-endif
-
-partition "Tendroid Construction" {
-    :Create new Tendroid instance;
-    :Tendroid.create(stage, parent_path);
-    :TendroidBuilder.create_in_stage();
-
-    fork
-        partition "USD Geometry" {
-            :Builder._create_usd_geometry();
-            :Create base Xform at /World/Tendroids/;
-            :CylinderGenerator.create_tendroid_cylinder();
-            :Generate vertices with flared base;
-            :Create UsdGeom.Mesh prim;
-        }
-    fork again
-        partition "Component Initialization" {
-            :Builder._initialize_components();
+        
+      else (no)
+        
+        :Skip check this frame;
+        
+      endif
+      
+      |Tendroid|
+      
+      if (Material safe for animation?) then (yes)
+        
+        |BreathingAnimator|
+        
+        :time += dt;
+        
+        :cycle_time = time % cycle_duration;
+        
+        if (cycle_time >= travel_time?) then (yes)
+          
+          :In delay period;
+          
+          :Return wave_center = -1000\nactive = False;
+          
+        else (no)
+          
+          :Calculate wave_position:\nwave_center = deform_start + (cycle_time * speed);
+          
+          :Return wave parameters:\n- wave_center\n- bulge_length\n- amplitude\n- active = True;
+          
+        endif
+        
+        |Tendroid|
+        
+        if (Wave active?) then (yes)
+          
+          |WarpDeformer|
+          
+          :Prepare Warp kernel inputs:\n- original_positions\n- deformed_positions\n- wave_center\n- bulge_length\n- amplitude\n- deform_start_y;
+          
+          :wp.launch(\nkernel=deform_breathing_bulge,\ndim=num_vertices,\ndevice="cuda");
+          
+          |#LightBlue|GPU Kernel Execution|
+          
+          partition "For Each Vertex (Parallel)" {
             
-            :MaterialSafetyChecker(mesh_path);
-            :Check for glass/transparent materials;
-            note right
-                CRITICAL: Glass materials
-                can cause GPU crashes
-                with dynamic geometry
-            end note
+            :tid = wp.tid();
             
-            :MeshVertexUpdater(mesh_prim);
-            :WarpDeformer(vertices);
-            if (Warp GPU available?) then (yes)
-                :Allocate GPU memory arrays;
-                note right: GPU-accelerated
+            :Get original position (x, y, z);
+            
+            if (y < deform_start_y?) then (yes)
+              
+              :Skip - below deformation zone;
+              
+              :deformed = original;
+              
             else (no)
-                :CPU fallback mode;
+              
+              :Calculate radial_dist =\nsqrt(x² + z²);
+              
+              if (radial_dist < 0.001?) then (yes)
+                
+                :Skip - on axis;
+                
+                :deformed = original;
+                
+              else (no)
+                
+                :distance_from_center =\ny - wave_center;
+                
+                :half_bulge = bulge_length / 2;
+                
+                if (abs(distance_from_center) > half_bulge?) then (yes)
+                  
+                  :Outside bulge influence;
+                  
+                  :deformed = original;
+                  
+                else (no)
+                  
+                  :Calculate envelope:\nnormalized_dist =\ndistance_from_center / half_bulge;
+                  
+                  :envelope = 0.5 * (1 + cos(π * normalized_dist));
+                  
+                  note right
+                    Raised cosine provides
+                    smooth zero-to-peak-to-zero
+                  end note
+                  
+                  :displacement = 1 + (envelope * amplitude);
+                  
+                  :new_x = x * displacement;
+                  
+                  :new_z = z * displacement;
+                  
+                  :deformed = (new_x, y, new_z);
+                  
+                endif
+                
+              endif
+              
             endif
             
-            :BreathingAnimator(params);
-            :Initialize wave parameters;
-        }
-    end fork
-    
-    if (Glass material detected?) then (yes)
-        :Log critical warning;
-        :Block animation for safety;
+            :Write to deformed_positions[tid];
+            
+          }
+          
+          |WarpDeformer|
+          
+          :GPU kernel complete;
+          
+          :Copy deformed_positions\nfrom CUDA to CPU (numpy);
+          
+          :Convert numpy array to\nlist of Gf.Vec3f;
+          
+          :Return deformed_vertices;
+          
+          |MeshVertexUpdater|
+          
+          :update_vertices(deformed_vertices);
+          
+          :mesh.GetPointsAttr().Set(\nVt.Vec3fArray(vertices));
+          
+          note right
+            Direct USD attribute write
+            Updates mesh in viewport
+          end note
+          
+          |Tendroid|
+          
+        else (no)
+          
+          :Wave inactive - no deformation;
+          
+        endif
+        
+        |BreathingAnimator|
+        
+        :Check wave position;
+        
+        if (wave_center >= length * 0.95?) then (yes)
+          
+          if (Enough time since last bubble?) then (yes)
+            
+            :Mark bubble emission;
+            
+            :last_bubble_time = time;
+            
+            |Tendroid|
+            
+            :_emit_bubble();
+            
+            note right
+              Phase 2 feature
+              Currently logs only
+              Future: Create sphere prim
+            end note
+            
+          else (no)
+            
+            :Too soon for next bubble;
+            
+          endif
+          
+        else (no)
+          
+          :Wave not at top yet;
+          
+        endif
+        
+      else (no)
+        
+        :Material unsafe - skip all updates;
+        
         note right
-            Animation will be disabled
-            to prevent GPU crash
+          SAFETY: Glass material detected
+          Animation completely blocked
+          No GPU operations performed
         end note
+        
+      endif
+      
     else (no)
-        :Enable animation;
+      
+      :Components not initialized;
+      
+      :Skip update;
+      
     endif
+    
+  else (no)
+    
+    :Tendroid not active or not created;
+    
+    :Skip update;
+    
+  endif
+  
+  |Tendroid|
+  
+  :Update complete for this Tendroid;
+  
 }
 
-:Add Tendroid to SceneManager list;
+|AnimationController|
 
-partition "Animation Setup" {
-    :AnimationController.set_tendroids();
-    if (Animation not running?) then (yes)
-        :User clicks "Start Animation";
-        :AnimationController.start();
-        :Subscribe to update events;
-    endif
-}
+:All Tendroids updated;
 
-:StatusDisplay.update_count();
-:StatusDisplay.update_status("Created!");
-
-:Display success in UI;
+:Frame complete;
 
 stop
+
+note bottom
+  Update loop repeats every frame
+  Typically 60 FPS = ~16.67ms per frame
+  Target: All updates complete within budget
+end note
 
 @enduml

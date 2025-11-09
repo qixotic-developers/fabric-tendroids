@@ -1,205 +1,252 @@
-@startuml
-title Tendroids Project - Package Diagram: Refactored Python Module Structure
+@startuml tendroids-package-diagram
+
+title Tendroids Package Structure and Dependencies
+
+!define CORE_COLOR #E1F5FE
+!define ANIMATION_COLOR #F3E5F5
+!define SCENE_COLOR #E8F5E9
+!define UI_COLOR #FFF9C4
+!define UTILS_COLOR #FFE0B2
 
 skinparam packageStyle rectangle
+skinparam linetype ortho
 
-package "exts/qixotic.tendroids" {
-
-    package "config" <<Folder>> {
-        [extension.toml] as ExtToml
-        note bottom of ExtToml
-            Extension metadata
-            - Name: qixotic.tendroids
-            - Version: 1.0.0
-            - Dependencies: omni.kit.*
-        end note
+package "qixotic.tendroids" {
+  
+  package "extension" {
+    class TendroidsExtension <<IExt>>
+  }
+  
+  package "core" CORE_COLOR {
+    package "geometry" {
+      class Tendroid
+      class TendroidBuilder <<static>>
+      class CylinderGenerator <<static>>
     }
-
-    package "qixotic.tendroids" <<Python Package>> {
-        [extension.py] as Extension
-        [__init__.py] as RootInit
-
-        package "core" <<Python Package>> {
-            [tendroid.py] as Tendroid
-            [tendroid_builder.py] as Builder
-            [tendroid_lifecycle.py] as Lifecycle
-            [material_safety.py] as Safety
-            [mesh_updater.py] as Updater
-            [cylinder_generator.py] as CylGen
-            [warp_deformer.py] as WarpDef
-            [__init__.py] as CoreInit
-
-            note right of Tendroid
-                ~165 lines (was 325)
-                Core Tendroid class
-                Delegates to Builder & Lifecycle
-            end note
-
-            note right of Builder
-                ~145 lines (NEW)
-                Builder pattern for
-                USD geometry creation
-            end note
-
-            note right of Lifecycle
-                ~126 lines (NEW)
-                Lifecycle management
-                (activate, destroy, status)
-            end note
-
-            note right of Safety
-                ~133 lines (NEW)
-                Glass material detection
-                Prevents GPU crashes
-            end note
-
-            note right of Updater
-                ~57 lines (NEW)
-                USD mesh vertex updates
-                Clean abstraction
-            end note
-        }
-
-        package "scene" <<Python Package>> {
-            [manager.py] as SceneMgr
-            [tendroid_factory.py] as Factory
-            [animation_controller.py] as AnimCtrl
-            [__init__.py] as SceneInit
-
-            note right of SceneMgr
-                ~165 lines (was 269)
-                Scene coordinator
-                Delegates to Factory & Controller
-            end note
-
-            note right of Factory
-                ~136 lines (NEW)
-                Factory pattern for
-                Tendroid creation
-            end note
-
-            note right of AnimCtrl
-                ~98 lines (NEW)
-                Animation lifecycle
-                Update loop management
-            end note
-        }
-
-        package "animation" <<Python Package>> {
-            [breathing.py] as Breathing
-            [__init__.py] as AnimInit
-
-            note right of Breathing
-                ~180 lines
-                Breathing wave animation
-                Frequency/amplitude control
-            end note
-        }
-
-        package "ui" <<Python Package>> {
-            [control_panel.py] as ControlPanel
-            [spawn_settings_ui.py] as SpawnUI
-            [action_buttons.py] as Actions
-            [status_display.py] as Status
-            [__init__.py] as UIInit
-
-            note right of ControlPanel
-                ~102 lines (was 401)
-                Main UI coordinator
-                Delegates to specialized UIs
-            end note
-
-            note right of SpawnUI
-                ~179 lines (NEW)
-                Spawn parameter controls
-                Single/multi mode switching
-            end note
-
-            note right of Actions
-                ~180 lines (NEW)
-                Button handlers
-                Spawn/start/stop/clear
-            end note
-
-            note right of Status
-                ~61 lines (NEW)
-                Status label management
-                Clean updates
-            end note
-        }
+    
+    package "deformation" {
+      class WarpDeformer
+      class MeshVertexUpdater
     }
-
-    package "docs" <<Folder>> {
-        [README.adoc] as Readme
-        [CHANGELOG.adoc] as Changelog
-        [PROJECT_OVERVIEW.adoc] as Overview
-        [IMPLEMENTATION_STATUS.adoc] as Status
-        
-        package "plantUml" <<Folder>> {
-            [tendroid-class-diagram.puml]
-            [tendroid-sequence-diagram.puml]
-            [tendroid-state-diagram.puml]
-            [tendroids-activity-diagram.puml]
-            [tendroids-component-diagram.puml]
-            [tendroids-package-diagram.puml]
-        }
+    
+    package "safety" {
+      class MaterialSafetyChecker
     }
+    
+    package "lifecycle" {
+      class TendroidLifecycle <<static>>
+    }
+  }
+  
+  package "animation" ANIMATION_COLOR {
+    class BreathingAnimator
+    class IdleMotionAnimator
+  }
+  
+  package "scene" SCENE_COLOR {
+    class TendroidSceneManager
+    class AnimationController
+    class TendroidFactory <<static>>
+  }
+  
+  package "ui" UI_COLOR {
+    class TendroidControlPanel
+    class SpawnSettingsUI
+    class ActionButtons
+    class StatusDisplay
+  }
+  
+  package "utils" UTILS_COLOR {
+    class MathHelpers <<static>>
+  }
 }
 
-' Dependencies between packages
-Extension ..> CoreInit : imports
-Extension ..> ControlPanel : creates
-
-ControlPanel ..> SpawnUI : contains
-ControlPanel ..> Actions : contains
-ControlPanel ..> Status : contains
-Actions ..> SceneMgr : controls
-
-SceneMgr ..> Factory : creates via
-SceneMgr ..> AnimCtrl : delegates to
-Factory ..> Tendroid : creates
-AnimCtrl ..> Tendroid : animates
-
-Tendroid ..> Builder : delegates creation
-Tendroid ..> Lifecycle : delegates lifecycle
-Builder ..> CylGen : uses
-Builder ..> Safety : creates
-Builder ..> Updater : creates
-Builder ..> WarpDef : creates
-Builder ..> Breathing : creates
-
-' External dependencies
-package "External Dependencies" {
-    [omni.kit.ui] as KitUI
-    [omni.usd] as OmniUSD
-    [pxr (USD)] as PXR
-    [warp] as Warp
-    [numpy] as Numpy
+package "External" {
+  package "omni.kit" {
+    interface IExt
+    interface UpdateEventStream
+  }
+  
+  package "omni.ui" {
+    class Window
+    class VStack
+    class Button
+    class Label
+  }
+  
+  package "omni.usd" {
+    class UsdContext
+  }
+  
+  package "pxr" {
+    package "Usd" {
+      class UsdStage
+      class UsdPrim
+    }
+    
+    package "UsdGeom" {
+      class UsdGeom.Mesh
+      class UsdGeom.Xform
+    }
+    
+    package "Gf" {
+      class Gf.Vec3f
+      class Gf.Vec3d
+    }
+    
+    package "Vt" {
+      class Vt.Vec3fArray
+    }
+  }
+  
+  package "warp" {
+    class wp <<module>>
+    class wp.array
+    class wp.kernel
+  }
+  
+  package "carb" {
+    class log_info
+    class log_error
+    class log_warn
+  }
 }
 
-ControlPanel ..> KitUI : UI components
-SceneMgr ..> OmniUSD : stage access
-Tendroid ..> PXR : UsdGeom
-WarpDef ..> Warp : GPU kernels
+' Extension dependencies
+extension --> scene : imports
+extension --> ui : imports
+
+TendroidsExtension ..|> IExt
+TendroidsExtension --> TendroidSceneManager : creates
+TendroidsExtension --> TendroidControlPanel : creates
+
+' Core package internal dependencies
+Tendroid --> TendroidBuilder : delegates
+Tendroid --> TendroidLifecycle : delegates
+Tendroid *-- WarpDeformer : contains
+Tendroid *-- MaterialSafetyChecker : contains
+Tendroid *-- MeshVertexUpdater : contains
+
+TendroidBuilder --> CylinderGenerator : uses
+
+' Core to external
+WarpDeformer --> wp : uses
+WarpDeformer --> wp.array : uses
+WarpDeformer --> wp.kernel : uses
+MaterialSafetyChecker --> UsdContext : queries
+MeshVertexUpdater --> UsdGeom.Mesh : modifies
+CylinderGenerator --> UsdGeom.Mesh : creates
+CylinderGenerator --> Gf.Vec3f : uses
+TendroidBuilder --> UsdGeom.Xform : creates
+
+' Core to animation
+Tendroid *-- BreathingAnimator : contains
+
+' Scene dependencies
+TendroidSceneManager *-- AnimationController : contains
+TendroidSceneManager --> TendroidFactory : uses
+AnimationController ..|> UpdateEventStream : implements
+AnimationController o-- Tendroid : updates
+
+' Scene to core
+TendroidFactory --> Tendroid : creates
+TendroidFactory --> TendroidBuilder : uses
+
+' UI dependencies
+TendroidControlPanel *-- SpawnSettingsUI : contains
+TendroidControlPanel *-- ActionButtons : contains
+TendroidControlPanel *-- StatusDisplay : contains
+TendroidControlPanel --> TendroidSceneManager : controls
+
+ActionButtons --> TendroidSceneManager : calls
+ActionButtons --> SpawnSettingsUI : reads
+ActionButtons --> StatusDisplay : updates
+
+' UI to external
+TendroidControlPanel --> Window : uses
+SpawnSettingsUI --> VStack : uses
+ActionButtons --> Button : uses
+StatusDisplay --> Label : uses
+
+' Utils dependencies
+core --> utils : imports
+animation --> utils : imports
+
+TendroidBuilder --> MathHelpers : uses
+WarpDeformer --> MathHelpers : uses
+BreathingAnimator --> MathHelpers : uses
+CylinderGenerator --> MathHelpers : uses
+
+' Logging (all packages)
+extension --> carb : logs
+core --> carb : logs
+animation --> carb : logs
+scene --> carb : logs
+ui --> carb : logs
+
+note right of TendroidsExtension
+  **Entry Point**
+  Implements Omniverse IExt interface
+  Loads on extension enable
+end note
+
+note right of core
+  **Core Package**
+  Geometry, deformation, safety
+  No dependencies on scene or ui
+  Reusable components
+end note
+
+note right of animation
+  **Animation Package**
+  Timing and calculations only
+  No USD dependencies
+  No state management
+end note
+
+note right of scene
+  **Scene Package**
+  Orchestration and management
+  Depends on core
+  No UI dependencies
+end note
+
+note right of ui
+  **UI Package**
+  User interaction only
+  Depends on scene (calls methods)
+  No core dependencies
+end note
+
+note right of utils
+  **Utils Package**
+  Pure functions
+  No dependencies on other packages
+  Mathematical helpers
+end note
+
+note bottom of External
+  **External Dependencies**:
+  - omni.kit: Extension framework
+  - omni.ui: User interface
+  - omni.usd: Stage access
+  - pxr (USD): Scene graph
+  - warp: GPU compute
+  - carb: Logging
+end note
 
 legend right
-    **Refactoring Results**
-    
-    **Files Refactored:**
-    • control_panel.py: 401 → 102 lines (-75%)
-    • tendroid.py: 325 → 165 lines (-50%)
-    • manager.py: 269 → 165 lines (-39%)
-    
-    **New Modules Created: 9**
-    UI: spawn_settings_ui, action_buttons, status_display
-    Core: tendroid_builder, tendroid_lifecycle,
-          material_safety, mesh_updater
-    Scene: tendroid_factory, animation_controller
-    
-    **Total Project Size:**
-    ~2,200 lines (including new modules)
-    All files now under 200 lines
-    Clean separation of concerns
+  **Package Dependency Rules**:
+  - Extension → Scene + UI (orchestration)
+  - Scene → Core (creates/manages Tendroids)
+  - Core → Animation (contains animators)
+  - UI → Scene (calls public API)
+  - All → Utils (pure functions)
+  
+  **No Circular Dependencies**:
+  Core does not know about Scene
+  Scene does not know about UI
+  Clean layered architecture
 endlegend
 
 @enduml

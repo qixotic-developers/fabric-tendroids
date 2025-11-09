@@ -1,327 +1,610 @@
 = Tendroids Extension
 :toc:
-:toclevels: 2
+:toclevels: 3
+:numbered:
 
 == Overview
 
-Tendroids is an Omniverse extension for creating and animating interactive cylinder-based wormlike sea creatures. It uses Warp GPU kernels for high-performance vertex deformation and supports real-time animation at 60fps with 15 creatures.
+Tendroids is an NVIDIA Omniverse extension that creates and animates interactive cylinder-based wormlike sea creatures using GPU-accelerated vertex deformation. The system provides smooth, organic breathing animations at real-time framerates while maintaining material safety to prevent GPU crashes.
 
-== Features
+=== Key Features
 
-* *Procedural Geometry*: Dynamically generated cylinder meshes with flared bases
-* *Warp GPU Deformation*: Smooth breathing animation using NVIDIA Warp kernels
-* *Material Safety*: Automatic glass material detection to prevent GPU crashes
-* *Performance Optimized*: Targets 60fps with 15 creatures using GPU acceleration
-* *Refactored Architecture*: Clean separation of concerns with ~2,200 lines across 16 focused modules
-* *Simple UI*: Easy-to-use control panel for spawning and managing Tendroids
+* *GPU-Accelerated Animation*: NVIDIA Warp kernels for smooth vertex deformation
+* *Material Safety System*: Automatic detection and blocking of problematic glass materials
+* *Multi-Creature Support*: Scene management for up to 15+ simultaneous Tendroids
+* *Flexible Spawning*: Single-mode for detailed customization, multi-mode for batch creation
+* *Real-Time Performance*: Optimized for 60fps with 15 creatures (30fps minimum)
+* *Clean Architecture*: ~1,400 lines across 24 focused modules
 
 == Installation
 
 === Requirements
 
-* NVIDIA Omniverse (Composer or Create)
-* Python 3.10+
+* NVIDIA Omniverse USD Composer (or Create)
+* Python 3.10 or higher
 * NVIDIA Warp (for GPU acceleration)
-* CUDA-capable GPU (recommended)
+* CUDA-capable GPU (recommended for best performance)
 
-=== Setup
+=== Setup Steps
 
-1. Copy the extension folder to your Omniverse extensions directory:
+1. **Copy Extension Folder**
 +
 ----
-<omniverse-app>/exts/qixotic.tendroids/
+Copy: exts/qixotic.tendroids/
+To: <omniverse-app>/exts/qixotic.tendroids/
 ----
 
-2. Enable the extension in Omniverse:
+2. **Enable Extension**
 +
-* Open Extension Manager (Window → Extensions)
+* Open Omniverse USD Composer
+* Window → Extensions
 * Search for "Tendroids"
-* Enable the extension
+* Toggle extension to enabled
 
-== Quick Start
+3. **Verify Installation**
++
+* Check for "Tendroid Controls" in Window menu
+* Console should show: `[TendroidsExtension] Starting up`
 
-=== Basic Usage
+== Quick Start Guide
 
-1. *Open Tendroid Controls window* (Window → Tendroid Controls)
-2. *Configure spawn settings*:
-   - Count: Number of Tendroids (1 for detailed controls, 2+ for batch)
-   - Single Mode: Diameter, length, wave parameters, amplitude
-   - Multi Mode: Area width/depth, segments
-3. *Click "Spawn Tendroids"* to create creatures
-4. *Click "Start Animation"* to begin breathing animation
-5. *Click "Stop Animation"* to pause
-6. *Click "Clear All"* to remove all Tendroids
+=== Basic Workflow
 
-=== Performance Tips
+1. **Open Control Panel**
+   * Window → Tendroid Controls
+   * Panel appears with spawn settings and controls
 
-* Start with 5-10 Tendroids to test performance
-* Reduce segment count (12-16) for better performance
-* Avoid glass/transparent materials (causes GPU crashes)
-* GPU acceleration provides best performance
+2. **Configure Single Tendroid** (Detailed Control)
+   * Set Count: 1
+   * Adjust Diameter: 20 (width of cylinder)
+   * Adjust Length: 100 (height of cylinder)
+   * Wave Size: 40% (bulge length as percentage)
+   * Amplitude: 0.35 (radial expansion, 35%)
+   * Wave Speed: 40 (units per second)
+   * Pause: 2.0 (seconds between breaths)
 
-== Architecture
+3. **Or Configure Multi-Spawn** (Batch Creation)
+   * Set Count: 5-15
+   * Area Width: 200 (spawn region width)
+   * Area Depth: 200 (spawn region depth)
+   * Segments: 16 (per Tendroid)
 
-=== Refactored Module Structure
+4. **Spawn and Animate**
+   * Click "Spawn Tendroids"
+   * Click "Start Animation"
+   * Watch breathing animation
+   * Use "Stop Animation" to pause
+   * Use "Clear All" to remove all Tendroids
 
-The extension has been refactored for clean separation of concerns:
+=== First Time Experience
+
+For your first test:
+1. Leave all default values
+2. Click "Spawn Tendroids" (creates 1 Tendroid)
+3. Click "Start Animation"
+4. You should see a smooth breathing wave travel up the creature
+
+== Architecture Overview
+
+=== Module Structure
 
 ----
 qixotic.tendroids/
-├── core/                      # Core Tendroid classes (7 modules)
-│   ├── tendroid.py            # Main Tendroid class (~165 lines)
-│   ├── tendroid_builder.py    # USD creation logic (~145 lines)
-│   ├── tendroid_lifecycle.py  # Lifecycle management (~126 lines)
-│   ├── material_safety.py     # Glass detection (~133 lines)
-│   ├── mesh_updater.py        # Vertex updates (~57 lines)
-│   ├── cylinder_generator.py  # Procedural geometry (~200 lines)
-│   └── warp_deformer.py       # GPU deformation (~250 lines)
-├── scene/                     # Scene management (3 modules)
-│   ├── manager.py             # Scene coordinator (~165 lines)
-│   ├── tendroid_factory.py    # Creation patterns (~136 lines)
-│   └── animation_controller.py # Animation lifecycle (~98 lines)
-├── animation/                 # Animation systems (1 module)
-│   └── breathing.py           # Breathing wave (~180 lines)
-├── ui/                        # User interface (4 modules)
-│   ├── control_panel.py       # UI coordinator (~102 lines)
-│   ├── spawn_settings_ui.py   # Parameter controls (~179 lines)
-│   ├── action_buttons.py      # Button handlers (~180 lines)
-│   └── status_display.py      # Status labels (~61 lines)
-└── utils/                     # Utilities (1 module)
-    └── math_helpers.py        # Math functions
+├── core/                           # Tendroid geometry and animation
+│   ├── tendroid.py                 # Main controller class
+│   ├── tendroid_builder.py         # USD geometry creation
+│   ├── tendroid_lifecycle.py       # State management
+│   ├── cylinder_generator.py       # Procedural mesh generation
+│   ├── warp_deformer.py            # GPU vertex deformation
+│   ├── material_safety.py          # Glass material detection
+│   └── mesh_updater.py             # USD vertex writes
+├── animation/                      # Animation controllers
+│   ├── breathing.py                # Breathing wave timing
+│   └── idle_motion.py              # Subtle swaying (future)
+├── scene/                          # Multi-Tendroid management
+│   ├── manager.py                  # Scene coordinator
+│   ├── animation_controller.py     # Update loop
+│   └── tendroid_factory.py         # Creation patterns
+├── ui/                             # User interface
+│   ├── control_panel.py            # Main UI coordinator
+│   ├── spawn_settings_ui.py        # Parameter controls
+│   ├── action_buttons.py           # Event handlers
+│   └── status_display.py           # Status display
+└── utils/                          # Utilities
+    └── math_helpers.py             # Math functions
 ----
 
-=== Refactoring Results
+=== Design Patterns
 
-* **control_panel.py**: 401 → 102 lines (-75%)
-* **tendroid.py**: 325 → 165 lines (-50%)
-* **manager.py**: 269 → 165 lines (-39%)
-* **9 new focused modules** created for clean separation
-* **All files under 200 lines** for maintainability
+**Builder Pattern** (TendroidBuilder)
+* Separates USD creation from main Tendroid class
+* Initializes all components in correct order
+* Returns fully-configured Tendroid ready for animation
 
-=== Animation System
+**Factory Pattern** (TendroidFactory)
+* Provides `create_single()` for detailed control
+* Provides `create_batch()` for randomized spawning
+* Handles parameter validation and logging
 
-==== Breathing Animation (Warp-Based Vertex Deformation)
+**Lifecycle Pattern** (TendroidLifecycle)
+* Manages state transitions
+* Handles activation/deactivation with safety checks
+* Cleanup and resource management
 
-* GPU-accelerated vertex deformation using NVIDIA Warp kernels
-* Traveling sine wave with smooth Gaussian envelope
-* Wave travels from base to tip creating organic bulge effect
-* Positive expansion only (no contraction)
-* Configurable parameters:
-  - Wave speed: Travel speed up the Tendroid (units/sec)
-  - Bulge length: Size of wave as % of total length
-  - Amplitude: Maximum radial expansion (0.35 = 35%)
-  - Cycle delay: Pause between breathing cycles (seconds)
+**Component Pattern**
+* Tendroid delegates to specialized components
+* Each component has single responsibility
+* Clean interfaces between components
 
-==== Material Safety System
+== Animation System
 
-* **CRITICAL**: Automatic detection of glass/transparent materials
-* Glass materials can cause GPU crashes with dynamic geometry
+=== Breathing Wave Mechanics
+
+The breathing animation creates organic motion through:
+
+**Traveling Bulge**
+* Single wave moves from base to top
+* Starts at zero expansion
+* Peaks at wave center
+* Returns to zero smoothly
+
+**Mathematical Model**
+* Uses raised cosine envelope for smooth transitions
+* Zero displacement at wave edges, peak at center
+* Formula: `envelope = 0.5 * (1 + cos(π * distance / half_bulge))`
+* Radial expansion only (X and Z axes, Y unchanged)
+
+**Warp GPU Kernel**
+* Processes all vertices in parallel
+* Skips flared base (below deform_start_height)
+* Calculates distance from wave center
+* Applies envelope function
+* Computes radial displacement
+* Writes deformed positions
+
+**Configurable Parameters**
+* Wave Speed: How fast wave travels (units/second)
+* Bulge Length: Size as percentage of total length
+* Amplitude: Maximum radial expansion (0-1 scale)
+* Cycle Delay: Pause between breathing cycles
+
+=== Material Safety System
+
+**Critical Issue**: Glass and transparent materials with dynamic geometry cause GPU memory exceptions in path-traced rendering.
+
+**Protection Mechanism**
+* MaterialSafetyChecker monitors mesh materials
 * Periodic checking every 30 frames
-* Animation automatically blocked when unsafe materials detected
-* Logs warnings when glass materials applied
-* Prevents GPU memory exceptions
+* Keyword-based detection: glass, transparent, translucent, omni, clear, crystal, refract
+* Animation completely blocked when unsafe material detected
+* Clear logging and status messages
 
-==== Performance
+**Usage Guidelines**
+* Test animation with opaque materials first
+* Apply glass materials AFTER validating animation
+* Check console for material safety warnings
+* UI shows "⚠️ Animation disabled" when blocked
 
-* Target: 60 FPS with 15 Tendroids
-* GPU-accelerated deformation for optimal performance
-* Graceful fallback to CPU mode if GPU unavailable
-* Fabric/USDRT integration for fast USD updates (when available)
+== Parameter Reference
 
-== Configuration
+=== Single Tendroid Parameters
 
-=== Tendroid Parameters (Single Mode)
-
-[cols="1,2,1"]
+[cols="1,2,1,1"]
 |===
-|Parameter |Description |Default
+|Parameter |Description |Range |Default
 
-|`diameter`
-|Initial cylinder diameter
+|Diameter
+|Initial cylinder width
+|2-100
 |20.0
 
-|`length`
-|Total height
+|Length
+|Total cylinder height
+|10-300
 |100.0
 
-|`num_segments`
-|Vertical resolution
-|32
-
-|`wave_size`
-|Bulge length (% of total)
-|40%
-
-|`amplitude`
-|Radial expansion
-|0.35 (35%)
-
-|`wave_speed`
-|Wave travel speed
+|Wave Size (%)
+|Bulge length as % of total
+|5-50
 |40.0
 
-|`pause`
+|Amplitude
+|Maximum radial expansion
+|0.0-1.0
+|0.35
+
+|Wave Speed
+|Bulge travel speed (units/sec)
+|10-200
+|40.0
+
+|Pause (sec)
 |Delay between cycles
-|2.0 sec
+|0-10
+|2.0
 |===
 
 === Multi-Spawn Parameters
 
-[cols="1,2,1"]
+[cols="1,2,1,1"]
 |===
-|Parameter |Description |Default
+|Parameter |Description |Range |Default
 
-|`count`
+|Count
 |Number of Tendroids
 |1-15
+|1
 
-|`area_width`
+|Area Width
 |Spawn region width
+|50-1000
 |200
 
-|`area_depth`
+|Area Depth
 |Spawn region depth
+|50-1000
 |200
 
-|`segments`
-|Segments per Tendroid
+|Segments
+|Vertical resolution per Tendroid
+|8-32
 |16
 |===
 
+=== Performance Guidelines
+
+**Segment Count vs Quality**
+* 8-12: Low quality, best performance
+* 16: Good balance (default for multi-spawn)
+* 24-32: High quality, smooth animation
+* 32+: Diminishing returns, performance cost
+
+**Tendroid Count vs FPS**
+* 1-5: Excellent performance (60fps+)
+* 6-10: Very good performance (50-60fps)
+* 11-15: Good performance (40-50fps expected)
+* 16-20: Acceptable performance (30-40fps expected)
+* 20+: May need optimization
+
 == Troubleshooting
 
-=== Common Issues
+=== Extension Won't Load
 
-==== Extension Won't Load
+**Symptoms**: Extension not visible in Extensions window
 
-* Check Omniverse version compatibility
-* Verify extension.toml is correct
-* Check console for Python errors
-* Ensure Warp is installed
+**Solutions**:
+* Verify extension folder in correct location
+* Check extension.toml file exists
+* Restart Omniverse
+* Check console for Python import errors
+* Verify Warp is installed
 
-==== Poor Performance
+=== No Animation Visible
 
+**Symptoms**: Tendroid appears but doesn't breathe
+
+**Checklist**:
+1. Click "Start Animation" button
+2. Check console for material safety warnings
+3. Verify glass material not applied
+4. Check if mesh_prim is valid
+5. Look for error messages in console
+
+**Common Causes**:
+* Animation not started
+* Glass material blocking animation
+* Invalid USD paths
+* Component initialization failed
+
+=== Poor Performance
+
+**Symptoms**: Low FPS, stuttering animation
+
+**Solutions**:
 * Reduce Tendroid count
-* Decrease segment count (12-16)
-* Check if GPU acceleration is active
+* Decrease segment count (use 12-16 instead of 32)
+* Check GPU utilization
 * Close other extensions
-* Verify CUDA is available
+* Disable ray tracing temporarily
+* Verify Warp GPU acceleration active
 
-==== Animation Not Updating
+=== Material Safety Warning
 
-* Ensure "Start Animation" was clicked
-* Check console for errors
-* Verify stage is valid
-* Check if glass material is applied (blocks animation)
+**Symptoms**: Console shows "⚠️⚠️⚠️ GLASS MATERIAL DETECTED"
 
-==== Glass Material Warning
+**Explanation**: This is intentional protection, not an error
 
-* CRITICAL: Do not use glass/transparent materials with Tendroids
-* Will cause GPU crashes with dynamic geometry
-* Animation is automatically blocked for safety
-* Apply glass materials AFTER testing animation
-* Use opaque materials during development
-
-== Development
-
-=== Architecture Patterns
-
-* **Builder Pattern**: TendroidBuilder separates USD creation
-* **Factory Pattern**: TendroidFactory handles instantiation
-* **Lifecycle Pattern**: TendroidLifecycle manages state
-* **Safety Pattern**: MaterialSafetyChecker prevents GPU crashes
-* **Component Pattern**: Clean separation of UI, scene, core
-
-=== Code Quality
-
-* All modules under 200 lines
-* Single Responsibility Principle
-* High cohesion, low coupling
-* Comprehensive documentation
-* PlantUML diagrams for architecture
+**Actions**:
+* Remove glass material
+* Test with opaque material
+* Animation will resume automatically
+* Or accept that animation is blocked for safety
 
 == API Reference
 
 === TendroidSceneManager
 
-Primary interface for managing Tendroids.
+Main interface for managing Tendroids in scene.
 
-==== Methods
+==== create_tendroids()
 
-`create_tendroids(count, spawn_area, radius_range, length_range, num_segments)`::
-Create multiple Tendroids with random positions and sizes.
+[source,python]
+----
+def create_tendroids(
+    count: int = 15,
+    spawn_area: tuple = (200, 200),
+    radius_range: tuple = (8, 12),
+    length_range: tuple = (80, 120),
+    num_segments: int = 16
+) -> bool
+----
 
-`create_single_tendroid(position, radius, length, params)`::
-Create a single Tendroid with custom parameters.
+Create multiple Tendroids with randomized positions and sizes.
 
-`start_animation()`::
-Begin animating all Tendroids.
+**Parameters**:
+* `count`: Number of Tendroids to create
+* `spawn_area`: (width, depth) of spawning region
+* `radius_range`: (min, max) radius for variation
+* `length_range`: (min, max) length for variation
+* `num_segments`: Vertical resolution per Tendroid
 
-`stop_animation()`::
-Pause animation.
+**Returns**: True if successful, False otherwise
 
-`clear_tendroids(stage)`::
-Remove all Tendroids from scene.
+==== create_single_tendroid()
+
+[source,python]
+----
+def create_single_tendroid(
+    position: tuple = (0, 0, 0),
+    radius: float = 10.0,
+    length: float = 100.0,
+    num_segments: int = 32,
+    bulge_length_percent: float = 40.0,
+    amplitude: float = 0.35,
+    wave_speed: float = 40.0,
+    cycle_delay: float = 2.0
+) -> bool
+----
+
+Create single Tendroid with custom parameters.
+
+**Parameters**:
+* `position`: (x, y, z) world position
+* `radius`: Cylinder radius
+* `length`: Total length
+* `num_segments`: Vertical resolution (higher = smoother)
+* `bulge_length_percent`: Wave size as % of length
+* `amplitude`: Maximum radial expansion
+* `wave_speed`: Wave travel speed
+* `cycle_delay`: Pause between cycles
+
+**Returns**: True if successful, False otherwise
+
+==== start_animation()
+
+[source,python]
+----
+def start_animation()
+----
+
+Begin animating all Tendroids. Subscribes to update event stream.
+
+==== stop_animation()
+
+[source,python]
+----
+def stop_animation()
+----
+
+Pause animation for all Tendroids. Unsubscribes from updates.
+
+==== clear_tendroids()
+
+[source,python]
+----
+def clear_tendroids(stage=None)
+----
+
+Remove all Tendroids from scene and cleanup resources.
+
+**Parameters**:
+* `stage`: USD stage (optional, will get current if None)
 
 === Tendroid
 
-Individual Tendroid creature.
+Individual Tendroid creature class.
 
-==== Methods
+==== create()
 
-`create(stage, parent_path)`::
+[source,python]
+----
+def create(stage, parent_path: str = "/World/Tendroids") -> bool
+----
+
 Create Tendroid geometry in USD stage. Delegates to TendroidBuilder.
 
-`update(dt)`::
-Update animation for one frame. Checks material safety periodically.
+**Parameters**:
+* `stage`: USD stage
+* `parent_path`: Parent prim path
 
-`set_active(active)`::
-Enable/disable this Tendroid (respects material safety).
+**Returns**: True if successful
 
-`destroy(stage)`::
-Remove from scene. Delegates to TendroidLifecycle.
+==== update()
 
-`is_animation_enabled()`::
+[source,python]
+----
+def update(dt: float)
+----
+
+Update animation for current frame. Checks material safety periodically.
+
+**Parameters**:
+* `dt`: Delta time since last update (seconds)
+
+==== set_active()
+
+[source,python]
+----
+def set_active(active: bool)
+----
+
+Enable/disable animation. Respects material safety.
+
+**Parameters**:
+* `active`: Whether to activate animation
+
+==== set_breathing_parameters()
+
+[source,python]
+----
+def set_breathing_parameters(**kwargs)
+----
+
+Update breathing animation parameters at runtime.
+
+**Keyword Arguments**:
+* `wave_speed`: New wave speed
+* `bulge_length_percent`: New bulge size
+* `amplitude`: New amplitude
+* `cycle_delay`: New pause duration
+
+==== destroy()
+
+[source,python]
+----
+def destroy(stage)
+----
+
+Remove from scene and cleanup resources.
+
+**Parameters**:
+* `stage`: USD stage
+
+==== is_animation_enabled()
+
+[source,python]
+----
+def is_animation_enabled() -> bool
+----
+
 Check if animation is safe (not blocked by glass material).
 
-=== TendroidBuilder (Static)
+**Returns**: True if animation enabled, False if blocked
 
-Builder for USD geometry creation.
+==== get_status_message()
 
-==== Methods
+[source,python]
+----
+def get_status_message() -> str
+----
 
-`create_in_stage(tendroid, stage, parent_path)`::
-Create all USD geometry and initialize components.
+Get human-readable status message.
 
-=== MaterialSafetyChecker
+**Returns**: Status string (e.g., "✓ Active", "⚠️ Animation disabled: Glass material")
 
-Glass material detection system.
+== Development Guide
 
-==== Methods
+=== Code Style Guidelines
 
-`check_material()`::
-Scan mesh for glass/transparent materials.
+**File Size**: Target 100-150 lines per file (excluding comments/blanks)
 
-`should_check_now()`::
-Check if periodic scan is due.
+**Module Organization**:
+* Class files: Controllers with business logic
+* Helper files: Frequently-changing methods, utilities
+* __init__.py: Module initialization and exports
 
-`is_safe_for_animation()`::
-Return whether animation should proceed.
+**Design Principles**:
+* Single Responsibility Principle
+* Controllers delegate to helpers
+* Clean interfaces between components
+* Comprehensive docstrings
 
-== Support
+=== Adding New Features
 
-For issues, questions, or contributions:
+**Example: Adding New Animation Type**
 
-* Project repository: (Add your repo URL)
-* Documentation: README.adoc, PROJECT_OVERVIEW.adoc, IMPLEMENTATION_STATUS.adoc
-* PlantUML diagrams: docs/plantUml/
+1. Create animator class in `animation/` folder
+2. Follow BreathingAnimator pattern
+3. Add to Tendroid initialization
+4. Update TendroidBuilder
+5. Add UI controls if needed
+
+**Example: Custom Creature Variation**
+
+1. Subclass Tendroid
+2. Override specific methods
+3. Register with TendroidFactory
+4. Add spawn option in UI
+
+=== Testing Approach
+
+**Visual Validation**: Primary test method
+
+**Performance Monitoring**: FPS tracking in viewport
+
+**Material Safety Testing**: Test with various materials
+
+**No Formal Unit Tests**: Ad-hoc testing based on needs
+
+== Known Limitations
+
+**Material Safety**:
+* Keyword-based detection may miss renamed materials
+* Conservative approach (may flag safe materials)
+* Manual override not available (intentional safety measure)
+
+**Animation Complexity**:
+* Single traveling bulge only
+* No multiple overlapping waves
+* Trade-off for performance and simplicity
+
+**No Self-Collision**:
+* Tendroids can overlap in scene
+* Not an issue with current spawn distribution
+* Could add distance checks if needed
+
+**Flared Base**:
+* Pre-scaled at creation time
+* Not dynamically adjustable
+* Requires mesh regeneration to change
+
+== Future Enhancements
+
+See IMPLEMENTATION_STATUS.adoc for detailed Phase 2 and Phase 3 plans.
+
+**Phase 2 Features**:
+* Bubble creation and physics
+* Environmental flora
+* User interaction
+* Advanced materials
+
+**Phase 3 Features**:
+* Idle motion integration
+* Multiple animation variations
+* LOD system for >20 Tendroids
+* Additional creature behaviors
+
+== Support and Resources
+
+**Documentation**:
+* PROJECT_OVERVIEW.adoc: Architecture and design rationale
+* IMPLEMENTATION_STATUS.adoc: Current status and next steps
+* CHANGELOG.adoc: Version history
+* docs/plantUml/: Architecture diagrams
+
+**Omniverse Resources**:
+* Fabric/USDRT 7.6.1 docs: https://docs.omniverse.nvidia.com/kit/docs/usdrt.scenegraph/latest/overview.html
+* NVIDIA Warp docs: https://nvidia.github.io/warp/
 
 == License
 
-(Add your license information)
+Copyright (c) 2025 Qixotic Software
 
 == Credits
 
 Developed by Qixotic Software
-Built with NVIDIA Omniverse
-GPU acceleration via NVIDIA Warp
+
+Built with:
+* NVIDIA Omniverse
+* NVIDIA Warp
+* Universal Scene Description (USD)

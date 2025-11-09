@@ -1,206 +1,303 @@
-@startuml
-title Tendroids Project - Class Diagram (Refactored Architecture)
+@startuml tendroid-class-diagram
 
-skinparam classAttributeIconSize 0
-skinparam linetype ortho
+!define CORE_COLOR #E1F5FE
+!define ANIMATION_COLOR #F3E5F5
+!define SCENE_COLOR #E8F5E9
+!define UI_COLOR #FFF9C4
+!define UTILS_COLOR #FFE0B2
 
-package "Extension Entry Point" {
-    class TendroidsExtension {
-        - _window: ui.Window
-        - _scene_manager: TendroidSceneManager
-        - _control_panel: TendroidControlPanel
-        + on_startup()
-        + on_shutdown()
-    }
+skinparam packageStyle rectangle
+skinparam classFontSize 11
+skinparam classAttributeFontSize 10
+
+package "core" CORE_COLOR {
+  class Tendroid {
+    - name: str
+    - position: tuple
+    - radius: float
+    - length: float
+    - num_segments: int
+    - radial_resolution: int
+    - base_path: str
+    - mesh_path: str
+    - mesh_prim: UsdPrim
+    - warp_deformer: WarpDeformer
+    - breathing_animator: BreathingAnimator
+    - material_safety: MaterialSafetyChecker
+    - mesh_updater: MeshVertexUpdater
+    - deform_start_height: float
+    - is_created: bool
+    - is_active: bool
+    __
+    + create(stage, parent_path): bool
+    + update(dt: float): void
+    + set_active(active: bool): void
+    + set_breathing_parameters(**kwargs): void
+    + destroy(stage): void
+    + get_top_position(): tuple
+    + is_animation_enabled(): bool
+    + get_status_message(): str
+  }
+  
+  class TendroidBuilder <<static>> {
+    {static} + create_in_stage(tendroid, stage, parent_path): bool
+    {static} - _create_usd_geometry(tendroid, stage, parent_path): bool
+    {static} - _initialize_components(tendroid): bool
+    {static} - _log_creation_status(tendroid): void
+  }
+  
+  class TendroidLifecycle <<static>> {
+    {static} + set_active(tendroid, active: bool): void
+    {static} + set_breathing_parameters(tendroid, **kwargs): void
+    {static} + destroy(tendroid, stage): void
+    {static} + get_top_position(tendroid): tuple
+    {static} + is_animation_enabled(tendroid): bool
+    {static} + get_status_message(tendroid): str
+  }
+  
+  class CylinderGenerator <<static>> {
+    {static} + create_tendroid_cylinder(stage, path, radius, length, num_segments, radial_resolution, flare_height_percent, flare_radius_multiplier): tuple
+  }
+  
+  class WarpDeformer {
+    - deform_start_height: float
+    - num_vertices: int
+    - original_positions: wp.array
+    - deformed_positions: wp.array
+    __
+    + __init__(original_vertices, deform_start_height)
+    + update(wave_center, bulge_length, amplitude): list
+    + cleanup(): void
+  }
+  
+  class MaterialSafetyChecker {
+    - mesh_path: str
+    - check_interval: int
+    - check_counter: int
+    - is_glass_material: bool
+    - animation_disabled_reason: str
+    - glass_keywords: list
+    __
+    + __init__(mesh_path, check_interval)
+    + check_material(): bool
+    + should_check_now(): bool
+    + is_safe_for_animation(): bool
+    + get_status_message(): str
+    - _clean_string(text): str
+    - _log_material_change(was_glass, material_name, material_path): void
+  }
+  
+  class MeshVertexUpdater {
+    - mesh_prim: UsdPrim
+    - mesh: UsdGeom.Mesh
+    - points_attr: UsdAttribute
+    __
+    + __init__(mesh_prim)
+    + update_vertices(vertices): bool
+    + is_valid(): bool
+  }
 }
 
-package "UI Components" {
-    class TendroidControlPanel {
-        - scene_manager: TendroidSceneManager
-        - spawn_settings: SpawnSettingsUI
-        - action_buttons: ActionButtons
-        - status_display: StatusDisplay
-        + create_window()
-        + destroy()
-    }
-    
-    class SpawnSettingsUI {
-        - spawn_count: int
-        - single_diameter: float
-        - single_length: float
-        - amplitude: float
-        + create_ui()
-        + _on_count_changed()
-    }
-    
-    class ActionButtons {
-        - scene_manager: TendroidSceneManager
-        + create_ui()
-        + _on_spawn_clicked()
-        + _on_start_clicked()
-        + _on_stop_clicked()
-    }
-    
-    class StatusDisplay {
-        - status_label: ui.Label
-        - count_label: ui.Label
-        + update_status()
-        + update_count()
-    }
+package "animation" ANIMATION_COLOR {
+  class BreathingAnimator {
+    - length: float
+    - deform_start_height: float
+    - wave_speed: float
+    - bulge_length_percent: float
+    - amplitude: float
+    - cycle_delay: float
+    - bulge_length: float
+    - travel_time: float
+    - cycle_duration: float
+    - time: float
+    - last_bubble_time: float
+    __
+    + __init__(length, deform_start_height, wave_speed, bulge_length_percent, amplitude, cycle_delay)
+    + update(dt): dict
+    + should_emit_bubble(): bool
+    + reset(): void
+    + set_parameters(wave_speed, bulge_length_percent, amplitude, cycle_delay): void
+  }
+  
+  class IdleMotionAnimator {
+    - sway_frequency: float
+    - sway_amplitude: float
+    - rotation_frequency: float
+    - rotation_amplitude: float
+    - time: float
+    - enabled: bool
+    __
+    + __init__(sway_frequency, sway_amplitude, rotation_frequency, rotation_amplitude)
+    + update(dt): dict
+    + reset(): void
+    + set_enabled(enabled): void
+    + set_parameters(sway_frequency, sway_amplitude, rotation_frequency, rotation_amplitude): void
+  }
 }
 
-package "Scene Management" {
-    class TendroidSceneManager {
-        - tendroids: List[Tendroid]
-        - animation_controller: AnimationController
-        + create_tendroids(count, spawn_area)
-        + create_single_tendroid(position, params)
-        + start_animation()
-        + stop_animation()
-        + clear_tendroids()
-    }
-    
-    class TendroidFactory <<static>> {
-        + {static} create_single(stage, params)
-        + {static} create_batch(stage, count, area)
-    }
-    
-    class AnimationController {
-        - tendroids: List[Tendroid]
-        - update_subscription
-        - is_running: bool
-        + set_tendroids(tendroids)
-        + start()
-        + stop()
-        + _on_update(dt)
-    }
+package "scene" SCENE_COLOR {
+  class TendroidSceneManager {
+    - tendroids: list
+    - animation_controller: AnimationController
+    __
+    + __init__()
+    + create_tendroids(count, spawn_area, radius_range, length_range, num_segments): bool
+    + create_single_tendroid(position, radius, length, num_segments, bulge_length_percent, amplitude, wave_speed, cycle_delay): bool
+    + start_animation(): void
+    + stop_animation(): void
+    + clear_tendroids(stage): void
+    + get_tendroid_count(): int
+    + set_all_active(active): void
+    + shutdown(): void
+  }
+  
+  class AnimationController {
+    - tendroids: list
+    - update_subscription: object
+    - is_running: bool
+    __
+    + __init__()
+    + set_tendroids(tendroids): void
+    + start(): void
+    + stop(): void
+    - _on_update(event): void
+    + set_all_active(active): void
+    + is_animating(): bool
+    + shutdown(): void
+  }
+  
+  class TendroidFactory <<static>> {
+    {static} + create_single(stage, parent_path, position, radius, length, num_segments, bulge_length_percent, amplitude, wave_speed, cycle_delay): Tendroid
+    {static} + create_batch(stage, count, parent_path, spawn_area, radius_range, length_range, num_segments): list
+  }
 }
 
-package "Core - Tendroid" {
-    class Tendroid {
-        - name: str
-        - position: tuple
-        - radius: float
-        - length: float
-        - is_active: bool
-        + create(stage, parent_path)
-        + update(dt)
-        + destroy(stage)
-        + set_active(active)
-    }
-    
-    class TendroidBuilder <<static>> {
-        + {static} create_in_stage(tendroid, stage)
-        - {static} _create_usd_geometry()
-        - {static} _initialize_components()
-    }
-    
-    class TendroidLifecycle <<static>> {
-        + {static} set_active(tendroid, active)
-        + {static} set_breathing_parameters(tendroid, kwargs)
-        + {static} destroy(tendroid, stage)
-        + {static} get_status_message(tendroid)
-    }
+package "ui" UI_COLOR {
+  class TendroidControlPanel {
+    - scene_manager: TendroidSceneManager
+    - window: ui.Window
+    - spawn_settings: SpawnSettingsUI
+    - action_buttons: ActionButtons
+    - status_display: StatusDisplay
+    __
+    + __init__(scene_manager)
+    + create_window(): void
+    - _on_count_changed(value): void
+    + destroy(): void
+  }
+  
+  class SpawnSettingsUI {
+    - spawn_count: int
+    - spawn_width: int
+    - spawn_depth: int
+    - single_diameter: float
+    - single_length: float
+    - bulge_size_percent: float
+    - amplitude: float
+    - wave_speed: float
+    - pause_duration: float
+    - num_segments: int
+    - single_settings_frame: ui.Frame
+    - multi_settings_frame: ui.Frame
+    - on_count_changed_callback: callable
+    __
+    + __init__()
+    + create_ui(parent_stack): void
+    - _create_single_settings(): void
+    - _create_multi_settings(): void
+    - _on_count_changed(value): void
+  }
+  
+  class ActionButtons {
+    - scene_manager: TendroidSceneManager
+    - spawn_settings: SpawnSettingsUI
+    - status_display: StatusDisplay
+    __
+    + __init__(scene_manager)
+    + set_spawn_settings(spawn_settings): void
+    + set_status_display(status_display): void
+    + create_ui(parent_stack): void
+    - _on_spawn_clicked(): void
+    - _spawn_single_tendroid(): void
+    - _spawn_multiple_tendroids(): void
+    - _on_start_clicked(): void
+    - _on_stop_clicked(): void
+    - _on_clear_clicked(): void
+  }
+  
+  class StatusDisplay {
+    - status_label: ui.Label
+    - count_label: ui.Label
+    - animation_label: ui.Label
+    __
+    + __init__()
+    + create_ui(parent_stack): void
+    + update_status(message): void
+    + update_count(count): void
+    + update_animation_status(status): void
+  }
 }
 
-package "Core - Components" {
-    class MaterialSafetyChecker {
-        - mesh_path: str
-        - is_glass_material: bool
-        - check_counter: int
-        + check_material()
-        + should_check_now()
-        + is_safe_for_animation()
-    }
-    
-    class MeshVertexUpdater {
-        - mesh_prim: UsdGeom.Mesh
-        - points_attr
-        + update_vertices(vertices)
-        + is_valid()
-    }
-    
-    class CylinderGenerator <<static>> {
-        + {static} create_tendroid_cylinder(stage, path, params)
-        - {static} _generate_vertices()
-        - {static} _generate_faces()
-    }
-    
-    class WarpDeformer {
-        - device: str
-        - vertex_positions: wp.array
-        + update(wave_center, bulge_length, amplitude)
-        + cleanup()
-    }
+package "utils" UTILS_COLOR {
+  class MathHelpers <<static>> {
+    {static} + smooth_step(edge0, edge1, x): float
+    {static} + ease_out_quartic(t): float
+    {static} + calculate_flare_radius(y, base_radius, max_radius, flare_height): float
+    {static} + calculate_wave_displacement(y, wave_center, wave_length, amplitude, deform_start_y): float
+    {static} + calculate_wave_position(time, speed, start_y): float
+  }
 }
 
-package "Animation" {
-    class BreathingAnimator {
-        - time: float
-        - wave_speed: float
-        - amplitude: float
-        - cycle_delay: float
-        + update(dt)
-        + set_parameters(kwargs)
-        + should_emit_bubble()
-    }
-}
+' Relationships
+Tendroid --> TendroidBuilder : delegates creation to
+Tendroid --> TendroidLifecycle : delegates lifecycle to
+Tendroid *-- WarpDeformer : contains
+Tendroid *-- BreathingAnimator : contains
+Tendroid *-- MaterialSafetyChecker : contains
+Tendroid *-- MeshVertexUpdater : contains
 
-' Relationships - Extension
-TendroidsExtension *-- TendroidSceneManager
-TendroidsExtension *-- TendroidControlPanel
-
-' Relationships - UI
-TendroidControlPanel *-- SpawnSettingsUI
-TendroidControlPanel *-- ActionButtons
-TendroidControlPanel *-- StatusDisplay
-ActionButtons --> TendroidSceneManager : controls
-
-' Relationships - Scene
-TendroidSceneManager *-- AnimationController
-TendroidSceneManager ..> TendroidFactory : creates via
-AnimationController "1" o-- "0..15" Tendroid : animates
-
-' Relationships - Tendroid Core
-Tendroid ..> TendroidBuilder : delegates creation
-Tendroid ..> TendroidLifecycle : delegates lifecycle
 TendroidBuilder ..> CylinderGenerator : uses
-TendroidBuilder ..> MaterialSafetyChecker : creates
-TendroidBuilder ..> MeshVertexUpdater : creates
-TendroidBuilder ..> WarpDeformer : creates
-TendroidBuilder ..> BreathingAnimator : creates
+TendroidBuilder ..> MathHelpers : uses
 
-' Relationships - Runtime
-Tendroid *-- MaterialSafetyChecker : monitors
-Tendroid *-- MeshVertexUpdater : updates via
-Tendroid *-- WarpDeformer : deforms via
-Tendroid *-- BreathingAnimator : animates via
+WarpDeformer ..> MathHelpers : uses
+BreathingAnimator ..> MathHelpers : uses
 
-' Notes
+TendroidSceneManager o-- Tendroid : manages many
+TendroidSceneManager *-- AnimationController : contains
+TendroidSceneManager ..> TendroidFactory : uses
+
+AnimationController o-- Tendroid : updates many
+
+TendroidFactory ..> Tendroid : creates
+TendroidFactory ..> TendroidBuilder : uses
+
+TendroidControlPanel *-- TendroidSceneManager : contains
+TendroidControlPanel *-- SpawnSettingsUI : contains
+TendroidControlPanel *-- ActionButtons : contains
+TendroidControlPanel *-- StatusDisplay : contains
+
+ActionButtons --> TendroidSceneManager : controls
+ActionButtons --> SpawnSettingsUI : reads from
+ActionButtons --> StatusDisplay : updates
+
 note right of Tendroid
-    Refactored to ~165 lines
-    Delegates to Builder and
-    Lifecycle for separation
-    of concerns
+  Main controller class
+  Delegates to:
+  - TendroidBuilder (creation)
+  - TendroidLifecycle (state)
+  - Components (animation, safety, updates)
+end note
+
+note right of WarpDeformer
+  GPU-accelerated vertex deformation
+  Uses NVIDIA Warp kernels
+  Raised cosine envelope
 end note
 
 note right of MaterialSafetyChecker
-    Critical: Detects glass materials
-    that could cause GPU crashes
-    with dynamic geometry
-end note
-
-note bottom of TendroidSceneManager
-    Manages up to 15 Tendroids
-    Target: 60fps (min 30fps)
-    Clean separation via Factory
-    and AnimationController
-end note
-
-note right of TendroidControlPanel
-    Refactored from 401 to 102 lines
-    Delegates to specialized
-    UI components
+  Prevents GPU crashes
+  Detects glass materials
+  Blocks animation when unsafe
 end note
 
 @enduml

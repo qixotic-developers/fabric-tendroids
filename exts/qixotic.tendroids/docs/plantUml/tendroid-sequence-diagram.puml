@@ -1,189 +1,307 @@
-@startuml
-title Tendroids Project - Spawn and Animation Sequence (Refactored)
+@startuml tendroid-sequence-diagram
+
+title Tendroid Creation and Animation Flow
 
 actor User
-participant "TendroidControlPanel" as UI
-participant "ActionButtons" as Actions
-participant "TendroidSceneManager" as Manager
-participant "TendroidFactory" as Factory
-participant "Tendroid" as Tendroid
-participant "TendroidBuilder" as Builder
-participant "CylinderGenerator" as Generator
-participant "MaterialSafetyChecker" as Safety
-participant "WarpDeformer" as Deformer
-participant "BreathingAnimator" as Animator
-participant "MeshVertexUpdater" as Updater
-participant "AnimationController" as Controller
-database "USD Stage" as Stage
+participant "Control\nPanel" as UI
+participant "Scene\nManager" as SM
+participant "Tendroid\nFactory" as TF
+participant "Tendroid" as T
+participant "Tendroid\nBuilder" as TB
+participant "Cylinder\nGenerator" as CG
+participant "Warp\nDeformer" as WD
+participant "Material\nSafety" as MS
+participant "Breathing\nAnimator" as BA
+participant "Animation\nController" as AC
+participant "USD\nStage" as USD
 
-== Tendroid Spawning (Single Mode) ==
+== Tendroid Creation ==
 
 User -> UI: Click "Spawn Tendroids"
 activate UI
 
-UI -> Actions: _on_spawn_clicked()
-activate Actions
+UI -> SM: create_single_tendroid(\n  position, radius, length,\n  num_segments, params)
+activate SM
 
-Actions -> Manager: create_single_tendroid(position, params)
-activate Manager
+SM -> TF: create_single(\n  stage, params)
+activate TF
 
-Manager -> Factory: create_single(stage, params)
-activate Factory
+TF -> T: __init__(\n  name, position,\n  radius, length,\n  num_segments)
+activate T
 
-Factory -> Tendroid: new Tendroid(name, position, ...)
-activate Tendroid
-Tendroid --> Factory: tendroid instance
-deactivate Tendroid
+T -> T: Initialize attributes:\n  - position, size\n  - component refs (None)\n  - state flags
 
-Factory -> Tendroid: create(stage, parent_path)
-activate Tendroid
+TF -> T: create(stage, parent_path)
 
-Tendroid -> Builder: create_in_stage(tendroid, stage)
-activate Builder
+T -> TB: create_in_stage(\n  tendroid, stage,\n  parent_path)
+activate TB
 
-== USD Geometry Creation ==
+TB -> TB: _create_usd_geometry(\n  tendroid, stage,\n  parent_path)
 
-Builder -> Builder: _create_usd_geometry()
-activate Builder
+TB -> USD: Define base Xform at path
+activate USD
+USD --> TB: Xform created
+deactivate USD
 
-Builder -> Generator: create_tendroid_cylinder(...)
-activate Generator
-Generator -> Generator: Generate vertices\nwith flared base
-Generator -> Stage: Create UsdGeom.Mesh
-Generator --> Builder: mesh_prim, vertices, deform_start
-deactivate Generator
+TB -> CG: create_tendroid_cylinder(\n  stage, mesh_path,\n  radius, length,\n  segments, resolution,\n  flare params)
+activate CG
 
-deactivate Builder
+CG -> CG: Calculate flare height\nand deform_start_height
 
-== Component Initialization ==
+CG -> USD: Create UsdGeom.Mesh
+activate USD
+USD --> CG: Mesh prim
+deactivate USD
 
-Builder -> Builder: _initialize_components()
-activate Builder
+CG -> CG: Generate vertices:\n  - Flared base\n  - Cylindrical body
 
-Builder -> Safety: new MaterialSafetyChecker(mesh_path)
-activate Safety
-Safety -> Safety: check_material()
-Safety -> Stage: Check material binding
-Stage --> Safety: material info
-Safety --> Builder: is_safe
-deactivate Safety
+CG -> USD: Set vertices,\n  normals, topology
+activate USD
+deactivate USD
 
-Builder -> Updater: new MeshVertexUpdater(mesh_prim)
-activate Updater
-Updater --> Builder: updater instance
-deactivate Updater
+CG --> TB: (mesh_prim, vertices,\n  num_segs, rad_res,\n  deform_start)
+deactivate CG
 
-Builder -> Deformer: new WarpDeformer(vertices, deform_start)
-activate Deformer
-Deformer -> Deformer: Allocate GPU arrays\n(wp.array)
-Deformer --> Builder: deformer instance
-deactivate Deformer
+TB -> TB: Store mesh_prim,\n  vertices,\n  deform_start_height
 
-Builder -> Animator: new BreathingAnimator(length, ...)
-activate Animator
-Animator -> Animator: Initialize parameters
-Animator --> Builder: animator instance
-deactivate Animator
+TB -> TB: _initialize_components(\n  tendroid)
 
-deactivate Builder
+TB -> MS: MaterialSafetyChecker(\n  mesh_path)
+activate MS
 
-Builder --> Tendroid: creation complete
-deactivate Builder
+MS -> MS: Initialize:\n  - check_counter = 0\n  - is_glass_material = False
 
-Tendroid --> Factory: tendroid instance
-deactivate Tendroid
+MS -> MS: check_material()
 
-Factory --> Manager: created tendroid
-deactivate Factory
+MS -> USD: Get material binding
+activate USD
+USD --> MS: Material (if any)
+deactivate USD
 
-Manager -> Manager: tendroids = [tendroid]
-Manager -> Controller: set_tendroids([tendroid])
-Manager --> Actions: success
-deactivate Manager
+MS -> MS: Check for glass keywords
 
-Actions -> UI: update_status("Created!")
-UI --> User: Status updated
-deactivate Actions
-deactivate UI
+MS --> TB: MaterialSafetyChecker instance
+deactivate MS
 
-== Animation Loop (Every Frame) ==
+TB -> T: Store material_safety
 
-loop Every Frame (60fps target)
-    Controller -> Controller: _on_update(event)
-    activate Controller
+TB -> T: mesh_updater = MeshVertexUpdater(\n  mesh_prim)
 
-    loop For each Tendroid
-        Controller -> Tendroid: update(dt)
-        activate Tendroid
+TB -> WD: WarpDeformer(\n  vertices,\n  deform_start_height)
+activate WD
 
-        Tendroid -> Safety: should_check_now()
-        activate Safety
-        Safety --> Tendroid: check this frame?
-        deactivate Safety
+WD -> WD: Convert vertices to\n  Warp arrays (CUDA):\n  - original_positions\n  - deformed_positions
 
-        opt Periodic Check
-            Tendroid -> Safety: check_material()
-            activate Safety
-            Safety --> Tendroid: is_safe
-            deactivate Safety
-        end
+WD --> TB: WarpDeformer instance
+deactivate WD
 
-        alt Glass Material Detected
-            Tendroid -> Tendroid: **BLOCK UPDATE**
-            note right: Animation disabled\nfor safety
-        else Safe Material
-            Tendroid -> Animator: update(dt)
-            activate Animator
-            Animator -> Animator: Calculate wave position
-            Animator --> Tendroid: wave_parameters
-            deactivate Animator
+TB -> T: Store warp_deformer
 
-            alt Wave Active
-                Tendroid -> Deformer: update(wave_center, bulge_length, amplitude)
-                activate Deformer
-                Deformer -> Deformer: **GPU Kernel Execution**\nDeform vertices\nwith wave pattern
-                Deformer --> Tendroid: deformed_vertices
-                deactivate Deformer
+TB -> BA: BreathingAnimator(\n  length,\n  deform_start_height,\n  wave_speed,\n  bulge_length_percent,\n  amplitude,\n  cycle_delay)
+activate BA
 
-                Tendroid -> Updater: update_vertices(deformed_vertices)
-                activate Updater
-                Updater -> Stage: Set points attribute
-                Stage --> Updater: updated
-                Updater --> Tendroid: success
-                deactivate Updater
-            end
+BA -> BA: Calculate:\n  - bulge_length\n  - travel_time\n  - cycle_duration
 
-            opt Bubble Emission
-                Tendroid -> Animator: should_emit_bubble()
-                Animator --> Tendroid: true
-                Tendroid -> Tendroid: _emit_bubble()
-            end
-        end
+BA --> TB: BreathingAnimator instance
+deactivate BA
 
-        Tendroid --> Controller: frame complete
-        deactivate Tendroid
-    end
+TB -> T: Store breathing_animator
 
-    Controller --> Controller: all updated
-    deactivate Controller
+TB -> T: is_created = True
+
+TB -> TB: _log_creation_status(\n  tendroid)
+
+alt Material is glass
+  TB -> TB: Log error:\n  "GLASS MATERIAL DETECTED\n   Animation BLOCKED"
+else Material is safe
+  TB -> TB: Log info:\n  "Created with animation enabled"
 end
 
-note over Safety
-    Periodic glass material detection
-    CRITICAL for preventing GPU
-    crashes with transparent materials
-end note
+TB --> T: True (success)
+deactivate TB
 
-note over Builder
-    Builder pattern separates
-    complex creation logic
-    from main Tendroid class
-end note
+T --> TF: True
+deactivate T
 
-note over Stage
-    USD Stage updates trigger
-    viewport refresh in
-    Omniverse Composer
-end note
+TF --> SM: Tendroid instance
+deactivate TF
+
+SM -> SM: tendroids = [tendroid]
+
+SM -> AC: set_tendroids([tendroid])
+activate AC
+AC -> AC: self.tendroids = [tendroid]
+AC --> SM
+deactivate AC
+
+SM --> UI: True (success)
+deactivate SM
+
+UI -> UI: Update status display:\n  "Created: D=20.0, L=100.0..."
+
+UI --> User: Tendroid visible in viewport
+deactivate UI
+
+== Animation Start ==
+
+User -> UI: Click "Start Animation"
+activate UI
+
+UI -> SM: start_animation()
+activate SM
+
+SM -> AC: start()
+activate AC
+
+AC -> AC: Subscribe to\n  update event stream
+
+AC -> AC: is_running = True
+
+AC --> SM
+deactivate AC
+
+SM --> UI
+deactivate SM
+
+UI -> UI: Update status:\n  "Animation started"
+
+UI --> User: Breathing begins
+deactivate UI
+
+== Animation Update Loop ==
+
+loop Every Frame
+
+  AC -> AC: _on_update(event)
+  activate AC
+  
+  AC -> AC: Extract dt from event\n  (default 1/60)
+  
+  loop For each Tendroid
+    
+    AC -> T: update(dt)
+    activate T
+    
+    alt is_created and is_active
+      
+      T -> T: Check all components\n  initialized
+      
+      T -> MS: should_check_now()
+      activate MS
+      MS -> MS: check_counter++
+      alt check_counter >= check_interval
+        MS -> MS: check_counter = 0
+        MS --> T: True
+      else
+        MS --> T: False
+      end
+      deactivate MS
+      
+      alt Should check now
+        T -> MS: check_material()
+        activate MS
+        MS -> USD: Get material binding
+        activate USD
+        USD --> MS: Material
+        deactivate USD
+        MS -> MS: Check keywords
+        alt Glass detected
+          MS -> MS: is_glass_material = True\n  animation_disabled_reason = ...
+          MS -> MS: Log error:\n  "GLASS MATERIAL DETECTED"
+        else
+          MS -> MS: is_glass_material = False
+        end
+        MS --> T: is_safe
+        deactivate MS
+      end
+      
+      T -> MS: is_safe_for_animation()
+      activate MS
+      MS --> T: not is_glass_material
+      deactivate MS
+      
+      alt Material is safe
+        
+        T -> BA: update(dt)
+        activate BA
+        BA -> BA: time += dt\n  cycle_time = time % cycle_duration
+        
+        alt In delay period
+          BA --> T: {wave_center: -1000,\n   active: False}
+        else Active animation
+          BA -> BA: calculate_wave_position(\n  cycle_time, speed,\n  deform_start_height)
+          BA --> T: {wave_center,\n   bulge_length,\n   amplitude,\n   active: True}
+        end
+        deactivate BA
+        
+        alt Wave is active
+          
+          T -> WD: update(\n  wave_center,\n  bulge_length,\n  amplitude)
+          activate WD
+          
+          WD -> WD: Launch Warp kernel:\n  deform_breathing_bulge(\n    original_positions,\n    deformed_positions,\n    wave_center,\n    bulge_length,\n    amplitude,\n    deform_start_y)
+          
+          note right of WD
+            GPU kernel processes
+            all vertices in parallel:
+            1. Skip if below deform_start_y
+            2. Calculate distance from wave_center
+            3. Apply raised cosine envelope
+            4. Compute radial displacement
+            5. Write to deformed_positions
+          end note
+          
+          WD -> WD: Copy deformed_positions\n  back to CPU (numpy)
+          
+          WD -> WD: Convert numpy to\n  list of Gf.Vec3f
+          
+          WD --> T: deformed_vertices
+          deactivate WD
+          
+          T -> T: mesh_updater.update_vertices(\n  deformed_vertices)
+          
+          T -> USD: Set points attribute
+          activate USD
+          deactivate USD
+          
+        end
+        
+        T -> BA: should_emit_bubble()
+        activate BA
+        BA -> BA: Check if wave\n  passed 95% of length
+        alt Should emit
+          BA -> BA: last_bubble_time = time
+          BA --> T: True
+        else
+          BA --> T: False
+        end
+        deactivate BA
+        
+        alt Should emit bubble
+          T -> T: _emit_bubble()
+          note right of T
+            Phase 2 feature
+            Currently just logs
+          end note
+        end
+        
+      else Material unsafe
+        note right of T
+          Animation completely blocked
+          No updates performed
+        end note
+      end
+      
+    end
+    
+    T --> AC
+    deactivate T
+    
+  end
+  
+  AC --> AC
+  deactivate AC
+  
+end
 
 @enduml

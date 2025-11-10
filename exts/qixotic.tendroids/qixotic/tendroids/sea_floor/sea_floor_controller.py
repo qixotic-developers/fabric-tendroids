@@ -23,14 +23,14 @@ class SeaFloorController:
     
     Args:
         stage: USD stage
-        config: Configuration for terrain generation
+        config: Configuration for terrain generation (uses JSON if None)
     
     Returns:
         True if successful, False otherwise
     """
     try:
       if config is None:
-        config = SeaFloorConfig()
+        config = SeaFloorConfig.from_json()
       
       # Generate height map
       initialize_height_map(config)
@@ -42,8 +42,8 @@ class SeaFloorController:
         carb.log_error("[SeaFloorController] Height map generation failed")
         return False
       
-      # Setup environment (Sky, DistantLight)
-      env_config = EnvironmentConfig()
+      # Setup environment (Sky, DistantLight) - uses JSON config
+      env_config = EnvironmentConfig.from_json()
       EnvironmentSetup.setup_environment(stage, env_config)
       
       # Ensure parent path exists

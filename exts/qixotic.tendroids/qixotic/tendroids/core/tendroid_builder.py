@@ -13,6 +13,7 @@ from .mesh_updater import MeshVertexUpdater
 from .terrain_conform import conform_base_to_terrain
 from ..animation.breathing import BreathingAnimator
 from ..sea_floor import get_height_at
+from ..config import get_config_value
 
 
 class TendroidBuilder:
@@ -64,7 +65,7 @@ class TendroidBuilder:
       if not TendroidBuilder._initialize_components(tendroid):
         return False
       
-      # Log creation success
+      # Log creation status
       TendroidBuilder._log_creation_status(tendroid)
       
       tendroid.is_created = True
@@ -80,6 +81,14 @@ class TendroidBuilder:
   def _create_usd_geometry(tendroid, stage, parent_path: str) -> bool:
     """Create USD Xform and mesh geometry."""
     try:
+      # Load flare config from JSON
+      flare_height_pct = get_config_value(
+        "tendroid_geometry", "flare_height_percent", default=15.0
+      )
+      flare_radius_mult = get_config_value(
+        "tendroid_geometry", "flare_radius_multiplier", default=2.0
+      )
+      
       # Create base Xform
       tendroid.base_path = f"{parent_path}/{tendroid.name}"
       base_xform = UsdGeom.Xform.Define(stage, tendroid.base_path)
@@ -99,8 +108,8 @@ class TendroidBuilder:
           length=tendroid.length,
           num_segments=tendroid.num_segments,
           radial_resolution=tendroid.radial_resolution,
-          flare_height_percent=15.0,
-          flare_radius_multiplier=2.0
+          flare_height_percent=flare_height_pct,
+          flare_radius_multiplier=flare_radius_mult
         )
       
       tendroid.mesh_prim = mesh_prim
@@ -108,7 +117,7 @@ class TendroidBuilder:
       tendroid._initial_vertices = vertices
       
       # Store flare info for terrain conforming
-      tendroid._flare_height = tendroid.length * 0.15
+      tendroid._flare_height = tendroid.length * (flare_height_pct / 100.0)
       
       return True
     
@@ -164,14 +173,28 @@ class TendroidBuilder:
         tendroid.deform_start_height
       )
       
-      # Breathing animator with defaults
+      # Load animation config from JSON
+      wave_speed = get_config_value(
+        "tendroid_animation", "wave_speed", default=40.0
+      )
+      bulge_pct = get_config_value(
+        "tendroid_animation", "bulge_length_percent", default=40.0
+      )
+      amplitude = get_config_value(
+        "tendroid_animation", "amplitude", default=0.35
+      )
+      cycle_delay = get_config_value(
+        "tendroid_animation", "cycle_delay", default=2.0
+      )
+      
+      # Breathing animator with config values
       tendroid.breathing_animator = BreathingAnimator(
         length=tendroid.length,
         deform_start_height=tendroid.deform_start_height,
-        wave_speed=40.0,
-        bulge_length_percent=40.0,
-        amplitude=0.35,
-        cycle_delay=2.0
+        wave_speed=wave_speed,
+        bulge_length_percent=bulge_pct,
+        amplitude=amplitude,
+        cycle_delay=cycle_delay
       )
       
       return True

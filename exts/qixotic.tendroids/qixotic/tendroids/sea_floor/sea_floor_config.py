@@ -1,7 +1,7 @@
 """
 Sea floor configuration
 
-Defines all parameters for terrain generation.
+Defines all parameters for terrain generation with JSON override support.
 """
 
 from dataclasses import dataclass
@@ -42,3 +42,20 @@ class SeaFloorConfig:
   def grid_spacing_y(self) -> float:
     """Spacing between grid points in Y direction."""
     return self.depth / self.resolution_y
+  
+  @classmethod
+  def from_json(cls, **overrides):
+    """
+    Create config from JSON with optional overrides.
+    
+    Args:
+        **overrides: Explicit parameter overrides
+    
+    Returns:
+        SeaFloorConfig instance
+    """
+    from ..config import ConfigLoader
+    
+    instance = cls()
+    ConfigLoader.merge_with_dataclass(instance, "sea_floor", **overrides)
+    return instance

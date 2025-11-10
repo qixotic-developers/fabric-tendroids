@@ -8,6 +8,7 @@ import carb
 import random
 import math
 from ..core.tendroid import Tendroid
+from ..config import get_config_value
 
 
 class TendroidFactory:
@@ -18,40 +19,54 @@ class TendroidFactory:
   with consistent parameter handling and interference checking.
   """
   
-  # Flare multiplier matches cylinder_generator settings
-  FLARE_RADIUS_MULTIPLIER = 2.0
-  
   @staticmethod
   def create_single(
     stage,
     parent_path: str = "/World/Tendroids",
     position: tuple = (0, 0, 0),
-    radius: float = 10.0,
-    length: float = 100.0,
-    num_segments: int = 32,
-    bulge_length_percent: float = 40.0,
-    amplitude: float = 0.5,
-    wave_speed: float = 40.0,
-    cycle_delay: float = 2.0
+    radius: float = None,
+    length: float = None,
+    num_segments: int = None,
+    bulge_length_percent: float = None,
+    amplitude: float = None,
+    wave_speed: float = None,
+    cycle_delay: float = None
   ) -> Tendroid | None:
     """
     Create a single Tendroid with custom parameters.
+    Uses JSON config defaults when parameters are None.
     
     Args:
         stage: USD stage
         parent_path: Parent prim path
         position: (x, y, z) world position
-        radius: Cylinder radius
-        length: Total length
-        num_segments: Vertical resolution
-        bulge_length_percent: Bulge size as % of length
-        amplitude: Maximum radial expansion
-        wave_speed: Wave travel speed
-        cycle_delay: Pause between cycles
+        radius: Cylinder radius (uses JSON default if None)
+        length: Total length (uses JSON default if None)
+        num_segments: Vertical resolution (uses JSON default if None)
+        bulge_length_percent: Bulge size as % of length (uses JSON default if None)
+        amplitude: Maximum radial expansion (uses JSON default if None)
+        wave_speed: Wave travel speed (uses JSON default if None)
+        cycle_delay: Pause between cycles (uses JSON default if None)
     
     Returns:
         Created Tendroid instance or None if failed
     """
+    # Load defaults from JSON config
+    if radius is None:
+      radius = get_config_value("tendroid_geometry", "default_radius", default=10.0)
+    if length is None:
+      length = get_config_value("tendroid_geometry", "default_length", default=100.0)
+    if num_segments is None:
+      num_segments = get_config_value("tendroid_geometry", "default_num_segments", default=16)
+    if bulge_length_percent is None:
+      bulge_length_percent = get_config_value("tendroid_animation", "bulge_length_percent", default=40.0)
+    if amplitude is None:
+      amplitude = get_config_value("tendroid_animation", "amplitude", default=0.35)
+    if wave_speed is None:
+      wave_speed = get_config_value("tendroid_animation", "wave_speed", default=40.0)
+    if cycle_delay is None:
+      cycle_delay = get_config_value("tendroid_animation", "cycle_delay", default=2.0)
+    
     tendroid = Tendroid(
       name="Tendroid_Single",
       position=position,
@@ -84,29 +99,51 @@ class TendroidFactory:
   @staticmethod
   def create_batch(
     stage,
-    count: int = 15,
+    count: int = None,
     parent_path: str = "/World/Tendroids",
-    spawn_area: tuple = (200, 200),
-    radius_range: tuple = (8, 12),
-    num_segments: int = 16,
-    max_attempts: int = 200
+    spawn_area: tuple = None,
+    radius_range: tuple = None,
+    num_segments: int = None,
+    max_attempts: int = None
   ) -> list:
     """
     Create multiple Tendroids with randomized positions and sizes.
     Uses 8:1 aspect ratio (±0.5 variation) and interference checking.
+    Uses JSON config defaults when parameters are None.
     
     Args:
         stage: USD stage
-        count: Number of Tendroids to create
+        count: Number of Tendroids to create (uses JSON default if None)
         parent_path: Parent prim path
-        spawn_area: (width, depth) of spawning area
-        radius_range: (min, max) radius for variation
-        num_segments: Segments per Tendroid
-        max_attempts: Maximum position attempts per Tendroid
+        spawn_area: (width, depth) of spawning area (uses JSON default if None)
+        radius_range: (min, max) radius for variation (uses JSON default if None)
+        num_segments: Segments per Tendroid (uses JSON default if None)
+        max_attempts: Maximum position attempts per Tendroid (uses JSON default if None)
     
     Returns:
         List of created Tendroid instances
     """
+    # Load defaults from JSON config
+    if count is None:
+      count = get_config_value("tendroid_spawning", "default_count", default=15)
+    if spawn_area is None:
+      spawn_area = tuple(get_config_value("tendroid_spawning", "spawn_area", default=[200.0, 200.0]))
+    if radius_range is None:
+      radius_range = tuple(get_config_value("tendroid_spawning", "radius_range", default=[8.0, 12.0]))
+    if num_segments is None:
+      num_segments = get_config_value("tendroid_geometry", "default_num_segments", default=16)
+    if max_attempts is None:
+      max_attempts = get_config_value("tendroid_spawning", "max_placement_attempts", default=200)
+    
+    # Load flare multiplier
+    flare_radius_mult = get_config_value("tendroid_geometry", "flare_radius_multiplier", default=2.0)
+    
+    # Load aspect ratio range
+    aspect_range = get_config_value("tendroid_spawning", "aspect_ratio_range", default=[7.5, 8.5])
+    
+    # Load spacing multiplier
+    spacing_mult = get_config_value("tendroid_spawning", "spacing_multiplier", default=1.2)
+    
     tendroids = []
     positions = []  # Track (x, z, base_radius) for interference checking
     width, depth = spawn_area
@@ -117,7 +154,7 @@ class TendroidFactory:
       z = 0.0
       radius = radius_range[0]  # Default to minimum radius
       length = radius * 2.0 * 8.0  # Default to 8:1 aspect ratio
-      base_radius = radius * TendroidFactory.FLARE_RADIUS_MULTIPLIER
+      base_radius = radius * flare_radius_mult
       
       attempt = 0
       position_found = False
@@ -131,14 +168,14 @@ class TendroidFactory:
         radius = random.uniform(*radius_range)
         
         # Calculate actual base radius (flared)
-        base_radius = radius * TendroidFactory.FLARE_RADIUS_MULTIPLIER
+        base_radius = radius * flare_radius_mult
         
-        # 8:1 aspect ratio with ±0.5 variation (7.5:1 to 8.5:1)
-        aspect_ratio = random.uniform(7.5, 8.5)
+        # Aspect ratio with variation
+        aspect_ratio = random.uniform(aspect_range[0], aspect_range[1])
         length = radius * 2.0 * aspect_ratio  # diameter * aspect_ratio
         
         # Check interference using base radius
-        if TendroidFactory._check_interference(x, z, base_radius, positions):
+        if TendroidFactory._check_interference(x, z, base_radius, positions, spacing_mult):
           position_found = True
           positions.append((x, z, base_radius))
         else:
@@ -184,7 +221,7 @@ class TendroidFactory:
     z: float,
     base_radius: float,
     existing_positions: list,
-    spacing_multiplier: float = 1.2
+    spacing_multiplier: float
   ) -> bool:
     """
     Check if position interferes with existing Tendroids.
@@ -197,7 +234,7 @@ class TendroidFactory:
         z: Z position of new Tendroid
         base_radius: Flared base radius of new Tendroid
         existing_positions: List of (x, z, base_radius) tuples
-        spacing_multiplier: Spacing factor (1.2 = 20% gap between bases)
+        spacing_multiplier: Spacing factor (e.g., 1.2 = 20% gap between bases)
     
     Returns:
         True if position is valid (no interference), False if interferes

@@ -31,6 +31,7 @@ icon = "data/icon.png"
 "omni.usd" = {}
 "omni.ui" = {}
 "usdrt.scenegraph" = {}
+"omni.kit.pip_archive" = {}
 
 # Main python module this extension provides, it will be publicly available as "import qixotic.tendroids".
 [[python.module]]

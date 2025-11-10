@@ -18,6 +18,9 @@ class TendroidFactory:
   with consistent parameter handling and interference checking.
   """
   
+  # Flare multiplier matches cylinder_generator settings
+  FLARE_RADIUS_MULTIPLIER = 2.0
+  
   @staticmethod
   def create_single(
     stage,
@@ -86,7 +89,7 @@ class TendroidFactory:
     spawn_area: tuple = (200, 200),
     radius_range: tuple = (8, 12),
     num_segments: int = 16,
-    max_attempts: int = 100
+    max_attempts: int = 200
   ) -> list:
     """
     Create multiple Tendroids with randomized positions and sizes.
@@ -105,7 +108,7 @@ class TendroidFactory:
         List of created Tendroid instances
     """
     tendroids = []
-    positions = []  # Track (x, z, radius) for interference checking
+    positions = []  # Track (x, z, base_radius) for interference checking
     width, depth = spawn_area
     
     for i in range(count):
@@ -114,6 +117,7 @@ class TendroidFactory:
       z = 0.0
       radius = radius_range[0]  # Default to minimum radius
       length = radius * 2.0 * 8.0  # Default to 8:1 aspect ratio
+      base_radius = radius * TendroidFactory.FLARE_RADIUS_MULTIPLIER
       
       attempt = 0
       position_found = False
@@ -126,26 +130,29 @@ class TendroidFactory:
         # Random radius
         radius = random.uniform(*radius_range)
         
+        # Calculate actual base radius (flared)
+        base_radius = radius * TendroidFactory.FLARE_RADIUS_MULTIPLIER
+        
         # 8:1 aspect ratio with ±0.5 variation (7.5:1 to 8.5:1)
         aspect_ratio = random.uniform(7.5, 8.5)
         length = radius * 2.0 * aspect_ratio  # diameter * aspect_ratio
         
-        # Check interference with existing Tendroids
-        if TendroidFactory._check_interference(x, z, radius, positions):
+        # Check interference using base radius
+        if TendroidFactory._check_interference(x, z, base_radius, positions):
           position_found = True
-          positions.append((x, z, radius))
+          positions.append((x, z, base_radius))
         else:
           attempt += 1
       
       if not position_found:
         carb.log_warn(
-          f"[TendroidFactory] Could not find non-interfering position for Tendroid {i} "
-          f"after {max_attempts} attempts"
+          f"[TendroidFactory] Skipping Tendroid {i} - could not find "
+          f"non-interfering position after {max_attempts} attempts. "
+          f"Try increasing spawn_area or reducing count."
         )
-        # Place anyway with last attempted position
-        positions.append((x, z, radius))
+        continue  # Skip this tendroid instead of forcing placement
       
-      # Create Tendroid
+      # Create Tendroid with valid position
       tendroid = Tendroid(
         name=f"Tendroid_{i:02d}",
         position=(x, 0, z),  # y=0 is ground level
@@ -158,9 +165,12 @@ class TendroidFactory:
         tendroids.append(tendroid)
         carb.log_info(
           f"[TendroidFactory] Tendroid_{i:02d}: "
-          f"R={radius:.1f}, L={length:.1f} (aspect={length/(radius*2):.1f}:1)"
+          f"R={radius:.1f}, Base={base_radius:.1f}, L={length:.1f} "
+          f"(aspect={length/(radius*2):.1f}:1)"
         )
       else:
+        # Failed to create - remove from positions list
+        positions.pop()
         carb.log_warn(f"[TendroidFactory] Failed to create Tendroid {i}")
     
     carb.log_info(
@@ -172,38 +182,36 @@ class TendroidFactory:
   def _check_interference(
     x: float,
     z: float,
-    radius: float,
+    base_radius: float,
     existing_positions: list,
-    proximity_threshold: float = 100.0
+    spacing_multiplier: float = 1.2
   ) -> bool:
     """
     Check if position interferes with existing Tendroids.
     
-    Only checks pairs within proximity_threshold for efficiency.
-    Requires minimum separation of 1.5 * (radius1 + radius2).
+    Uses base (flared) radius for accurate spacing calculation.
+    Requires minimum separation of spacing_multiplier * (base_radius1 + base_radius2).
     
     Args:
         x: X position of new Tendroid
         z: Z position of new Tendroid
-        radius: Radius of new Tendroid
-        existing_positions: List of (x, z, radius) tuples
-        proximity_threshold: Only check interference within this distance
+        base_radius: Flared base radius of new Tendroid
+        existing_positions: List of (x, z, base_radius) tuples
+        spacing_multiplier: Spacing factor (1.2 = 20% gap between bases)
     
     Returns:
         True if position is valid (no interference), False if interferes
     """
-    for ex, ez, er in existing_positions:
+    for ex, ez, existing_base_radius in existing_positions:
       # Calculate distance between centers
       dx = x - ex
       dz = z - ez
       distance = math.sqrt(dx * dx + dz * dz)
       
-      # Only check interference if within proximity threshold
-      if distance < proximity_threshold:
-        # Minimum separation: 1.5 * sum of radii
-        min_separation = 1.5 * (radius + er)
-        
-        if distance < min_separation:
-          return False  # Interference detected
+      # Minimum separation based on flared base radii
+      min_separation = spacing_multiplier * (base_radius + existing_base_radius)
+      
+      if distance < min_separation:
+        return False  # Interference detected
     
     return True  # No interference

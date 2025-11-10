@@ -1,5 +1,5 @@
 """
-Spawn settings UI components for Tendroid control panel
+Spawn settings UI with compact two-column layout and tooltips
 
 Manages all spawn parameter widgets with conditional visibility.
 """
@@ -9,7 +9,7 @@ import omni.ui as ui
 
 class SpawnSettingsUI:
   """
-  Manages spawn parameter UI elements with single/multi mode switching.
+  Manages spawn parameter UI with tooltips and two-column layout.
   
   Shows detailed parameters for single Tendroid mode,
   simplified settings for multi-spawn mode.
@@ -18,22 +18,22 @@ class SpawnSettingsUI:
   def __init__(self):
     """Initialize spawn settings UI."""
     # Spawn settings
-    self.spawn_count = 1  # Start with single mode
+    self.spawn_count = 1
     self.spawn_width = 200
     self.spawn_depth = 200
     
-    # Single tendroid settings (only used when count == 1)
+    # Single tendroid settings
     self.single_diameter = 20.0
-    self.single_length = 160.0  # 8:1 aspect ratio default
+    self.single_length = 160.0
     self.bulge_size_percent = 40.0
-    self.amplitude = 0.5  # Updated default
+    self.amplitude = 0.5
     self.wave_speed = 40.0
     self.pause_duration = 2.0
     
     # Multi-tendroid settings
     self.num_segments = 16
     
-    # UI references for conditional visibility
+    # UI references
     self.single_settings_frame = None
     self.multi_settings_frame = None
     
@@ -41,162 +41,101 @@ class SpawnSettingsUI:
     self.on_count_changed_callback = None
   
   def create_ui(self, parent_stack: ui.VStack):
-    """
-    Create spawn settings UI elements.
-    
-    Args:
-        parent_stack: Parent VStack to add settings to
-    """
-    # === SPAWN SETTINGS ===
+    """Create compact two-column spawn settings UI."""
     with ui.CollapsableFrame("Spawn Settings", height=0, collapsed=False):
-      with ui.VStack(spacing=5):
-        # Count slider
-        with ui.HStack():
-          ui.Label("Count:", width=100)
-          count_field = ui.IntDrag(min=1, max=15, step=1)
+      with ui.VStack(spacing=3):
+        # Count (full width)
+        with ui.HStack(spacing=5):
+          ui.Label("Count:", width=80)
+          count_field = ui.IntDrag(min=1, max=15, step=1, tooltip="Number of Tendroids to spawn")
           count_field.model.set_value(self.spawn_count)
           count_field.model.add_value_changed_fn(
             lambda m: self._on_count_changed(m.get_value_as_int())
           )
-        ui.Label(
-          "Number of tendroids to spawn",
-          style={"font_size": 14, "color": 0xFF888888}
-        )
     
-    ui.Spacer(height=5)
-    
-    # === SINGLE TENDROID SETTINGS (conditional) ===
+    # Single Tendroid Settings (conditional)
     self._create_single_settings()
     
-    ui.Spacer(height=5)
-    
-    # === MULTI-TENDROID SETTINGS (conditional) ===
+    # Multi-Spawn Settings (conditional)
     self._create_multi_settings()
   
   def _create_single_settings(self):
-    """Create single tendroid parameter controls."""
+    """Create single tendroid parameter controls in two columns."""
     self.single_settings_frame = ui.CollapsableFrame(
-      "Single Tendroid Settings",
+      "Single Tendroid",
       height=0,
       collapsed=False,
       visible=(self.spawn_count == 1)
     )
     with self.single_settings_frame:
-      with ui.VStack(spacing=5):
-        # Diameter - step increased for less sensitivity
-        with ui.HStack():
-          ui.Label("Diameter:", width=100)
-          diameter_field = ui.FloatDrag(min=2.0, max=100.0, step=2.0)
-          diameter_field.model.set_value(self.single_diameter)
-          diameter_field.model.add_value_changed_fn(
-            lambda m: setattr(self, 'single_diameter', m.get_value_as_float())
-          )
-        ui.Label(
-          "Initial diameter of cylinder",
-          style={"font_size": 14, "color": 0xFF888888}
-        )
+      with ui.HStack(spacing=10):
+        # Left column
+        with ui.VStack(spacing=3, width=ui.Fraction(1)):
+          self._create_param("Diameter:", self.single_diameter, 2.0, 100.0, 2.0,
+                           "single_diameter", "Initial cylinder diameter")
+          self._create_param("Length:", self.single_length, 10.0, 500.0, 10.0,
+                           "single_length", "Cylinder height")
+          self._create_param("Wave Size %:", self.bulge_size_percent, 5.0, 50.0, 2.0,
+                           "bulge_size_percent", "Traveling bulge size as % of length")
         
-        # Length - step increased for less sensitivity
-        with ui.HStack():
-          ui.Label("Length:", width=100)
-          length_field = ui.FloatDrag(min=10.0, max=500.0, step=10.0)
-          length_field.model.set_value(self.single_length)
-          length_field.model.add_value_changed_fn(
-            lambda m: setattr(self, 'single_length', m.get_value_as_float())
-          )
-        ui.Label(
-          "Height of cylinder",
-          style={"font_size": 14, "color": 0xFF888888}
-        )
-        
-        # Wave Size - step increased for less sensitivity
-        with ui.HStack():
-          ui.Label("Wave Size (%):", width=100)
-          wave_size_field = ui.FloatDrag(min=5.0, max=50.0, step=2.0)
-          wave_size_field.model.set_value(self.bulge_size_percent)
-          wave_size_field.model.add_value_changed_fn(
-            lambda m: setattr(self, 'bulge_size_percent', m.get_value_as_float())
-          )
-        ui.Label(
-          "Size of traveling bulge as % of length",
-          style={"font_size": 14, "color": 0xFF888888}
-        )
-        
-        # Amplitude - step increased for less sensitivity
-        with ui.HStack():
-          ui.Label("Amplitude:", width=100)
-          amplitude_field = ui.FloatDrag(min=0.0, max=1.0, step=0.1)
-          amplitude_field.model.set_value(self.amplitude)
-          amplitude_field.model.add_value_changed_fn(
-            lambda m: setattr(self, 'amplitude', m.get_value_as_float())
-          )
-        ui.Label(
-          "Maximum radial expansion (0.5 = 50%)",
-          style={"font_size": 14, "color": 0xFF888888}
-        )
-        
-        # Wave Speed - step increased for less sensitivity
-        with ui.HStack():
-          ui.Label("Wave Speed:", width=100)
-          speed_field = ui.FloatDrag(min=10.0, max=200.0, step=10.0)
-          speed_field.model.set_value(self.wave_speed)
-          speed_field.model.add_value_changed_fn(
-            lambda m: setattr(self, 'wave_speed', m.get_value_as_float())
-          )
-        ui.Label(
-          "Speed of traveling wave",
-          style={"font_size": 14, "color": 0xFF888888}
-        )
-        
-        # Pause Duration - step increased for less sensitivity
-        with ui.HStack():
-          ui.Label("Pause (sec):", width=100)
-          pause_field = ui.FloatDrag(min=0.0, max=10.0, step=1.0)
-          pause_field.model.set_value(self.pause_duration)
-          pause_field.model.add_value_changed_fn(
-            lambda m: setattr(self, 'pause_duration', m.get_value_as_float())
-          )
-        ui.Label(
-          "Pause between breathing cycles",
-          style={"font_size": 14, "color": 0xFF888888}
-        )
+        # Right column
+        with ui.VStack(spacing=3, width=ui.Fraction(1)):
+          self._create_param("Amplitude:", self.amplitude, 0.0, 1.0, 0.1,
+                           "amplitude", "Maximum radial expansion (0.5 = 50%)")
+          self._create_param("Wave Speed:", self.wave_speed, 10.0, 200.0, 10.0,
+                           "wave_speed", "Speed of traveling wave")
+          self._create_param("Pause (sec):", self.pause_duration, 0.0, 10.0, 1.0,
+                           "pause_duration", "Pause between breathing cycles")
   
   def _create_multi_settings(self):
-    """Create multi-tendroid spawn controls."""
+    """Create multi-tendroid spawn controls in two columns."""
     self.multi_settings_frame = ui.CollapsableFrame(
-      "Multi-Spawn Settings",
+      "Multi-Spawn",
       height=0,
       collapsed=False,
       visible=(self.spawn_count > 1)
     )
     with self.multi_settings_frame:
-      with ui.VStack(spacing=5):
-        # Spawn area width - step increased for less sensitivity
-        with ui.HStack():
-          ui.Label("Area Width:", width=100)
-          width_field = ui.IntDrag(min=50, max=1000, step=25)
-          width_field.model.set_value(self.spawn_width)
-          width_field.model.add_value_changed_fn(
-            lambda m: setattr(self, 'spawn_width', m.get_value_as_int())
-          )
+      with ui.HStack(spacing=10):
+        # Left column
+        with ui.VStack(spacing=3, width=ui.Fraction(1)):
+          self._create_param("Area Width:", self.spawn_width, 50, 1000, 25,
+                           "spawn_width", "Spawn area width", is_int=True)
         
-        # Spawn area depth - step increased for less sensitivity
-        with ui.HStack():
-          ui.Label("Area Depth:", width=100)
-          depth_field = ui.IntDrag(min=50, max=1000, step=25)
-          depth_field.model.set_value(self.spawn_depth)
-          depth_field.model.add_value_changed_fn(
-            lambda m: setattr(self, 'spawn_depth', m.get_value_as_int())
-          )
-        
-        # Segments per Tendroid - step unchanged (already 1)
-        with ui.HStack():
-          ui.Label("Segments:", width=100)
-          segments_field = ui.IntDrag(min=8, max=32, step=2)
-          segments_field.model.set_value(self.num_segments)
-          segments_field.model.add_value_changed_fn(
-            lambda m: setattr(self, 'num_segments', m.get_value_as_int())
-          )
+        # Right column
+        with ui.VStack(spacing=3, width=ui.Fraction(1)):
+          self._create_param("Area Depth:", self.spawn_depth, 50, 1000, 25,
+                           "spawn_depth", "Spawn area depth", is_int=True)
+      
+      # Segments (full width below)
+      with ui.HStack(spacing=5):
+        ui.Label("Segments:", width=80)
+        segments_field = ui.IntDrag(min=8, max=32, step=2, 
+                                   tooltip="Vertical resolution per Tendroid")
+        segments_field.model.set_value(self.num_segments)
+        segments_field.model.add_value_changed_fn(
+          lambda m: setattr(self, 'num_segments', m.get_value_as_int())
+        )
+  
+  def _create_param(self, label: str, value: float, min_val: float, max_val: float,
+                    step: float, attr_name: str, tooltip: str, is_int: bool = False):
+    """Helper to create a parameter control with tooltip."""
+    with ui.HStack(spacing=3):
+      ui.Label(label, width=80)
+      if is_int:
+        field = ui.IntDrag(min=int(min_val), max=int(max_val), 
+                          step=int(step), tooltip=tooltip)
+        field.model.set_value(int(value))
+        field.model.add_value_changed_fn(
+          lambda m: setattr(self, attr_name, m.get_value_as_int())
+        )
+      else:
+        field = ui.FloatDrag(min=min_val, max=max_val, 
+                            step=step, tooltip=tooltip)
+        field.model.set_value(value)
+        field.model.add_value_changed_fn(
+          lambda m: setattr(self, attr_name, m.get_value_as_float())
+        )
   
   def _on_count_changed(self, value: int):
     """Handle spawn count changes - show/hide conditional sections."""

@@ -10,7 +10,9 @@ from .cylinder_generator import CylinderGenerator
 from .warp_deformer import WarpDeformer
 from .material_safety import MaterialSafetyChecker
 from .mesh_updater import MeshVertexUpdater
+from .terrain_conform import conform_base_to_terrain
 from ..animation.breathing import BreathingAnimator
+from ..sea_floor import get_height_at
 
 
 class TendroidBuilder:
@@ -39,8 +41,23 @@ class TendroidBuilder:
         Success status
     """
     try:
+      # Query sea floor height at tendroid position
+      floor_height = get_height_at(tendroid.position[0], tendroid.position[1])
+      
+      # Adjust position to sit on floor
+      adjusted_position = (
+        tendroid.position[0],
+        floor_height,
+        tendroid.position[2]
+      )
+      tendroid.position = adjusted_position
+      
       # Create USD geometry
       if not TendroidBuilder._create_usd_geometry(tendroid, stage, parent_path):
+        return False
+      
+      # Conform base to terrain AFTER geometry creation
+      if not TendroidBuilder._conform_base_to_terrain(tendroid):
         return False
       
       # Initialize all components
@@ -90,10 +107,41 @@ class TendroidBuilder:
       tendroid.deform_start_height = deform_start
       tendroid._initial_vertices = vertices
       
+      # Store flare info for terrain conforming
+      tendroid._flare_height = tendroid.length * 0.15
+      
       return True
     
     except Exception as e:
       carb.log_error(f"[TendroidBuilder] USD geometry creation failed: {e}")
+      return False
+  
+  @staticmethod
+  def _conform_base_to_terrain(tendroid) -> bool:
+    """Conform base vertices to terrain contours."""
+    try:
+      # Conform vertices to terrain
+      conformed_vertices = conform_base_to_terrain(
+        vertices=tendroid._initial_vertices,
+        base_position=tendroid.position,
+        flare_height=tendroid._flare_height,
+        num_segments=tendroid.num_segments,
+        radial_resolution=tendroid.radial_resolution
+      )
+      
+      # Update mesh with conformed vertices
+      mesh_geom = UsdGeom.Mesh(tendroid.mesh_prim)
+      mesh_geom.GetPointsAttr().Set(conformed_vertices)
+      
+      # Update stored vertices for deformation system
+      tendroid._initial_vertices = conformed_vertices
+      
+      return True
+    
+    except Exception as e:
+      carb.log_error(f"[TendroidBuilder] Terrain conforming failed: {e}")
+      import traceback
+      traceback.print_exc()
       return False
   
   @staticmethod

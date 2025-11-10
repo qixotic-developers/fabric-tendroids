@@ -8,7 +8,7 @@ import carb
 import omni.usd
 from .tendroid_factory import TendroidFactory
 from .animation_controller import AnimationController
-from .ground_plane_helper import setup_ground_plane
+from ..sea_floor.sea_floor_controller import SeaFloorController
 
 
 class TendroidSceneManager:
@@ -23,8 +23,26 @@ class TendroidSceneManager:
     """Initialize scene manager."""
     self.tendroids = []
     self.animation_controller = AnimationController()
+    self._sea_floor_created = False
     
     carb.log_info("[TendroidSceneManager] Initialized")
+  
+  def _ensure_sea_floor(self, stage):
+    """
+    Ensure sea floor exists in the stage.
+    
+    Args:
+        stage: USD stage
+    """
+    if not self._sea_floor_created and stage:
+      try:
+        SeaFloorController.create_sea_floor(stage)
+        self._sea_floor_created = True
+        carb.log_info("[TendroidSceneManager] Sea floor created")
+      except Exception as e:
+        carb.log_error(f"[TendroidSceneManager] Failed to create sea floor: {e}")
+        import traceback
+        traceback.print_exc()
   
   def create_tendroids(
     self,
@@ -57,11 +75,11 @@ class TendroidSceneManager:
         carb.log_error("[TendroidSceneManager] No USD stage available")
         return False
       
+      # Ensure sea floor exists before creating tendroids
+      self._ensure_sea_floor(stage)
+      
       # Clear existing Tendroids
       self.clear_tendroids(stage)
-      
-      # Setup ground plane with material
-      setup_ground_plane(stage)
       
       # Use factory to create batch
       self.tendroids = TendroidFactory.create_batch(
@@ -125,11 +143,11 @@ class TendroidSceneManager:
         carb.log_error("[TendroidSceneManager] No USD stage available")
         return False
       
+      # Ensure sea floor exists before creating tendroids
+      self._ensure_sea_floor(stage)
+      
       # Clear existing Tendroids
       self.clear_tendroids(stage)
-      
-      # Setup ground plane with material
-      setup_ground_plane(stage)
       
       # Use factory to create single
       tendroid = TendroidFactory.create_single(

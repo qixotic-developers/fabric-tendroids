@@ -14,7 +14,7 @@ from .status_display import StatusDisplay
 
 class TendroidControlPanel:
   """
-  Main control panel coordinator.
+  Main control panel coordinator with compact two-column layout.
   
   Delegates UI sections to specialized components:
   - SpawnSettingsUI: Parameter controls with single/multi mode switching
@@ -47,43 +47,47 @@ class TendroidControlPanel:
     carb.log_info("[TendroidControlPanel] Initialized")
   
   def create_window(self):
-    """Create the UI window with all components."""
+    """Create the UI window with compact two-column layout."""
     if self.window:
       return
     
     self.window = ui.Window(
       "Tendroid Controls",
-      width=320,
-      height=650
+      width=400,
+      height=350
     )
     
     with self.window.frame:
-      with ui.ScrollingFrame(
-        horizontal_scrollbar_policy=ui.ScrollBarPolicy.SCROLLBAR_ALWAYS_OFF,
-        vertical_scrollbar_policy=ui.ScrollBarPolicy.SCROLLBAR_AS_NEEDED
-      ):
-        with ui.VStack(spacing=10, height=0):
-          # Header
+      with ui.VStack(spacing=8):
+        # Header - fixed height
+        with ui.VStack(height=40):
+          ui.Spacer(height=5)
           ui.Label(
             "Tendroid Manager",
             alignment=ui.Alignment.CENTER,
+            height=30,
             style={"font_size": 18}
           )
-          
-          ui.Spacer(height=5)
-          
-          # Spawn settings
-          self.spawn_settings.create_ui(None)
-          
-          ui.Spacer(height=10)
-          
-          # Action buttons
-          self.action_buttons.create_ui(None)
-          
-          ui.Spacer(height=10)
-          
-          # Status display
-          self.status_display.create_ui(None)
+        
+        ui.Line()
+        ui.Spacer(height=2)
+        
+        # Spawn settings (compact two-column)
+        self.spawn_settings.create_ui(None)
+        
+        ui.Spacer(height=5)
+        ui.Line()
+        ui.Spacer(height=5)
+        
+        # Action buttons
+        self.action_buttons.create_ui(None)
+        
+        ui.Spacer(height=5)
+        ui.Line()
+        ui.Spacer(height=5)
+        
+        # Status display
+        self.status_display.create_ui(None)
     
     carb.log_info("[TendroidControlPanel] Window created")
   

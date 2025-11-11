@@ -1,8 +1,12 @@
-= Swept Torus Solution for Tendroid Base
+:doctitle: Swept Torus Solution for Tendroid Base
+:revdate: 2025-11-11 09:40
 :toc:
 :toclevels: 3
-:numbered:
+:sectnums:
+:idprefix:
+:idseparator: -
 :source-highlighter: pygments
+include::C:\Dev\asciidoc-common\common-asciidoc-attributes.adoc[]
 
 == Overview
 

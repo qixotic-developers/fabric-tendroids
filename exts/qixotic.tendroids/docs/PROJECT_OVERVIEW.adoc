@@ -1,5 +1,14 @@
-= Tendroids Project Overview
+:doctitle: Tendroids Project Overview
 :toc:
+:revdate: 2025-11-11 09:40
+:toc:
+:toclevels: 3
+:sectnums:
+:idprefix:
+:idseparator: -
+:source-highlighter: pygments
+include::C:\Dev\asciidoc-common\common-asciidoc-attributes.adoc[]
+=
 :toclevels: 3
 :numbered:
 

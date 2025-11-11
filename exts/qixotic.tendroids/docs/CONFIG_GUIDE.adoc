@@ -1,6 +1,12 @@
-= Tendroids Configuration System
+:doctitle: Tendroids Configuration System
+:revdate: 2025-11-11 09:40
 :toc:
 :toclevels: 3
+:sectnums:
+:idprefix:
+:idseparator: -
+:source-highlighter: pygments
+include::C:\Dev\asciidoc-common\common-asciidoc-attributes.adoc[]
 
 == Overview
 

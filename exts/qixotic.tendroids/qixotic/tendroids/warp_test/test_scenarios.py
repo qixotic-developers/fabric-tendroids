@@ -16,6 +16,9 @@ class TestPhase(Enum):
     PHASE_2 = 2  # Multiple cylinders, varied frequencies
     PHASE_3 = 3  # Materials, opacity, path tracing
     PHASE_6A = 6  # Static double-wall glass (no deformation)
+    PHASE_6B = 7  # Dynamic thick-wall glass (thicker walls)
+    PHASE_6C_STATIC = 8  # Proper tube topology - STATIC test
+    PHASE_6C = 9  # Proper tube topology - DYNAMIC test
 
 
 @dataclass
@@ -32,7 +35,11 @@ class TestScenario:
     use_materials: bool
     use_transparency: bool
     use_double_wall: bool = False
+    use_proper_tube: bool = False
     static_test: bool = False
+    outer_radius: float = 0.5
+    inner_radius: float = 0.45
+    wall_segments: int = 6
     target_fps: int = 60
 
 
@@ -98,6 +105,70 @@ PHASE_6A_SCENARIO = TestScenario(
     use_transparency=True,
     use_double_wall=True,
     static_test=True,
+    outer_radius=0.5,
+    inner_radius=0.45,
+    target_fps=60
+)
+
+
+# Phase 6b: Dynamic Thick-Wall Glass - Test if edge-case geometry is the issue
+PHASE_6B_SCENARIO = TestScenario(
+    phase=TestPhase.PHASE_6B,
+    name="Dynamic Thick-Wall Glass",
+    description="Much thicker walls (60% thickness) with deformation. Tests edge-case ray hypothesis.",
+    cylinder_count=1,
+    segments=16,
+    radial_segments=12,
+    kernel_type="sine_wave",
+    max_frames=2000,
+    use_materials=True,
+    use_transparency=True,
+    use_double_wall=True,
+    static_test=False,
+    outer_radius=0.5,
+    inner_radius=0.2,
+    target_fps=60
+)
+
+
+# Phase 6c-static: Proper Tube Topology - Static test first
+PHASE_6C_STATIC_SCENARIO = TestScenario(
+    phase=TestPhase.PHASE_6C_STATIC,
+    name="Proper Tube Topology - STATIC",
+    description="Swept torus with glass, NO deformation. Tests if geometry itself is valid.",
+    cylinder_count=1,
+    segments=16,
+    radial_segments=12,
+    kernel_type="sine_wave",
+    max_frames=2000,
+    use_materials=True,
+    use_transparency=True,
+    use_proper_tube=True,
+    static_test=True,
+    outer_radius=0.5,
+    inner_radius=0.45,
+    wall_segments=6,
+    target_fps=60
+)
+
+
+# Phase 6c: Proper Tube Topology - Dynamic test
+PHASE_6C_SCENARIO = TestScenario(
+    phase=TestPhase.PHASE_6C,
+    name="Proper Tube Topology - DYNAMIC",
+    description="Swept torus with deformation. The definitive dynamic test.",
+    cylinder_count=1,
+    segments=16,
+    radial_segments=12,
+    kernel_type="sine_wave",
+    max_frames=2000,
+    use_materials=True,
+    use_transparency=True,
+    use_proper_tube=True,
+    static_test=False,
+    outer_radius=0.5,
+    inner_radius=0.45,
+    wall_segments=6,
     target_fps=60
 )
 
@@ -110,7 +181,10 @@ class TestScenarioManager:
             TestPhase.PHASE_1: PHASE_1_SCENARIO,
             TestPhase.PHASE_2: PHASE_2_SCENARIO,
             TestPhase.PHASE_3: PHASE_3_SCENARIO,
-            TestPhase.PHASE_6A: PHASE_6A_SCENARIO
+            TestPhase.PHASE_6A: PHASE_6A_SCENARIO,
+            TestPhase.PHASE_6B: PHASE_6B_SCENARIO,
+            TestPhase.PHASE_6C_STATIC: PHASE_6C_STATIC_SCENARIO,
+            TestPhase.PHASE_6C: PHASE_6C_SCENARIO
         }
         self.current_scenario: Optional[TestScenario] = None
         

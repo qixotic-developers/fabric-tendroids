@@ -246,3 +246,47 @@ class GeometryBuilder:
         carb.log_info(f"[GeometryBuilder] Applied glass material with IOR {ior}")
         
         return material
+    
+    def create_proper_tube(
+        self,
+        path: str,
+        height: float = 5.0,
+        major_radius: float = 0.5,
+        minor_radius: float = 0.05,
+        height_segments: int = 16,
+        radial_segments: int = 12,
+        wall_segments: int = 6
+    ) -> Tuple[UsdGeom.Mesh, np.ndarray, List]:
+        """
+        Create proper tube with swept torus cross-section.
+        
+        This creates a mathematically correct manifold surface where every
+        point has well-defined neighbors in all directions. No edge cases,
+        no ambiguous geometry.
+        
+        Returns:
+            Tuple of (mesh_prim, all_vertex_positions, centerline_positions)
+        """
+        from .tube_geometry_helper import generate_tube_geometry
+        
+        mesh = UsdGeom.Mesh.Define(self.stage, path)
+        
+        # Generate proper tube geometry
+        positions, face_indices, face_counts, centerline = generate_tube_geometry(
+            height=height,
+            major_radius=major_radius,
+            minor_radius=minor_radius,
+            height_segments=height_segments,
+            radial_segments=radial_segments,
+            wall_segments=wall_segments
+        )
+        
+        # Set mesh attributes
+        mesh.CreatePointsAttr(positions)
+        mesh.CreateFaceVertexIndicesAttr(face_indices)
+        mesh.CreateFaceVertexCountsAttr(face_counts)
+        mesh.CreateSubdivisionSchemeAttr(UsdGeom.Tokens.none)
+        
+        carb.log_info(f"[GeometryBuilder] Created proper tube: {len(positions)} vertices, {len(centerline)} centerline points")
+        
+        return mesh, np.array(positions), centerline

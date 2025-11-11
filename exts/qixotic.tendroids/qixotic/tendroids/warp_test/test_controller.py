@@ -33,6 +33,7 @@ class WarpTestController:
     self.test_cylinders: List = []
     self.test_root_path = "/World/WarpTest"
     self.outer_vertex_count = 0
+    self.radius_scale = 1.0
 
     self._subscription = None
     self.geometry_builder = None
@@ -67,6 +68,22 @@ class WarpTestController:
       carb.log_info("🔬 Phase 6a: Static double-wall glass test")
       carb.log_info("🔬 NO deformation - testing if geometry itself is valid")
       carb.log_info("🔬 Enable path tracing to see glass rendering")
+    elif phase == TestPhase.PHASE_6B:
+      wall_thickness = (scenario.outer_radius - scenario.inner_radius) / scenario.outer_radius * 100
+      carb.log_info(f"🔬 Phase 6b: Dynamic thick-wall glass test")
+      carb.log_info(
+        f"🔬 Wall thickness: {wall_thickness:.0f}% (outer={scenario.outer_radius}, inner={scenario.inner_radius})")
+      carb.log_info(f"🔬 Testing if thick walls eliminate edge-case crashes")
+    elif phase == TestPhase.PHASE_6C_STATIC:
+      carb.log_info("🔬 Phase 6c-static: Proper swept torus tube - STATIC TEST")
+      carb.log_info("🔬 Manifold geometry with consistent wall thickness")
+      carb.log_info("🔬 NO deformation - validating geometry topology itself")
+      carb.log_info("🔬 Enable path tracing to see proper glass refraction")
+    elif phase == TestPhase.PHASE_6C:
+      carb.log_info("🔬 Phase 6c: Proper swept torus tube - DYNAMIC TEST")
+      carb.log_info("🔬 Mathematically correct manifold + deformation")
+      carb.log_info("🔬 The definitive test of geometry vs dynamics hypothesis")
+      carb.log_info("🔬 Enable path tracing to see if proper topology prevents crash")
 
     # Clean up any existing test geometry
     self._cleanup_geometry()
@@ -154,16 +171,31 @@ class WarpTestController:
       UsdGeom.Xform.Define(stage, self.test_root_path)
 
     if scenario.cylinder_count == 1:
-      # Single cylinder - check if double-wall needed
-      if scenario.use_double_wall:
+      # Single cylinder - check which type needed
+      if scenario.use_proper_tube:
+        # Phase 6c: Proper swept torus tube
+        mesh, positions, centerline = self.geometry_builder.create_proper_tube(
+          f"{self.test_root_path}/test_tube_proper",
+          height=5.0,
+          major_radius=(scenario.outer_radius + scenario.inner_radius) / 2.0,
+          minor_radius=(scenario.outer_radius - scenario.inner_radius) / 2.0,
+          height_segments=scenario.segments,
+          radial_segments=scenario.radial_segments,
+          wall_segments=scenario.wall_segments
+        )
+        self.outer_vertex_count = 0
+        self.test_cylinders = [(mesh, positions, 0)]
+        carb.log_info(f"🔬 Phase 6c: Created proper tube with {len(positions)} vertices")
+      elif scenario.use_double_wall:
         mesh, positions, outer_count = self.geometry_builder.create_double_wall_cylinder(
           f"{self.test_root_path}/test_cylinder_double",
           segments=scenario.segments,
           radial_segments=scenario.radial_segments,
-          outer_radius=0.5,
-          inner_radius=0.45
+          outer_radius=scenario.outer_radius,
+          inner_radius=scenario.inner_radius
         )
         self.outer_vertex_count = outer_count
+        self.radius_scale = scenario.inner_radius / scenario.outer_radius
         self.test_cylinders = [(mesh, positions, outer_count)]
       else:
         mesh, positions = self.geometry_builder.create_test_cylinder(
@@ -238,12 +270,11 @@ class WarpTestController:
       for i in range(outer_count):
         combined[i] = Gf.Vec3f(float(new_positions[i][0]), float(new_positions[i][1]), float(new_positions[i][2]))
 
-      # Create inner vertices scaled from outer
-      scale_factor = 0.45 / 0.5
+      # Create inner vertices scaled from outer using stored ratio
       for i in range(outer_count):
-        inner_x = float(new_positions[i][0]) * scale_factor
+        inner_x = float(new_positions[i][0]) * self.radius_scale
         inner_y = float(new_positions[i][1])
-        inner_z = float(new_positions[i][2]) * scale_factor
+        inner_z = float(new_positions[i][2]) * self.radius_scale
         combined[outer_count + i] = Gf.Vec3f(inner_x, inner_y, inner_z)
 
       points_attr.Set(combined)
@@ -262,3 +293,4 @@ class WarpTestController:
     self.test_cylinders.clear()
     self.warp_manager.cleanup()
     self.outer_vertex_count = 0
+    self.radius_scale = 1.0

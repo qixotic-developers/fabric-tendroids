@@ -15,7 +15,7 @@ from .test_scenarios import TestPhase
 class WarpTestWindow(ui.Window):
     """UI window for Warp test harness"""
     
-    def __init__(self, title: str, width: int = 400, height: int = 600):
+    def __init__(self, title: str, width: int = 400, height: int = 650):
         super().__init__(title, width=width, height=height)
         
         self.controller = WarpTestController()
@@ -72,9 +72,27 @@ class WarpTestWindow(ui.Window):
                         ui.Line()
                         ui.Spacer(height=5)
                         
-                        ui.Label("Phase 6a: Static Glass Test 🔬", style={"font_size": 14, "color": 0xFF00AAFF})
-                        ui.Label("Double-wall + glass, NO deformation. Tests geometry.", word_wrap=True)
+                        ui.Label("Phase 6a: Static Glass ✅", style={"font_size": 14, "color": 0xFF00FF00})
+                        ui.Label("Double-wall + glass, NO deformation. PASSED!", word_wrap=True)
                         ui.Button("Run Phase 6a", clicked_fn=lambda: self._start_test(TestPhase.PHASE_6A))
+                        
+                        ui.Spacer(height=5)
+                        
+                        ui.Label("Phase 6b: Thick-Wall Dynamic 🔬", style={"font_size": 14, "color": 0xFF00AAFF})
+                        ui.Label("60% wall thickness + deformation. Tests edge hypothesis.", word_wrap=True)
+                        ui.Button("Run Phase 6b", clicked_fn=lambda: self._start_test(TestPhase.PHASE_6B))
+                        
+                        ui.Spacer(height=5)
+                        
+                        ui.Label("Phase 6c-static: Swept Torus - STATIC ⭐", style={"font_size": 14, "color": 0xFF00FF00})
+                        ui.Label("Proper manifold tube with glass, NO deformation. Validate geometry.", word_wrap=True)
+                        ui.Button("Run Phase 6c-static", clicked_fn=lambda: self._start_test(TestPhase.PHASE_6C_STATIC))
+                        
+                        ui.Spacer(height=5)
+                        
+                        ui.Label("Phase 6c: Swept Torus - DYNAMIC ⭐", style={"font_size": 14, "color": 0xFFFFAA00})
+                        ui.Label("Proper manifold tube WITH deformation. The final test.", word_wrap=True)
+                        ui.Button("Run Phase 6c", clicked_fn=lambda: self._start_test(TestPhase.PHASE_6C))
                         
                 ui.Spacer(height=10)
                 
@@ -89,19 +107,19 @@ class WarpTestWindow(ui.Window):
                 with ui.CollapsableFrame("Test Info", height=0, collapsed=True):
                     with ui.VStack(spacing=5):
                         ui.Label(
-                            "This harness tests Warp kernel memory behavior and geometry issues.",
+                            "This harness systematically isolates the crash cause.",
                             word_wrap=True
                         )
                         ui.Label("Memory samples taken every 10 frames.", word_wrap=True)
-                        ui.Label("Results exported to logs/ directory.", word_wrap=True)
                         ui.Spacer(height=5)
-                        ui.Label("Phase 6a:", style={"font_size": 14})
-                        ui.Label(
-                            "Tests if double-wall glass geometry itself is valid by keeping it static (no deformation).",
-                            word_wrap=True,
-                            style={"color": 0xFF00AAFF}
-                        )
-                        ui.Label("Enable path tracing to see glass rendering!", word_wrap=True)
+                        ui.Label("Results so far:", style={"font_size": 14})
+                        ui.Label("✅ Phase 6a: Static glass works perfectly", word_wrap=True, style={"color": 0xFF00FF00})
+                        ui.Label("→ Geometry itself is VALID", word_wrap=True)
+                        ui.Label("→ Problem is dynamic updates", word_wrap=True)
+                        ui.Spacer(height=5)
+                        ui.Label("Phase 6b tests:", style={"font_size": 14})
+                        ui.Label("If thicker walls fix it → edge-case geometry", word_wrap=True)
+                        ui.Label("If it still crashes → BVH/acceleration structure issue", word_wrap=True)
                         
         # Start update loop for UI refresh
         self._setup_update()

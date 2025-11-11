@@ -1,0 +1,79 @@
+= Tendroids Technical Documentation
+:toc:
+:toclevels: 2
+
+== Overview
+
+This documentation covers the technical implementation details of the Tendroids project, an advanced 3D animation system featuring animated underwater tentacle-like creatures in NVIDIA Omniverse.
+
+== Documentation Sections
+
+=== Geometry Systems
+
+link:swept-torus-solution.adoc[Swept Torus Solution]::
+Comprehensive guide to the trumpet-bell flared base implementation using swept surface mathematics. Covers mathematical foundation, implementation details, performance characteristics, and integration with the Tendroid system.
+
+=== Animation Systems
+
+link:breathing-optimization.adoc[Breathing Animation Optimization]::
+Analysis and optimization strategies for the traveling wave breathing animation. Details lookup table implementation, performance comparisons, and implementation roadmap for achieving 2-3× performance improvements.
+
+== Quick Reference
+
+=== Key Technologies
+
+* **Platform**: NVIDIA Omniverse with USD Composer
+* **API**: Fabric & USDRT 7.6.1
+* **Language**: Python
+* **Acceleration**: NVIDIA Warp (planned)
+
+=== Project Structure
+
+----
+C:\Dev\Omniverse\fabric-tendroids\exts\qixotic.tendroids\
+├── qixotic/
+│   └── tendroids/
+│       ├── animation/      # Breathing and motion systems
+│       ├── builders/       # Component construction
+│       ├── core/          # Core Tendroid management
+│       ├── factories/     # Object creation
+│       ├── geometry/      # Swept torus and mesh generation
+│       ├── scene/         # Scene setup and environment
+│       └── ui/            # Control panel interface
+└── docs/                  # This documentation
+----
+
+=== Performance Targets
+
+* **Frame rate**: 60 FPS sustained
+* **Tendroid count**: 15 interactive instances
+* **Animation overhead**: < 3% of frame budget
+* **Memory footprint**: < 50 MB for all Tendroids
+
+== Getting Started
+
+For new developers:
+
+1. Read link:swept-torus-solution.adoc[Swept Torus Solution] to understand the base geometry
+2. Review link:breathing-optimization.adoc[Breathing Animation Optimization] for performance considerations
+3. Examine the codebase following the module structure above
+4. Test with single Tendroid before scaling to 15+
+
+== Contributing
+
+When adding new documentation:
+
+* Use AsciiDoc format (.adoc files)
+* Include PlantUML diagrams for architecture
+* Provide code examples with explanations
+* Document performance implications
+* Follow existing structure and style
+
+== Support
+
+For questions or issues:
+
+* Review existing documentation first
+* Check code comments and docstrings
+* Profile performance before optimizing
+* Test changes with multiple Tendroids

@@ -3,12 +3,31 @@
 !define CORE_COLOR #E1F5FE
 !define ANIMATION_COLOR #F3E5F5
 !define SCENE_COLOR #E8F5E9
+!define SEA_FLOOR_COLOR #B2EBF2
+!define CONFIG_COLOR #C8E6C9
 !define UI_COLOR #FFF9C4
 !define UTILS_COLOR #FFE0B2
 
 skinparam packageStyle rectangle
 skinparam classFontSize 11
 skinparam classAttributeFontSize 10
+
+package "config" CONFIG_COLOR {
+  class ConfigLoader <<static>> {
+    - _config_cache: Dict[str, Any]
+    - _config_path: str
+    __
+    {static} + get_config_path(): str
+    {static} + load_json(): Dict[str, Any]
+    {static} + reload(): Dict[str, Any]
+    {static} + merge_with_dataclass(instance, section, **overrides)
+    {static} + get_value(*path, default): Any
+  }
+  
+  class get_config_value <<function>> {
+    + (*path, default): Any
+  }
+}
 
 package "core" CORE_COLOR {
   class Tendroid {
@@ -26,6 +45,8 @@ package "core" CORE_COLOR {
     - material_safety: MaterialSafetyChecker
     - mesh_updater: MeshVertexUpdater
     - deform_start_height: float
+    - _initial_vertices: list
+    - _flare_height: float
     - is_created: bool
     - is_active: bool
     __
@@ -42,6 +63,7 @@ package "core" CORE_COLOR {
   class TendroidBuilder <<static>> {
     {static} + create_in_stage(tendroid, stage, parent_path): bool
     {static} - _create_usd_geometry(tendroid, stage, parent_path): bool
+    {static} - _conform_base_to_terrain(tendroid): bool
     {static} - _initialize_components(tendroid): bool
     {static} - _log_creation_status(tendroid): void
   }
@@ -57,6 +79,10 @@ package "core" CORE_COLOR {
   
   class CylinderGenerator <<static>> {
     {static} + create_tendroid_cylinder(stage, path, radius, length, num_segments, radial_resolution, flare_height_percent, flare_radius_multiplier): tuple
+  }
+  
+  class TerrainConform <<static>> {
+    {static} + conform_base_to_terrain(vertices, base_position, flare_height, num_segments, radial_resolution): list
   }
   
   class WarpDeformer {
@@ -135,13 +161,48 @@ package "animation" ANIMATION_COLOR {
   }
 }
 
+package "sea_floor" SEA_FLOOR_COLOR {
+  class SeaFloorConfig <<dataclass>> {
+    + width: float
+    + depth: float
+    + amplitude: float
+    + frequency: float
+    + octaves: int
+    + resolution_x: int
+    + resolution_y: int
+    + parent_path: str
+    + mesh_name: str
+    __
+    + mesh_path: str <<property>>
+    + grid_spacing_x: float <<property>>
+    + grid_spacing_y: float <<property>>
+    + from_json(**overrides): SeaFloorConfig <<classmethod>>
+  }
+  
+  class SeaFloorController <<static>> {
+    {static} + create_sea_floor(stage, config): bool
+    {static} - _build_vertices(config, height_map): list
+    {static} - _build_faces(config): tuple
+    {static} - _build_normals(config, vertices): list
+    {static} - _build_uvs(config): list
+  }
+  
+  class SeaFloorHelper <<static>> {
+    {static} - _height_map: np.ndarray
+    __
+    {static} + initialize_height_map(config): void
+    {static} + get_height_at(x: float, z: float): float
+    {static} - _generate_perlin_noise_2d(shape, frequency, octaves): np.ndarray
+  }
+}
+
 package "scene" SCENE_COLOR {
   class TendroidSceneManager {
     - tendroids: list
     - animation_controller: AnimationController
     __
     + __init__()
-    + create_tendroids(count, spawn_area, radius_range, length_range, num_segments): bool
+    + create_tendroids(count, spawn_area, radius_range, num_segments): bool
     + create_single_tendroid(position, radius, length, num_segments, bulge_length_percent, amplitude, wave_speed, cycle_delay): bool
     + start_animation(): void
     + stop_animation(): void
@@ -167,8 +228,61 @@ package "scene" SCENE_COLOR {
   }
   
   class TendroidFactory <<static>> {
+    {static} - FLARE_RADIUS_MULTIPLIER: float
+    __
     {static} + create_single(stage, parent_path, position, radius, length, num_segments, bulge_length_percent, amplitude, wave_speed, cycle_delay): Tendroid
-    {static} + create_batch(stage, count, parent_path, spawn_area, radius_range, length_range, num_segments): list
+    {static} + create_batch(stage, count, parent_path, spawn_area, radius_range, num_segments, max_attempts): list
+    {static} - _check_interference(x, z, base_radius, existing_positions, spacing_multiplier): bool
+  }
+  
+  class EnvironmentConfig <<dataclass>> {
+    + sky: SkyConfig
+    + distant_light: DistantLightConfig
+    + sea_floor_material: SeaFloorMaterialConfig
+    __
+    + __post_init__(): void
+    + from_json(): EnvironmentConfig <<classmethod>>
+  }
+  
+  class SkyConfig <<dataclass>> {
+    + path: str
+    + translate_y: float
+    + rotate_y: float
+    + rotate_z: float
+    + intensity: float
+    __
+    + from_json(**overrides): SkyConfig <<classmethod>>
+  }
+  
+  class DistantLightConfig <<dataclass>> {
+    + path: str
+    + translate_x: float
+    + translate_y: float
+    + rotate_y: float
+    + rotate_z: float
+    + angle: float
+    + intensity: float
+    + exposure: float
+    + color: Tuple[float, float, float]
+    __
+    + from_json(**overrides): DistantLightConfig <<classmethod>>
+  }
+  
+  class SeaFloorMaterialConfig <<dataclass>> {
+    + path: str
+    + use_existing: bool
+    + diffuse_color: Tuple[float, float, float]
+    + roughness: float
+    + metallic: float
+    __
+    + from_json(**overrides): SeaFloorMaterialConfig <<classmethod>>
+  }
+  
+  class EnvironmentSetup <<static>> {
+    {static} + setup_environment(stage, config): void
+    {static} + get_sea_floor_material(stage, material_config): UsdShade.Material
+    {static} - _create_sky(stage, config): void
+    {static} - _create_distant_light(stage, config): void
   }
 }
 
@@ -257,7 +371,12 @@ Tendroid *-- MaterialSafetyChecker : contains
 Tendroid *-- MeshVertexUpdater : contains
 
 TendroidBuilder ..> CylinderGenerator : uses
+TendroidBuilder ..> TerrainConform : uses
 TendroidBuilder ..> MathHelpers : uses
+TendroidBuilder ..> get_config_value : reads geometry params
+TendroidBuilder ..> get_config_value : reads animation params
+
+TerrainConform ..> SeaFloorHelper : uses get_height_at
 
 WarpDeformer ..> MathHelpers : uses
 BreathingAnimator ..> MathHelpers : uses
@@ -265,11 +384,28 @@ BreathingAnimator ..> MathHelpers : uses
 TendroidSceneManager o-- Tendroid : manages many
 TendroidSceneManager *-- AnimationController : contains
 TendroidSceneManager ..> TendroidFactory : uses
+TendroidSceneManager ..> SeaFloorController : uses
 
 AnimationController o-- Tendroid : updates many
 
 TendroidFactory ..> Tendroid : creates
 TendroidFactory ..> TendroidBuilder : uses
+TendroidFactory ..> get_config_value : reads spawning params
+
+SeaFloorConfig ..> ConfigLoader : uses from_json
+SeaFloorController ..> SeaFloorConfig : uses
+SeaFloorController ..> SeaFloorHelper : uses
+SeaFloorController ..> EnvironmentSetup : uses
+
+EnvironmentConfig *-- SkyConfig : contains
+EnvironmentConfig *-- DistantLightConfig : contains
+EnvironmentConfig *-- SeaFloorMaterialConfig : contains
+
+SkyConfig ..> ConfigLoader : uses from_json
+DistantLightConfig ..> ConfigLoader : uses from_json
+SeaFloorMaterialConfig ..> ConfigLoader : uses from_json
+
+EnvironmentSetup ..> EnvironmentConfig : uses
 
 TendroidControlPanel *-- TendroidSceneManager : contains
 TendroidControlPanel *-- SpawnSettingsUI : contains
@@ -286,6 +422,8 @@ note right of Tendroid
   - TendroidBuilder (creation)
   - TendroidLifecycle (state)
   - Components (animation, safety, updates)
+  
+  Conforms base to terrain
 end note
 
 note right of WarpDeformer
@@ -298,6 +436,26 @@ note right of MaterialSafetyChecker
   Prevents GPU crashes
   Detects glass materials
   Blocks animation when unsafe
+end note
+
+note right of ConfigLoader
+  Hybrid JSON/Python config
+  Loads tendroids_config.json
+  Merges with dataclass defaults
+  Provides type-safe fallback
+end note
+
+note right of SeaFloorHelper
+  Perlin noise terrain generation
+  Caches height map
+  Provides height queries
+  Used for terrain conforming
+end note
+
+note right of EnvironmentConfig
+  Contains Sky, Light, Material configs
+  Each sub-config has from_json()
+  Loads parameters from JSON
 end note
 
 @enduml

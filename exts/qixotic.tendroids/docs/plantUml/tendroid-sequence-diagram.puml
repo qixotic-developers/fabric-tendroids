@@ -5,9 +5,13 @@ title Tendroid Creation and Animation Flow
 actor User
 participant "Control\nPanel" as UI
 participant "Scene\nManager" as SM
+participant "Config\nLoader" as CL
+participant "Sea Floor\nController" as SFC
 participant "Tendroid\nFactory" as TF
 participant "Tendroid" as T
 participant "Tendroid\nBuilder" as TB
+participant "Terrain\nConform" as TC
+participant "Sea Floor\nHelper" as SFH
 participant "Cylinder\nGenerator" as CG
 participant "Warp\nDeformer" as WD
 participant "Material\nSafety" as MS
@@ -15,16 +19,48 @@ participant "Breathing\nAnimator" as BA
 participant "Animation\nController" as AC
 participant "USD\nStage" as USD
 
-== Tendroid Creation ==
+== Sea Floor Creation ==
 
 User -> UI: Click "Spawn Tendroids"
 activate UI
 
-UI -> SM: create_single_tendroid(\n  position, radius, length,\n  num_segments, params)
+UI -> SM: create_single_tendroid(...)
 activate SM
+
+alt First spawn - create sea floor
+  SM -> CL: SeaFloorConfig.from_json()
+  activate CL
+  CL -> CL: Load tendroids_config.json
+  CL -> CL: Merge with Python defaults
+  CL --> SM: SeaFloorConfig instance
+  deactivate CL
+  
+  SM -> SFC: create_sea_floor(stage, config)
+  activate SFC
+  SFC -> SFH: initialize_height_map(config)
+  activate SFH
+  SFH -> SFH: Generate Perlin noise\nheight map
+  SFH --> SFC: Height map cached
+  deactivate SFH
+  
+  SFC -> USD: Create sea floor mesh
+  activate USD
+  USD --> SFC: Mesh created
+  deactivate USD
+  SFC --> SM: Sea floor ready
+  deactivate SFC
+end
+
+== Tendroid Creation ==
 
 SM -> TF: create_single(\n  stage, params)
 activate TF
+
+TF -> CL: get_config_value(\n  "tendroid_geometry", ...)
+activate CL
+CL -> CL: Read JSON config
+CL --> TF: Default parameters
+deactivate CL
 
 TF -> T: __init__(\n  name, position,\n  radius, length,\n  num_segments)
 activate T
@@ -36,14 +72,32 @@ TF -> T: create(stage, parent_path)
 T -> TB: create_in_stage(\n  tendroid, stage,\n  parent_path)
 activate TB
 
+TB -> SFH: get_height_at(\n  position.x, position.z)
+activate SFH
+SFH -> SFH: Query cached height map
+SFH --> TB: floor_height
+deactivate SFH
+
+TB -> TB: Adjust position:\nposition.y = floor_height
+
 TB -> TB: _create_usd_geometry(\n  tendroid, stage,\n  parent_path)
+
+TB -> CL: get_config_value(\n  "tendroid_geometry",\n  "flare_height_percent")
+activate CL
+CL --> TB: 15.0
+deactivate CL
+
+TB -> CL: get_config_value(\n  "tendroid_geometry",\n  "flare_radius_multiplier")
+activate CL
+CL --> TB: 2.0
+deactivate CL
 
 TB -> USD: Define base Xform at path
 activate USD
 USD --> TB: Xform created
 deactivate USD
 
-TB -> CG: create_tendroid_cylinder(\n  stage, mesh_path,\n  radius, length,\n  segments, resolution,\n  flare params)
+TB -> CG: create_tendroid_cylinder(\n  stage, mesh_path,\n  radius, length,\n  segments, resolution,\n  flare_height_percent,\n  flare_radius_multiplier)
 activate CG
 
 CG -> CG: Calculate flare height\nand deform_start_height
@@ -63,6 +117,28 @@ CG --> TB: (mesh_prim, vertices,\n  num_segs, rad_res,\n  deform_start)
 deactivate CG
 
 TB -> TB: Store mesh_prim,\n  vertices,\n  deform_start_height
+
+TB -> TB: _conform_base_to_terrain(\n  tendroid)
+
+TB -> TC: conform_base_to_terrain(\n  vertices, base_position,\n  flare_height, segments,\n  radial_resolution)
+activate TC
+
+loop For each base vertex
+  TC -> SFH: get_height_at(x, z)
+  activate SFH
+  SFH --> TC: terrain_height
+  deactivate SFH
+  TC -> TC: Adjust vertex Y\nto terrain height
+end
+
+TC --> TB: conformed_vertices
+deactivate TC
+
+TB -> USD: Update mesh vertices
+activate USD
+deactivate USD
+
+TB -> TB: Update _initial_vertices\nwith conformed vertices
 
 TB -> TB: _initialize_components(\n  tendroid)
 
@@ -87,7 +163,7 @@ TB -> T: Store material_safety
 
 TB -> T: mesh_updater = MeshVertexUpdater(\n  mesh_prim)
 
-TB -> WD: WarpDeformer(\n  vertices,\n  deform_start_height)
+TB -> WD: WarpDeformer(\n  conformed_vertices,\n  deform_start_height)
 activate WD
 
 WD -> WD: Convert vertices to\n  Warp arrays (CUDA):\n  - original_positions\n  - deformed_positions
@@ -96,6 +172,12 @@ WD --> TB: WarpDeformer instance
 deactivate WD
 
 TB -> T: Store warp_deformer
+
+TB -> CL: get_config_value(\n  "tendroid_animation", ...)
+activate CL
+CL -> CL: Load animation params\nfrom JSON
+CL --> TB: wave_speed, bulge_percent,\namplitude, cycle_delay
+deactivate CL
 
 TB -> BA: BreathingAnimator(\n  length,\n  deform_start_height,\n  wave_speed,\n  bulge_length_percent,\n  amplitude,\n  cycle_delay)
 activate BA
@@ -139,7 +221,7 @@ deactivate SM
 
 UI -> UI: Update status display:\n  "Created: D=20.0, L=100.0..."
 
-UI --> User: Tendroid visible in viewport
+UI --> User: Tendroid visible in viewport\n(conformed to terrain)
 deactivate UI
 
 == Animation Start ==
@@ -303,5 +385,27 @@ loop Every Frame
   deactivate AC
   
 end
+
+note right of CL
+  **Config System**:
+  All parameters loaded from
+  tendroids_config.json
+  with Python defaults fallback
+end note
+
+note right of SFH
+  **Terrain System**:
+  Perlin noise height map
+  Cached for performance
+  Queried during creation
+  and terrain conforming
+end note
+
+note right of TC
+  **Terrain Conforming**:
+  Base vertices adjusted
+  to follow floor contours
+  Creates natural placement
+end note
 
 @enduml

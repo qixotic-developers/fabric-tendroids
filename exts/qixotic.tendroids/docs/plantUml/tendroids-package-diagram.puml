@@ -5,6 +5,8 @@ title Tendroids Package Structure and Dependencies
 !define CORE_COLOR #E1F5FE
 !define ANIMATION_COLOR #F3E5F5
 !define SCENE_COLOR #E8F5E9
+!define SEA_FLOOR_COLOR #B2EBF2
+!define CONFIG_COLOR #C8E6C9
 !define UI_COLOR #FFF9C4
 !define UTILS_COLOR #FFE0B2
 
@@ -17,11 +19,25 @@ package "qixotic.tendroids" {
     class TendroidsExtension <<IExt>>
   }
   
+  package "config" CONFIG_COLOR {
+    class ConfigLoader <<static>>
+    class get_config_value <<function>>
+    file "tendroids_config.json" as ConfigFile
+    
+    note right of ConfigLoader
+      Hybrid config system:
+      - Loads JSON overrides
+      - Merges with Python defaults
+      - Caching for performance
+    end note
+  }
+  
   package "core" CORE_COLOR {
     package "geometry" {
       class Tendroid
       class TendroidBuilder <<static>>
       class CylinderGenerator <<static>>
+      class TerrainConform <<static>>
     }
     
     package "deformation" {
@@ -43,10 +59,29 @@ package "qixotic.tendroids" {
     class IdleMotionAnimator
   }
   
+  package "sea_floor" SEA_FLOOR_COLOR {
+    class SeaFloorConfig
+    class SeaFloorController <<static>>
+    class SeaFloorHelper <<static>>
+    file "sea_floor_helper.py" as FloorHelper
+    
+    note right of SeaFloorConfig
+      from_json() classmethod
+      Loads config from JSON
+    end note
+  }
+  
   package "scene" SCENE_COLOR {
     class TendroidSceneManager
     class AnimationController
     class TendroidFactory <<static>>
+    class EnvironmentConfig
+    class EnvironmentSetup <<static>>
+    
+    note right of EnvironmentConfig
+      Sky, Light, Material configs
+      from_json() classmethods
+    end note
   }
   
   package "ui" UI_COLOR {
@@ -105,6 +140,10 @@ package "External" {
     class wp.kernel
   }
   
+  package "numpy" {
+    class np <<module>>
+  }
+  
   package "carb" {
     class log_info
     class log_error
@@ -115,10 +154,18 @@ package "External" {
 ' Extension dependencies
 extension --> scene : imports
 extension --> ui : imports
+extension --> sea_floor : imports
 
 TendroidsExtension ..|> IExt
 TendroidsExtension --> TendroidSceneManager : creates
 TendroidsExtension --> TendroidControlPanel : creates
+
+' Config dependencies
+config ..> ConfigFile : reads
+SeaFloorConfig --> config : uses ConfigLoader
+EnvironmentConfig --> config : uses ConfigLoader
+TendroidBuilder --> config : uses get_config_value
+TendroidFactory --> config : uses get_config_value
 
 ' Core package internal dependencies
 Tendroid --> TendroidBuilder : delegates
@@ -128,25 +175,37 @@ Tendroid *-- MaterialSafetyChecker : contains
 Tendroid *-- MeshVertexUpdater : contains
 
 TendroidBuilder --> CylinderGenerator : uses
+TendroidBuilder --> TerrainConform : uses
 
 ' Core to external
 WarpDeformer --> wp : uses
 WarpDeformer --> wp.array : uses
 WarpDeformer --> wp.kernel : uses
+WarpDeformer --> np : uses numpy arrays
 MaterialSafetyChecker --> UsdContext : queries
 MeshVertexUpdater --> UsdGeom.Mesh : modifies
 CylinderGenerator --> UsdGeom.Mesh : creates
 CylinderGenerator --> Gf.Vec3f : uses
 TendroidBuilder --> UsdGeom.Xform : creates
+TerrainConform --> FloorHelper : uses get_height_at
 
 ' Core to animation
 Tendroid *-- BreathingAnimator : contains
 
+' Sea floor dependencies
+SeaFloorController --> SeaFloorConfig : uses
+SeaFloorController --> FloorHelper : uses
+SeaFloorController --> EnvironmentSetup : uses
+FloorHelper ..> np : uses Perlin noise
+
 ' Scene dependencies
 TendroidSceneManager *-- AnimationController : contains
 TendroidSceneManager --> TendroidFactory : uses
+TendroidSceneManager --> SeaFloorController : creates floor
 AnimationController ..|> UpdateEventStream : implements
 AnimationController o-- Tendroid : updates
+
+EnvironmentSetup --> EnvironmentConfig : uses
 
 ' Scene to core
 TendroidFactory --> Tendroid : creates
@@ -171,16 +230,20 @@ StatusDisplay --> Label : uses
 ' Utils dependencies
 core --> utils : imports
 animation --> utils : imports
+sea_floor --> utils : imports
 
 TendroidBuilder --> MathHelpers : uses
 WarpDeformer --> MathHelpers : uses
 BreathingAnimator --> MathHelpers : uses
 CylinderGenerator --> MathHelpers : uses
+FloorHelper --> MathHelpers : uses
 
 ' Logging (all packages)
 extension --> carb : logs
+config --> carb : logs
 core --> carb : logs
 animation --> carb : logs
+sea_floor --> carb : logs
 scene --> carb : logs
 ui --> carb : logs
 
@@ -188,6 +251,13 @@ note right of TendroidsExtension
   **Entry Point**
   Implements Omniverse IExt interface
   Loads on extension enable
+end note
+
+note right of config
+  **Config Package** (NEW)
+  Hybrid JSON/Python system
+  Runtime tweakable parameters
+  Type-safe defaults
 end note
 
 note right of core
@@ -204,11 +274,18 @@ note right of animation
   No state management
 end note
 
+note right of sea_floor
+  **Sea Floor Package** (NEW)
+  Perlin noise terrain
+  Natural contours
+  Material application
+end note
+
 note right of scene
   **Scene Package**
   Orchestration and management
   Depends on core
-  No UI dependencies
+  Environment setup
 end note
 
 note right of ui
@@ -232,21 +309,25 @@ note bottom of External
   - omni.usd: Stage access
   - pxr (USD): Scene graph
   - warp: GPU compute
+  - numpy: Array operations, Perlin noise
   - carb: Logging
 end note
 
 legend right
   **Package Dependency Rules**:
-  - Extension → Scene + UI (orchestration)
-  - Scene → Core (creates/manages Tendroids)
-  - Core → Animation (contains animators)
+  - Extension → Scene + UI + Sea Floor (orchestration)
+  - Scene → Core + Sea Floor (creates/manages)
+  - Core → Animation + Config (contains, configures)
+  - Sea Floor → Config + Scene (configures, environment)
   - UI → Scene (calls public API)
   - All → Utils (pure functions)
+  - All → Config (parameter loading)
   
   **No Circular Dependencies**:
   Core does not know about Scene
   Scene does not know about UI
   Clean layered architecture
+  Config is side-effect free
 endlegend
 
 @enduml

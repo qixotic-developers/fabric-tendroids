@@ -12,19 +12,38 @@ state Uninitialized {
   InitializingComponents --> GeometryCreated : create() called
   
   state GeometryCreated {
-    [*] --> CreatingXform
+    [*] --> LoadingConfig
+    
+    LoadingConfig : ConfigLoader reads JSON
+    LoadingConfig : Merge with Python defaults
+    LoadingConfig : Get geometry parameters
+    LoadingConfig --> QueryingTerrain : Config loaded
+    
+    QueryingTerrain : get_height_at(position)
+    QueryingTerrain : Query sea floor height map
+    QueryingTerrain : Adjust Y position to floor
+    QueryingTerrain --> CreatingXform : Position adjusted
+    
     CreatingXform : Base Xform defined in USD
     CreatingXform --> GeneratingMesh : Xform created
     
     GeneratingMesh : CylinderGenerator creates mesh
-    GeneratingMesh : Vertices generated
+    GeneratingMesh : Vertices generated with flare
     GeneratingMesh : Topology defined
-    GeneratingMesh --> InitializingComponents_Internal : Mesh created
+    GeneratingMesh --> ConformingToTerrain : Mesh created
+    
+    ConformingToTerrain : TerrainConform adjusts base
+    ConformingToTerrain : Query height for each base vertex
+    ConformingToTerrain : Adjust Y to terrain contours
+    ConformingToTerrain : Update mesh with conformed vertices
+    ConformingToTerrain --> InitializingComponents_Internal : Base conformed
     
     InitializingComponents_Internal : MaterialSafetyChecker created
     InitializingComponents_Internal : MeshVertexUpdater created
     InitializingComponents_Internal : WarpDeformer created (GPU)
+    InitializingComponents_Internal : Uses conformed vertices
     InitializingComponents_Internal : BreathingAnimator created
+    InitializingComponents_Internal : Load animation params from config
     InitializingComponents_Internal --> CheckingMaterial : Components ready
     
     CheckingMaterial : Initial material safety check
@@ -43,6 +62,7 @@ state Ready {
     state "Waiting" as InactiveWaiting
     InactiveWaiting : is_active = False
     InactiveWaiting : Not receiving updates
+    InactiveWaiting : Base conformed to terrain
   }
   
   Inactive --> Active : set_active(True)
@@ -82,6 +102,7 @@ state Ready {
         state DeformingMesh {
           [*] --> LaunchingWarpKernel
           LaunchingWarpKernel : WarpDeformer.update()
+          LaunchingWarpKernel : Uses conformed vertices as base
           LaunchingWarpKernel : GPU kernel execution
           LaunchingWarpKernel --> CopyingResults : Kernel complete
           
@@ -162,6 +183,25 @@ state Destroying {
 
 Destroying --> [*] : Cleanup complete
 
+note right of LoadingConfig
+  NEW: Config system loads
+  parameters from JSON file
+  with Python defaults fallback
+end note
+
+note right of QueryingTerrain
+  NEW: Sea floor height query
+  Adjusts position to sit
+  naturally on terrain
+end note
+
+note right of ConformingToTerrain
+  NEW: Terrain conforming
+  Base vertices follow
+  floor contours for
+  natural appearance
+end note
+
 note right of CheckingMaterialSafety
   Material safety is checked
   every 30 frames (not per-frame)
@@ -179,6 +219,7 @@ note right of DeformingMesh
   GPU-accelerated deformation
   using NVIDIA Warp kernels
   provides smooth, organic motion
+  Base stays conformed to terrain
 end note
 
 @enduml

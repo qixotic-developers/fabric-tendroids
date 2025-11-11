@@ -5,6 +5,8 @@ title Tendroids Component Architecture
 !define CORE_COLOR #E1F5FE
 !define ANIMATION_COLOR #F3E5F5
 !define SCENE_COLOR #E8F5E9
+!define SEA_FLOOR_COLOR #B2EBF2
+!define CONFIG_COLOR #C8E6C9
 !define UI_COLOR #FFF9C4
 !define UTILS_COLOR #FFE0B2
 !define EXTERNAL_COLOR #FFEBEE
@@ -27,6 +29,23 @@ package "Tendroids Extension" {
     end note
   }
   
+  package "Configuration" CONFIG_COLOR {
+    component "Config System" as ConfigSystem {
+      [ConfigLoader]
+      [get_config_value]
+      
+      database "tendroids_config.json" as ConfigDB
+      
+      note right of ConfigLoader
+        Hybrid config:
+        - Loads JSON overrides
+        - Merges with Python defaults
+        - Caching for performance
+        - Type-safe fallback
+      end note
+    }
+  }
+  
   package "Core Components" CORE_COLOR {
     
     component "Tendroid" as TendroidComp {
@@ -44,6 +63,12 @@ package "Tendroids Extension" {
     component "USD Creation" as USDCreation {
       [TendroidBuilder]
       [CylinderGenerator]
+      [TerrainConform]
+      
+      note right of TendroidBuilder
+        Reads geometry params
+        from config system
+      end note
     }
     
     component "Vertex Deformation" as Deformation {
@@ -85,6 +110,8 @@ package "Tendroids Extension" {
         Wave timing calculations
         Bubble emission detection
         Parameter management
+        Reads animation params
+        from config system
       end note
     }
     
@@ -98,6 +125,36 @@ package "Tendroids Extension" {
     }
   }
   
+  package "Sea Floor" SEA_FLOOR_COLOR {
+    
+    component "Terrain Generation" as TerrainGen {
+      [SeaFloorConfig]
+      [SeaFloorController]
+      [SeaFloorHelper]
+      
+      note right of SeaFloorConfig
+        from_json() classmethod
+        Loads terrain params
+      end note
+      
+      note right of SeaFloorHelper
+        Perlin noise generation
+        Height map caching
+        get_height_at(x, z)
+      end note
+    }
+    
+    component "Environment Setup" as EnvSetup {
+      [EnvironmentConfig]
+      [EnvironmentSetup]
+      
+      note right of EnvironmentConfig
+        Sky, Light, Material
+        from_json() classmethods
+      end note
+    }
+  }
+  
   package "Scene Management" SCENE_COLOR {
     
     component "Scene Coordinator" as SceneCoord {
@@ -106,9 +163,11 @@ package "Tendroids Extension" {
       note right of TendroidSceneManager
         High-level orchestrator
         Manages Tendroid collection
+        Creates sea floor
         Delegates to:
         - Factory (creation)
         - AnimationController (updates)
+        - SeaFloorController (terrain)
       end note
     }
     
@@ -129,6 +188,8 @@ package "Tendroids Extension" {
         create_single()
         create_batch()
         Parameter variations
+        Reads spawning params
+        from config system
       end note
     }
   }
@@ -207,12 +268,25 @@ package "External Dependencies" EXTERNAL_COLOR {
     [Warp Runtime]
     [CUDA Backend]
   }
+  
+  component "NumPy" as NumPy {
+    [numpy]
+    [Perlin noise]
+  }
 }
 
 ' Component relationships
 
 ExtEntry --> SceneCoord : creates & manages
 ExtEntry --> ControlPanel : creates & owns
+
+' Config relationships
+ConfigSystem o-- ConfigDB : reads from
+USDCreation --> ConfigSystem : reads geometry params
+Breathing --> ConfigSystem : reads animation params
+CreationPatterns --> ConfigSystem : reads spawning params
+TerrainGen --> ConfigSystem : reads terrain params
+EnvSetup --> ConfigSystem : reads environment params
 
 ControlPanel --> SceneCoord : controls
 ControlPanel *-- SpawnSettings : contains
@@ -225,6 +299,7 @@ Actions --> Status : updates display
 
 SceneCoord *-- AnimLoop : contains
 SceneCoord ..> CreationPatterns : uses
+SceneCoord ..> TerrainGen : uses
 
 AnimLoop o-- TendroidComp : updates
 
@@ -239,15 +314,20 @@ TendroidComp *-- Safety : contains
 TendroidComp *-- MeshUpdates : contains
 
 USDCreation ..> Math : uses
+USDCreation ..> TerrainGen : conforms to terrain
 Deformation ..> Math : uses
 Breathing ..> Math : uses
+TerrainGen ..> Math : uses
 
 TendroidComp ..> Omniverse : uses USD API
 USDCreation --> Omniverse : creates prims
 MeshUpdates --> Omniverse : writes vertices
+TerrainGen --> Omniverse : creates mesh
+EnvSetup --> Omniverse : creates sky/lights
 ControlPanel --> Omniverse : uses omni.ui
 
 Deformation --> Warp : launches kernels
+TerrainGen --> NumPy : Perlin noise generation
 
 interface "IExt" as IExtInterface
 ExtEntry .up.|> IExtInterface
@@ -259,11 +339,13 @@ note as N1
   **Data Flow**:
   1. User interacts with UI
   2. ActionButtons call SceneManager
-  3. SceneManager uses Factory
-  4. Factory creates Tendroids
-  5. AnimationController updates Tendroids
-  6. Tendroids use Warp for deformation
-  7. Deformed vertices written to USD
+  3. SceneManager creates sea floor
+  4. SceneManager uses Factory
+  5. Factory creates Tendroids
+  6. Tendroids conform to terrain
+  7. AnimationController updates Tendroids
+  8. Tendroids use Warp for deformation
+  9. Deformed vertices written to USD
 end note
 
 note as N2
@@ -273,6 +355,21 @@ note as N2
   - Lifecycle: State management
   - Component: Specialized responsibilities
   - Coordinator: SceneManager & ControlPanel
+  - Config: Hybrid JSON/Python system
+end note
+
+note as N3
+  **Configuration System**:
+  All major components read
+  parameters from JSON config:
+  - Geometry (flare, segments)
+  - Animation (wave, amplitude)
+  - Spawning (count, area)
+  - Terrain (size, amplitude)
+  - Environment (sky, lights)
+  
+  Provides runtime tweakability
+  without code changes
 end note
 
 @enduml

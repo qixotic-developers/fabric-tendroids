@@ -47,7 +47,7 @@
     "default_radius": 10.0,
     "default_length": 100.0,
     "default_num_segments": 16,
-    "radial_resolution": 16,
+    "radial_resolution": 32,
     "flare_height_percent": 15.0,
     "flare_radius_multiplier": 2.0
   },

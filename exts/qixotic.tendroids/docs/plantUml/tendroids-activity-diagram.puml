@@ -94,7 +94,12 @@ partition "For Each Tendroid" {
           
           |WarpDeformer|
           
-          :Prepare Warp kernel inputs:\n- original_positions\n- deformed_positions\n- wave_center\n- bulge_length\n- amplitude\n- deform_start_y;
+          :Prepare Warp kernel inputs:\n- original_positions (conformed)\n- deformed_positions\n- wave_center\n- bulge_length\n- amplitude\n- deform_start_y;
+          
+          note right
+            original_positions include
+            terrain-conformed base vertices
+          end note
           
           :wp.launch(\nkernel=deform_breathing_bulge,\ndim=num_vertices,\ndevice="cuda");
           
@@ -108,7 +113,7 @@ partition "For Each Tendroid" {
             
             if (y < deform_start_y?) then (yes)
               
-              :Skip - below deformation zone;
+              :Skip - below deformation zone\n(terrain-conformed base);
               
               :deformed = original;
               
@@ -182,6 +187,7 @@ partition "For Each Tendroid" {
           note right
             Direct USD attribute write
             Updates mesh in viewport
+            Base maintains terrain conforming
           end note
           
           |Tendroid|
@@ -272,6 +278,9 @@ note bottom
   Update loop repeats every frame
   Typically 60 FPS = ~16.67ms per frame
   Target: All updates complete within budget
+  
+  Terrain conforming done once at creation
+  Base vertices stay conformed during animation
 end note
 
 @enduml

@@ -1,0 +1,293 @@
+= Documentation Update Summary
+:toc:
+:toclevels: 2
+
+== Overview
+
+This document summarizes the comprehensive documentation updates made on November 10, 2025 to reflect the current state of the Tendroids project, including the new hybrid configuration system, sea floor generation, and terrain conforming features.
+
+== Files Updated
+
+=== PlantUML Diagrams (All Updated)
+
+==== tendroids-package-diagram.puml ✅
+*Changes*:
+- Added `config` package with ConfigLoader and tendroids_config.json
+- Added `sea_floor` package with terrain generation components
+- Added EnvironmentConfig and EnvironmentSetup to scene package
+- Updated dependency arrows to show config usage throughout system
+- Added notes explaining hybrid config system
+- Included numpy dependency for Perlin noise
+
+==== tendroids-component-diagram.puml ✅
+*Changes*:
+- Added Configuration component with ConfigLoader and JSON database
+- Added Sea Floor component (TerrainGen and EnvSetup)
+- Updated all major components to show config system reads
+- Added terrain conforming relationships
+- Added notes explaining configuration system benefits
+- Shows data flow including sea floor creation
+
+==== tendroid-class-diagram.puml ✅
+*Changes*:
+- Added ConfigLoader class with static methods
+- Added get_config_value function
+- Added SeaFloorConfig, SeaFloorController, SeaFloorHelper classes
+- Added TerrainConform static helper class
+- Added EnvironmentConfig with Sky, Light, Material sub-configs
+- Added EnvironmentSetup static class
+- Updated TendroidBuilder to show config usage
+- Added from_json() classmethods to all config classes
+- Updated relationships to show config dependencies
+
+==== tendroid-sequence-diagram.puml ✅
+*Changes*:
+- Added Sea Floor Creation section at beginning
+- Shows ConfigLoader interactions for loading JSON
+- Shows SeaFloorHelper generating Perlin noise height map
+- Added terrain height queries (get_height_at)
+- Shows position adjustment to sit on floor
+- Added TerrainConform sequence for base vertices
+- Shows config value lookups for geometry and animation params
+- Updated to show conformed vertices used in WarpDeformer
+- Added notes explaining config system, terrain system, and conforming
+
+==== tendroid-state-diagram.puml ✅
+*Changes*:
+- Added LoadingConfig state during geometry creation
+- Added QueryingTerrain state for height map lookup
+- Added ConformingToTerrain state for base vertex adjustment
+- Shows config parameters loaded during component initialization
+- Updated notes to explain new terrain-related states
+- Shows that deformation uses conformed vertices as base
+
+==== tendroids-activity-diagram.puml ✅
+*Changes*:
+- Added note that original_positions include terrain-conformed vertices
+- Clarified that base vertices below deform_start_y are terrain-conformed
+- Added note that terrain conforming done once at creation
+- Updated bottom note to explain base stays conformed during animation
+- Shows GPU kernel operates on conformed base
+
+=== AsciiDoc Documentation
+
+==== CONFIG_GUIDE.adoc ✅
+*Status*: Already up-to-date (created as part of hybrid config system)
+*Content*:
+- Complete documentation of hybrid JSON/Python configuration
+- All configuration sections with parameters
+- Usage examples for loading and overriding
+- Troubleshooting guide
+- File structure documentation
+
+==== Other Documentation Files
+*Status*: Need updates to reflect new features
+
+Files requiring updates:
+- README.adoc - Add config system and sea floor to key features
+- PROJECT_OVERVIEW.adoc - Add config and sea floor architecture
+- IMPLEMENTATION_STATUS.adoc - Update code statistics and Phase 1 completion
+- CHANGELOG.adoc - Add entry for config system and sea floor
+
+== New System Components Documented
+
+=== 1. Hybrid Configuration System
+
+**Purpose**: Runtime-tweakable parameters without code changes
+
+**Components**:
+- ConfigLoader: Loads and caches JSON config
+- get_config_value(): Convenience function for value lookup
+- tendroids_config.json: User-editable parameter overrides
+- from_json() classmethods: Config classes load from JSON
+
+**Benefits**:
+- Type safety from Python dataclasses
+- Runtime tweaking from JSON
+- Sensible defaults if JSON missing
+- Backward compatible
+
+**Config Sections**:
+- sea_floor: Terrain dimensions, amplitude, resolution
+- environment: Sky, lighting, materials
+- tendroid_geometry: Radius, length, segments, flare
+- tendroid_animation: Wave speed, amplitude, cycle timing
+- tendroid_spawning: Count, area, radius range, spacing
+
+=== 2. Sea Floor Package
+
+**Purpose**: Natural terrain for Tendroids to inhabit
+
+**Components**:
+- SeaFloorConfig: Terrain generation parameters
+- SeaFloorController: USD mesh creation
+- SeaFloorHelper: Perlin noise generation, height queries
+- EnvironmentConfig: Sky, lighting, material configuration
+- EnvironmentSetup: Creates environment prims
+
+**Features**:
+- Perlin noise height map (cached for performance)
+- Configurable amplitude, frequency, octaves
+- Natural contours and undulations
+- Height queries: get_height_at(x, z)
+- Integrated with environment setup
+
+=== 3. Terrain Conforming
+
+**Purpose**: Natural placement of Tendroids on seafloor
+
+**Components**:
+- TerrainConform: Static helper methods
+- Position adjustment: Y set to floor height
+- Base vertex conforming: Each base vertex follows contours
+
+**Process**:
+1. Query floor height at Tendroid position
+2. Adjust Tendroid position Y to sit on floor
+3. For each base vertex, query height at (x, z)
+4. Adjust base vertex Y to terrain height
+5. Update mesh with conformed vertices
+6. WarpDeformer uses conformed vertices as base
+
+**Result**:
+- Tendroids sit naturally on terrain
+- Base follows floor contours
+- No floating or sinking appearance
+- Maintains conforming during animation
+
+== Architecture Updates
+
+=== Module Structure
+
+New packages:
+----
+qixotic/tendroids/
+├── config/                     # NEW
+│   ├── __init__.py
+│   ├── config_loader.py
+│   ├── tendroids_config.json
+│   └── CONFIG_GUIDE.adoc
+├── sea_floor/                  # NEW
+│   ├── __init__.py
+│   ├── sea_floor_config.py
+│   ├── sea_floor_controller.py
+│   └── sea_floor_helper.py
+├── core/
+│   └── terrain_conform.py      # NEW
+└── scene/
+    ├── environment_config.py   # NEW
+    └── environment_setup.py    # NEW
+----
+
+=== Dependency Flow
+
+Configuration:
+----
+All Components → ConfigLoader → tendroids_config.json
+----
+
+Sea Floor:
+----
+SceneManager → SeaFloorController → SeaFloorHelper → Perlin Noise
+                    ↓
+            EnvironmentSetup → Sky, Lights, Materials
+----
+
+Terrain Conforming:
+----
+TendroidBuilder → SeaFloorHelper.get_height_at()
+        ↓
+    TerrainConform → Adjust base vertices
+        ↓
+    WarpDeformer → Use conformed vertices
+----
+
+== Code Statistics (Updated)
+
+=== New Files Added
+
+[cols="1,1"]
+|===
+|File |Lines
+
+|config/config_loader.py |142
+|config/__init__.py |13
+|sea_floor/sea_floor_config.py |58
+|sea_floor/sea_floor_controller.py |170
+|sea_floor/sea_floor_helper.py |93
+|sea_floor/__init__.py |15
+|core/terrain_conform.py |87
+|scene/environment_config.py |129
+|scene/environment_setup.py |121
+|===
+
+Total new lines: ~828
+
+=== Updated Files
+
+[cols="1,1,1"]
+|===
+|File |Previous |Updated
+
+|tendroid_builder.py |143 |218
+|tendroid_factory.py |134 |255
+|===
+
+=== Overall Project Size
+
+Previous: ~1,400 lines (24 files)
+Current: ~2,300 lines (33 files)
+
+Still maintainable with file size discipline.
+
+== Next Steps
+
+=== Documentation To Update
+
+1. **README.adoc** 
+   - Add sea floor to Key Features
+   - Add config system to Architecture
+   - Update Quick Start with sea floor creation
+   - Add configuration section
+
+2. **PROJECT_OVERVIEW.adoc**
+   - Add config system architecture
+   - Add sea floor package details
+   - Add terrain conforming explanation
+   - Update module structure diagram
+
+3. **IMPLEMENTATION_STATUS.adoc**
+   - Update code statistics
+   - Mark sea floor as complete
+   - Mark config system as complete
+   - Update Phase 1 achievements
+
+4. **CHANGELOG.adoc**
+   - Add v2.1.0 entry for config system
+   - Add v2.1.0 entry for sea floor
+   - Add v2.1.0 entry for terrain conforming
+   - Update file count and line count
+
+=== Testing Verification
+
+Before marking documentation complete:
+1. Test config system with JSON overrides
+2. Verify sea floor generation
+3. Confirm terrain conforming works
+4. Check performance with 15 Tendroids
+5. Validate all diagrams render correctly in PlantUML
+
+== Summary
+
+All PlantUML diagrams have been comprehensively updated to accurately reflect:
+- Hybrid JSON/Python configuration system
+- Sea floor package with Perlin noise terrain
+- Environment configuration (sky, lights, materials)
+- Terrain conforming for natural Tendroid placement
+- Complete data flow and dependencies
+- All architectural relationships
+
+The documentation now provides a complete and accurate picture of the current Tendroids system architecture.
+
+**Status**: PlantUML diagrams complete ✅
+**Next**: Update remaining AsciiDoc documentation files

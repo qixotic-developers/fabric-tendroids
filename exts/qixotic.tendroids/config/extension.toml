@@ -1,22 +1,22 @@
 [package]
 # Semantic Versionning is used: https://semver.org/
-version = "1.0.0"
+version = "2.0.0"
 
 # Lists people or organizations that are considered the "authors" of the package.
 authors = ["Qixotic Software"]
 
 # The title and description fields are primarly for displaying extension info in UI
 title = "Qixotic Tendroids"
-description = "Interactive cylinder-based wormlike sea creatures with Fabric/USDRT"
+description = "Interactive cylinder-based wormlike sea creatures using Fabric/Warp/USDRT"
 
 # Path (relative to the root) or content of readme markdown file for UI.
 readme = "docs/README.adoc"
 
-# One of categories for UI.
-category = "Animation"
+# Categories for UI
+categories = ["Animation", "Warp", "Fabric"]
 
 # Keywords for the extension
-keywords = ["tendroid", "animation", "fabric", "creature", "procedural"]
+keywords = ["tendroid", "animation", "fabric", "creature", "procedural", "aquatic"]
 
 # Location of change log file in target (final) folder of extension, relative to the root.
 changelog = "docs/CHANGELOG.adoc"
@@ -31,6 +31,7 @@ icon = "data/icon.png"
 "omni.usd" = {}
 "omni.ui" = {}
 "usdrt.scenegraph" = {}
+"omni.kit.pip_archive" = {}
 
 # Main python module this extension provides, it will be publicly available as "import qixotic.tendroids".
 [[python.module]]

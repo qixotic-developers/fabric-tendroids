@@ -1,0 +1,347 @@
+= Tendroids Project Overview
+:toc:
+:toclevels: 3
+:numbered:
+
+== Project Summary
+
+Tendroids is an NVIDIA Omniverse extension that creates interactive 3D animation of cylinder-based wormlike sea creatures. The system uses GPU-accelerated vertex deformation via NVIDIA Warp to achieve smooth, organic breathing animations while maintaining real-time performance.
+
+=== Core Objectives
+
+* Create visually appealing breathing animation using traveling bulge effect
+* Support up to 15 simultaneous animated Tendroids at 60fps (30fps minimum)
+* Provide safe material handling to prevent GPU crashes with transparent materials
+* Maintain clean, modular architecture for easy maintenance and extension
+
+== Technical Architecture
+
+=== Technology Stack
+
+[cols="1,2"]
+|===
+|Component |Technology
+
+|Platform
+|NVIDIA Omniverse USD Composer
+
+|Scene Graph
+|Universal Scene Description (USD)
+
+|Performance API
+|Fabric/USDRT 7.6.1
+
+|GPU Compute
+|NVIDIA Warp (Python GPU kernel framework)
+
+|Language
+|Python 3.10+
+
+|UI Framework
+|Omniverse UI (omni.ui)
+|===
+
+=== Performance Design
+
+==== Target Metrics
+
+* *Primary*: 60 FPS with 15 Tendroids
+* *Minimum*: 30 FPS acceptable baseline
+* *Scalability*: Linear performance up to 20 creatures
+
+==== Optimization Strategy
+
+* GPU-accelerated vertex deformation via Warp kernels
+* Single traveling bulge (not multiple overlapping waves)
+* Efficient mesh updater with direct USD points attribute writes
+* Material safety checks at 30-frame intervals (not per-frame)
+* Clean separation between geometry updates and rendering
+
+=== Animation System
+
+==== Breathing Wave Mechanics
+
+The breathing animation creates a realistic organic effect through:
+
+. *Traveling Bulge*: Single wave moves from base (flared bottom) to top
+. *Smooth Envelope*: Raised cosine function provides smooth zero-crossings
+. *Radial Expansion*: Vertices displaced outward perpendicular to Y-axis
+. *Cyclic Behavior*: Configurable pause between breathing cycles
+. *Bubble Emission*: Detection point when wave reaches 95% of length
+
+==== Mathematical Model
+
+The wave uses a raised cosine envelope for smooth transitions:
+
+----
+envelope = 0.5 * (1.0 + cos(π * distance / half_bulge))
+displacement = 1.0 + (envelope * amplitude)
+----
+
+This creates:
+* Zero displacement at wave edges
+* Peak expansion at wave center
+* Smooth transitions without discontinuities
+* Organic, creature-like breathing motion
+
+==== Warp GPU Kernel
+
+The deformation kernel operates on all vertices in parallel:
+
+. Skip vertices below deformation start height (flared base remains static)
+. Calculate distance from current wave center position
+. Apply raised cosine envelope based on distance
+. Compute radial displacement (X and Z only, Y unchanged)
+. Write deformed positions to output buffer
+
+=== Material Safety System
+
+==== Critical Issue: Glass Materials
+
+Glass and transparent materials with dynamic geometry cause severe issues:
+
+* GPU memory exceptions in path-traced rendering
+* Potential system crashes
+* Unpredictable behavior with refraction calculations
+
+==== Safety Mechanism
+
+The `MaterialSafetyChecker` provides protection through:
+
+. *Periodic Scanning*: Check material bindings every 30 frames
+. *Keyword Detection*: Match against known problematic material names
+. *Animation Blocking*: Completely disable updates when unsafe materials detected
+. *User Notification*: Clear logging of material status and warnings
+
+Detected keywords include: `glass`, `transparent`, `translucent`, `omni`, `clear`, `crystal`, `refract`
+
+==== Safety-First Design
+
+* Animation checks `is_safe_for_animation()` before every update
+* Lifecycle methods respect material safety (set_active, set_parameters)
+* Clear status messages indicate why animation is disabled
+* No crashes even with rapid material changes
+
+== System Architecture
+
+=== Module Organization
+
+----
+qixotic.tendroids/
+├── core/              # Tendroid geometry and deformation
+│   ├── tendroid.py                 # Main Tendroid class (controller)
+│   ├── tendroid_builder.py         # USD creation (static methods)
+│   ├── tendroid_lifecycle.py       # State management (static methods)
+│   ├── cylinder_generator.py       # Procedural mesh creation
+│   ├── warp_deformer.py            # GPU vertex deformation
+│   ├── material_safety.py          # Glass material detection
+│   └── mesh_updater.py             # USD vertex writes
+├── animation/         # Animation controllers
+│   ├── breathing.py                # Breathing wave timing
+│   └── idle_motion.py              # Subtle swaying (future)
+├── scene/             # Multi-Tendroid management
+│   ├── manager.py                  # Scene coordinator
+│   ├── animation_controller.py     # Update loop subscription
+│   └── tendroid_factory.py         # Creation patterns
+├── ui/                # User interface
+│   ├── control_panel.py            # Main UI coordinator
+│   ├── spawn_settings_ui.py        # Parameter controls
+│   ├── action_buttons.py           # Button event handlers
+│   └── status_display.py           # Status labels
+└── utils/             # Shared utilities
+    └── math_helpers.py             # Wave calculations
+----
+
+=== Design Patterns
+
+==== Builder Pattern (TendroidBuilder)
+
+Separates complex USD creation logic from the main Tendroid class:
+
+* Creates base Xform hierarchy
+* Generates cylinder mesh with CylinderGenerator
+* Initializes all component objects (safety, updater, deformer, animator)
+* Returns fully-configured Tendroid ready for animation
+
+==== Factory Pattern (TendroidFactory)
+
+Provides consistent instantiation with parameter variations:
+
+* `create_single()`: Custom parameters for detailed control
+* `create_batch()`: Randomized positions and sizes for variety
+* Handles parameter validation and logging
+
+==== Lifecycle Pattern (TendroidLifecycle)
+
+Manages state transitions separate from animation logic:
+
+* Activation/deactivation with material safety checks
+* Parameter updates with validation
+* Cleanup and resource management
+* Status reporting
+
+==== Component Pattern
+
+Clean separation of concerns:
+
+* *Tendroid*: Core controller, delegates to specialized components
+* *WarpDeformer*: GPU computation only
+* *MeshVertexUpdater*: USD writes only
+* *BreathingAnimator*: Timing calculations only
+* *MaterialSafetyChecker*: Safety monitoring only
+
+=== File Size Management
+
+All files maintain 100-150 line target (excluding comments/blanks):
+
+* *Class files*: Controllers with business logic
+* *Helper files*: Frequently-changing methods, static utilities
+* *__init__.py*: Module initialization and exports
+
+Current implementation: ~1,400 lines total across 24 Python files
+
+== Development Philosophy
+
+=== Clean Restart Rationale
+
+This implementation represents a complete restart after a previous over-engineered attempt. Key learnings applied:
+
+==== Avoid Over-Engineering
+
+* No telemetry systems (previous version had 500+ lines)
+* No premature LOD systems
+* No complex caching mechanisms
+* No GPU-direct optimization (caused race conditions)
+
+==== Focus on Core Functionality
+
+* Single traveling bulge (not multiple overlapping waves)
+* Simple material safety (keyword matching, not complex analysis)
+* Direct USD updates (no intermediate buffers)
+* Straightforward UI (no complex mode switching)
+
+==== Validate Early
+
+* Test breathing animation with single Tendroid first
+* Verify material safety before scaling to multiple creatures
+* Profile performance at each stage
+* Visual validation before adding complexity
+
+=== Code Quality Standards
+
+* Every file between 100-150 lines
+* Single Responsibility Principle strictly enforced
+* Controllers delegate to helpers
+* No god classes or kitchen-sink modules
+* Comprehensive docstrings on all public methods
+
+== Current Implementation Status
+
+=== Phase 1: Complete ✅
+
+* [x] Procedural cylinder mesh generation with flared bases
+* [x] Warp GPU-accelerated vertex deformation
+* [x] Single traveling bulge breathing animation
+* [x] Material safety system with glass detection
+* [x] Multi-Tendroid scene management
+* [x] Simple UI control panel with single/multi modes
+* [x] Performance optimization (Fabric integration where beneficial)
+
+=== Phase 2: Planned Features
+
+* [ ] Bubble creation at top when breathing cycle completes
+* [ ] Physics-based bubble rising and lifecycle
+* [ ] Environmental flora with swaying animation
+* [ ] User interaction with mouse/controller
+* [ ] Enhanced materials (subsurface scattering, proper transparency)
+* [ ] Advanced lighting and rendering polish
+
+=== Phase 3: Future Enhancements
+
+* [ ] Idle motion animation (subtle swaying when not breathing)
+* [ ] Multiple animation variations (not all Tendroids breathe identically)
+* [ ] Performance optimizations based on profiling data
+* [ ] LOD system if needed for >20 Tendroids
+* [ ] Additional creature behaviors and interactions
+
+== Performance Considerations
+
+=== GPU Memory Management
+
+* Warp manages CUDA memory automatically
+* Original vertices: immutable reference data
+* Deformed vertices: updated each frame, copied back to CPU
+* ~100KB per Tendroid for vertex data (32 segments × 16 radial resolution)
+
+=== Update Frequency
+
+* Material safety: Every 30 frames (~0.5 seconds at 60fps)
+* Breathing animation: Every frame
+* Mesh vertex writes: Every frame when wave active
+* Wave calculations: Simple math, negligible CPU cost
+
+=== Scalability
+
+Current architecture supports:
+
+* 15 Tendroids: Target 60fps with GPU
+* 20 Tendroids: Expected 45-50fps
+* 25+ Tendroids: May require LOD or update throttling
+
+== Testing Strategy
+
+=== Validation Approach
+
+* Visual validation: Primary test method for animation quality
+* Performance monitoring: FPS tracking in Omniverse viewport
+* Material safety: Test with various glass materials
+* Edge cases: Extreme parameter values, rapid changes
+
+=== No Formal Unit Tests
+
+Decision rationale:
+* Visual effects require human observation
+* GPU behavior difficult to mock/test
+* Rapid iteration more important than test coverage
+* Profile-driven optimization more valuable than theoretical tests
+
+=== Ad-Hoc Testing
+
+Tests are added reactively when issues arise:
+* Math validation for wave calculations if bugs appear
+* Boundary condition checks if crashes occur
+* Performance profiling if FPS drops below target
+
+== Future Directions
+
+=== Potential Enhancements
+
+* Advanced materials with proper subsurface scattering
+* Multiple creature variations (different shapes, colors)
+* Environmental interactions (responding to currents, obstacles)
+* Networked multi-user support
+* VR interaction capabilities
+
+=== Known Limitations
+
+* Material safety keyword detection may miss renamed materials
+* Single bulge limits visual complexity (trade-off for performance)
+* No self-collision detection between Tendroids
+* Flared base uses pre-scaled vertices (not dynamic)
+
+=== Extensibility
+
+The modular architecture supports:
+
+* Adding new animation types (derive from base animator)
+* Custom creature variations (subclass Tendroid)
+* Alternative deformation methods (swap WarpDeformer)
+* Different UI layouts (replace control panel components)
+
+== Conclusion
+
+Tendroids demonstrates a clean, focused approach to real-time 3D creature animation in Omniverse. By avoiding over-engineering and maintaining strict architectural discipline, the project achieves its core objectives with approximately 1,400 lines of well-structured, maintainable code.
+
+The material safety system represents a critical innovation, preventing GPU crashes that plagued the previous implementation. The Warp-based deformation provides organic, smooth breathing animation at real-time framerates.
+
+Future enhancements can build on this solid foundation without requiring architectural changes, as the component-based design supports extension without modification of core classes.

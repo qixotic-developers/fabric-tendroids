@@ -1,121 +1,411 @@
-@startuml
-title Tendroids Project - Spawn and Animation Sequence
+@startuml tendroid-sequence-diagram
+
+title Tendroid Creation and Animation Flow
 
 actor User
-participant "TendroidsExtension\n(UI)" as Extension
-participant "SceneManager" as Manager
-participant "Tendroid" as Tendroid
-participant "CylinderGenerator" as Generator
-participant "WarpDeformer" as Deformer
-participant "BreathingAnimator" as Animator
-participant "MathHelpers" as Math
-database "USD Stage" as Stage
+participant "Control\nPanel" as UI
+participant "Scene\nManager" as SM
+participant "Config\nLoader" as CL
+participant "Sea Floor\nController" as SFC
+participant "Tendroid\nFactory" as TF
+participant "Tendroid" as T
+participant "Tendroid\nBuilder" as TB
+participant "Terrain\nConform" as TC
+participant "Sea Floor\nHelper" as SFH
+participant "Cylinder\nGenerator" as CG
+participant "Warp\nDeformer" as WD
+participant "Material\nSafety" as MS
+participant "Breathing\nAnimator" as BA
+participant "Animation\nController" as AC
+participant "USD\nStage" as USD
 
-== Tendroid Spawning ==
+== Sea Floor Creation ==
 
-User -> Extension: Click "Spawn Tendroid"
-activate Extension
+User -> UI: Click "Spawn Tendroids"
+activate UI
 
-Extension -> Manager: spawn_tendroid(position)
-activate Manager
+UI -> SM: create_single_tendroid(...)
+activate SM
 
-Manager -> Manager: Check count < 15
-Manager -> Tendroid: create()
-activate Tendroid
-
-Tendroid -> Generator: generate_mesh()
-activate Generator
-
-Generator -> Math: calculate_flare(y, height, factor)
-activate Math
-Math --> Generator: flare_radius
-deactivate Math
-
-Generator -> Generator: Create vertices\nwith flared base
-Generator -> Generator: Create faces (triangles)
-Generator --> Tendroid: vertices, faces, normals
-deactivate Generator
-
-Tendroid -> Generator: create_usd_mesh(stage, path)
-activate Generator
-Generator -> Stage: Create UsdGeom.Mesh
-Stage --> Generator: mesh_prim
-Generator --> Tendroid: mesh_prim
-deactivate Generator
-
-Tendroid -> Deformer: initialize(vertices)
-activate Deformer
-Deformer -> Deformer: Allocate GPU arrays\n(wp.array)
-Deformer --> Tendroid: ready
-deactivate Deformer
-
-Tendroid -> Animator: reset()
-activate Animator
-Animator -> Animator: time = 0\nphase_offset = random
-Animator --> Tendroid: ready
-deactivate Animator
-
-Tendroid --> Manager: tendroid_instance
-deactivate Tendroid
-
-Manager -> Manager: Add to _tendroids list
-Manager --> Extension: success
-deactivate Manager
-
-Extension --> User: Tendroid spawned
-deactivate Extension
-
-== Animation Loop (Every Frame) ==
-
-loop Every Frame (60fps target)
-    Extension -> Manager: update(dt)
-    activate Manager
-
-    loop For each Tendroid
-        Manager -> Tendroid: update(dt)
-        activate Tendroid
-
-        Tendroid -> Animator: update(dt)
-        activate Animator
-        Animator -> Animator: time += dt
-        Animator -> Math: calculate_wave(time, freq, amp, phase)
-        activate Math
-        Math --> Animator: wave_parameters
-        deactivate Math
-        Animator --> Tendroid: wave_parameters
-        deactivate Animator
-
-        Tendroid -> Deformer: apply_wave_deformation(\ntime, amplitude, frequency)
-        activate Deformer
-
-        Deformer -> Deformer: **GPU Kernel Execution**\nDeform vertices\nwith wave pattern
-
-        Deformer --> Tendroid: deformed_vertices
-        deactivate Deformer
-
-        Tendroid -> Stage: Update mesh points\n(SetPointsAttr)
-        activate Stage
-        Stage --> Tendroid: updated
-        deactivate Stage
-
-        Tendroid --> Manager: frame complete
-        deactivate Tendroid
-    end
-
-    Manager --> Extension: all updated
-    deactivate Manager
+alt First spawn - create sea floor
+  SM -> CL: SeaFloorConfig.from_json()
+  activate CL
+  CL -> CL: Load tendroids_config.json
+  CL -> CL: Merge with Python defaults
+  CL --> SM: SeaFloorConfig instance
+  deactivate CL
+  
+  SM -> SFC: create_sea_floor(stage, config)
+  activate SFC
+  SFC -> SFH: initialize_height_map(config)
+  activate SFH
+  SFH -> SFH: Generate Perlin noise\nheight map
+  SFH --> SFC: Height map cached
+  deactivate SFH
+  
+  SFC -> USD: Create sea floor mesh
+  activate USD
+  USD --> SFC: Mesh created
+  deactivate USD
+  SFC --> SM: Sea floor ready
+  deactivate SFC
 end
 
-note over Deformer
-    GPU-accelerated deformation
-    using NVIDIA Warp kernels
-    for optimal performance
+== Tendroid Creation ==
+
+SM -> TF: create_single(\n  stage, params)
+activate TF
+
+TF -> CL: get_config_value(\n  "tendroid_geometry", ...)
+activate CL
+CL -> CL: Read JSON config
+CL --> TF: Default parameters
+deactivate CL
+
+TF -> T: __init__(\n  name, position,\n  radius, length,\n  num_segments)
+activate T
+
+T -> T: Initialize attributes:\n  - position, size\n  - component refs (None)\n  - state flags
+
+TF -> T: create(stage, parent_path)
+
+T -> TB: create_in_stage(\n  tendroid, stage,\n  parent_path)
+activate TB
+
+TB -> SFH: get_height_at(\n  position.x, position.z)
+activate SFH
+SFH -> SFH: Query cached height map
+SFH --> TB: floor_height
+deactivate SFH
+
+TB -> TB: Adjust position:\nposition.y = floor_height
+
+TB -> TB: _create_usd_geometry(\n  tendroid, stage,\n  parent_path)
+
+TB -> CL: get_config_value(\n  "tendroid_geometry",\n  "flare_height_percent")
+activate CL
+CL --> TB: 15.0
+deactivate CL
+
+TB -> CL: get_config_value(\n  "tendroid_geometry",\n  "flare_radius_multiplier")
+activate CL
+CL --> TB: 2.0
+deactivate CL
+
+TB -> USD: Define base Xform at path
+activate USD
+USD --> TB: Xform created
+deactivate USD
+
+TB -> CG: create_tendroid_cylinder(\n  stage, mesh_path,\n  radius, length,\n  segments, resolution,\n  flare_height_percent,\n  flare_radius_multiplier)
+activate CG
+
+CG -> CG: Calculate flare height\nand deform_start_height
+
+CG -> USD: Create UsdGeom.Mesh
+activate USD
+USD --> CG: Mesh prim
+deactivate USD
+
+CG -> CG: Generate vertices:\n  - Flared base\n  - Cylindrical body
+
+CG -> USD: Set vertices,\n  normals, topology
+activate USD
+deactivate USD
+
+CG --> TB: (mesh_prim, vertices,\n  num_segs, rad_res,\n  deform_start)
+deactivate CG
+
+TB -> TB: Store mesh_prim,\n  vertices,\n  deform_start_height
+
+TB -> TB: _conform_base_to_terrain(\n  tendroid)
+
+TB -> TC: conform_base_to_terrain(\n  vertices, base_position,\n  flare_height, segments,\n  radial_resolution)
+activate TC
+
+loop For each base vertex
+  TC -> SFH: get_height_at(x, z)
+  activate SFH
+  SFH --> TC: terrain_height
+  deactivate SFH
+  TC -> TC: Adjust vertex Y\nto terrain height
+end
+
+TC --> TB: conformed_vertices
+deactivate TC
+
+TB -> USD: Update mesh vertices
+activate USD
+deactivate USD
+
+TB -> TB: Update _initial_vertices\nwith conformed vertices
+
+TB -> TB: _initialize_components(\n  tendroid)
+
+TB -> MS: MaterialSafetyChecker(\n  mesh_path)
+activate MS
+
+MS -> MS: Initialize:\n  - check_counter = 0\n  - is_glass_material = False
+
+MS -> MS: check_material()
+
+MS -> USD: Get material binding
+activate USD
+USD --> MS: Material (if any)
+deactivate USD
+
+MS -> MS: Check for glass keywords
+
+MS --> TB: MaterialSafetyChecker instance
+deactivate MS
+
+TB -> T: Store material_safety
+
+TB -> T: mesh_updater = MeshVertexUpdater(\n  mesh_prim)
+
+TB -> WD: WarpDeformer(\n  conformed_vertices,\n  deform_start_height)
+activate WD
+
+WD -> WD: Convert vertices to\n  Warp arrays (CUDA):\n  - original_positions\n  - deformed_positions
+
+WD --> TB: WarpDeformer instance
+deactivate WD
+
+TB -> T: Store warp_deformer
+
+TB -> CL: get_config_value(\n  "tendroid_animation", ...)
+activate CL
+CL -> CL: Load animation params\nfrom JSON
+CL --> TB: wave_speed, bulge_percent,\namplitude, cycle_delay
+deactivate CL
+
+TB -> BA: BreathingAnimator(\n  length,\n  deform_start_height,\n  wave_speed,\n  bulge_length_percent,\n  amplitude,\n  cycle_delay)
+activate BA
+
+BA -> BA: Calculate:\n  - bulge_length\n  - travel_time\n  - cycle_duration
+
+BA --> TB: BreathingAnimator instance
+deactivate BA
+
+TB -> T: Store breathing_animator
+
+TB -> T: is_created = True
+
+TB -> TB: _log_creation_status(\n  tendroid)
+
+alt Material is glass
+  TB -> TB: Log error:\n  "GLASS MATERIAL DETECTED\n   Animation BLOCKED"
+else Material is safe
+  TB -> TB: Log info:\n  "Created with animation enabled"
+end
+
+TB --> T: True (success)
+deactivate TB
+
+T --> TF: True
+deactivate T
+
+TF --> SM: Tendroid instance
+deactivate TF
+
+SM -> SM: tendroids = [tendroid]
+
+SM -> AC: set_tendroids([tendroid])
+activate AC
+AC -> AC: self.tendroids = [tendroid]
+AC --> SM
+deactivate AC
+
+SM --> UI: True (success)
+deactivate SM
+
+UI -> UI: Update status display:\n  "Created: D=20.0, L=100.0..."
+
+UI --> User: Tendroid visible in viewport\n(conformed to terrain)
+deactivate UI
+
+== Animation Start ==
+
+User -> UI: Click "Start Animation"
+activate UI
+
+UI -> SM: start_animation()
+activate SM
+
+SM -> AC: start()
+activate AC
+
+AC -> AC: Subscribe to\n  update event stream
+
+AC -> AC: is_running = True
+
+AC --> SM
+deactivate AC
+
+SM --> UI
+deactivate SM
+
+UI -> UI: Update status:\n  "Animation started"
+
+UI --> User: Breathing begins
+deactivate UI
+
+== Animation Update Loop ==
+
+loop Every Frame
+
+  AC -> AC: _on_update(event)
+  activate AC
+  
+  AC -> AC: Extract dt from event\n  (default 1/60)
+  
+  loop For each Tendroid
+    
+    AC -> T: update(dt)
+    activate T
+    
+    alt is_created and is_active
+      
+      T -> T: Check all components\n  initialized
+      
+      T -> MS: should_check_now()
+      activate MS
+      MS -> MS: check_counter++
+      alt check_counter >= check_interval
+        MS -> MS: check_counter = 0
+        MS --> T: True
+      else
+        MS --> T: False
+      end
+      deactivate MS
+      
+      alt Should check now
+        T -> MS: check_material()
+        activate MS
+        MS -> USD: Get material binding
+        activate USD
+        USD --> MS: Material
+        deactivate USD
+        MS -> MS: Check keywords
+        alt Glass detected
+          MS -> MS: is_glass_material = True\n  animation_disabled_reason = ...
+          MS -> MS: Log error:\n  "GLASS MATERIAL DETECTED"
+        else
+          MS -> MS: is_glass_material = False
+        end
+        MS --> T: is_safe
+        deactivate MS
+      end
+      
+      T -> MS: is_safe_for_animation()
+      activate MS
+      MS --> T: not is_glass_material
+      deactivate MS
+      
+      alt Material is safe
+        
+        T -> BA: update(dt)
+        activate BA
+        BA -> BA: time += dt\n  cycle_time = time % cycle_duration
+        
+        alt In delay period
+          BA --> T: {wave_center: -1000,\n   active: False}
+        else Active animation
+          BA -> BA: calculate_wave_position(\n  cycle_time, speed,\n  deform_start_height)
+          BA --> T: {wave_center,\n   bulge_length,\n   amplitude,\n   active: True}
+        end
+        deactivate BA
+        
+        alt Wave is active
+          
+          T -> WD: update(\n  wave_center,\n  bulge_length,\n  amplitude)
+          activate WD
+          
+          WD -> WD: Launch Warp kernel:\n  deform_breathing_bulge(\n    original_positions,\n    deformed_positions,\n    wave_center,\n    bulge_length,\n    amplitude,\n    deform_start_y)
+          
+          note right of WD
+            GPU kernel processes
+            all vertices in parallel:
+            1. Skip if below deform_start_y
+            2. Calculate distance from wave_center
+            3. Apply raised cosine envelope
+            4. Compute radial displacement
+            5. Write to deformed_positions
+          end note
+          
+          WD -> WD: Copy deformed_positions\n  back to CPU (numpy)
+          
+          WD -> WD: Convert numpy to\n  list of Gf.Vec3f
+          
+          WD --> T: deformed_vertices
+          deactivate WD
+          
+          T -> T: mesh_updater.update_vertices(\n  deformed_vertices)
+          
+          T -> USD: Set points attribute
+          activate USD
+          deactivate USD
+          
+        end
+        
+        T -> BA: should_emit_bubble()
+        activate BA
+        BA -> BA: Check if wave\n  passed 95% of length
+        alt Should emit
+          BA -> BA: last_bubble_time = time
+          BA --> T: True
+        else
+          BA --> T: False
+        end
+        deactivate BA
+        
+        alt Should emit bubble
+          T -> T: _emit_bubble()
+          note right of T
+            Phase 2 feature
+            Currently just logs
+          end note
+        end
+        
+      else Material unsafe
+        note right of T
+          Animation completely blocked
+          No updates performed
+        end note
+      end
+      
+    end
+    
+    T --> AC
+    deactivate T
+    
+  end
+  
+  AC --> AC
+  deactivate AC
+  
+end
+
+note right of CL
+  **Config System**:
+  All parameters loaded from
+  tendroids_config.json
+  with Python defaults fallback
 end note
 
-note over Stage
-    USD Stage updates trigger
-    viewport refresh in
-    Omniverse Composer
+note right of SFH
+  **Terrain System**:
+  Perlin noise height map
+  Cached for performance
+  Queried during creation
+  and terrain conforming
+end note
+
+note right of TC
+  **Terrain Conforming**:
+  Base vertices adjusted
+  to follow floor contours
+  Creates natural placement
 end note
 
 @enduml

@@ -1,0 +1,70 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Tendroids Configuration",
+  "description": "Override default parameters for Tendroids scene. Any values not specified will use Python defaults.",
+  
+  "sea_floor": {
+    "width": 800.0,
+    "depth": 800.0,
+    "amplitude": 32.0,
+    "frequency": 0.01,
+    "octaves": 3,
+    "resolution_x": 60,
+    "resolution_y": 60,
+    "parent_path": "/Environment",
+    "mesh_name": "sea_floor"
+  },
+  
+  "environment": {
+    "sky": {
+      "path": "/Environment/Sky",
+      "translate_y": 325.0,
+      "rotate_y": -90.0,
+      "rotate_z": -90.0,
+      "intensity": 0.4
+    },
+    "distant_light": {
+      "path": "/Environment/DistantLight",
+      "translate_x": -275.0,
+      "translate_y": 550.0,
+      "rotate_y": -75.0,
+      "rotate_z": -50.0,
+      "angle": 2.0,
+      "intensity": 1.0,
+      "exposure": 10.0,
+      "color": [1.0, 1.0, 1.0]
+    },
+    "sea_floor_material": {
+      "path": "/World/Looks/Sand",
+      "use_existing": true,
+      "diffuse_color": [0.76, 0.70, 0.50],
+      "roughness": 0.9,
+      "metallic": 0.0
+    }
+  },
+  
+  "tendroid_geometry": {
+    "default_radius": 10.0,
+    "default_length": 100.0,
+    "default_num_segments": 16,
+    "radial_resolution": 32,
+    "flare_height_percent": 15.0,
+    "flare_radius_multiplier": 2.0
+  },
+  
+  "tendroid_animation": {
+    "wave_speed": 40.0,
+    "bulge_length_percent": 40.0,
+    "amplitude": 0.35,
+    "cycle_delay": 2.0
+  },
+  
+  "tendroid_spawning": {
+    "default_count": 15,
+    "spawn_area": [200.0, 200.0],
+    "radius_range": [8.0, 12.0],
+    "aspect_ratio_range": [7.5, 8.5],
+    "spacing_multiplier": 1.2,
+    "max_placement_attempts": 200
+  }
+}

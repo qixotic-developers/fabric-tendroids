@@ -1,100 +1,225 @@
-@startuml
-title Tendroids Project - Tendroid Lifecycle State Diagram
+@startuml tendroid-state-diagram
 
-[*] --> Uninitialized
+title Tendroid Lifecycle States
 
-Uninitialized --> Creating : spawn_tendroid()
-note on link
-    User clicks "Spawn Tendroid"
-    in control panel
-end note
+[*] --> Uninitialized : Tendroid created
 
-state Creating {
-    [*] --> GeneratingMesh
-    GeneratingMesh --> InitializingGPU : mesh created
-    InitializingGPU --> SettingUpAnimation : GPU arrays allocated
-    SettingUpAnimation --> [*] : animator ready
+state Uninitialized {
+  [*] --> InitializingComponents
+  InitializingComponents : Attributes set
+  InitializingComponents : Components not yet created
+  
+  InitializingComponents --> GeometryCreated : create() called
+  
+  state GeometryCreated {
+    [*] --> LoadingConfig
+    
+    LoadingConfig : ConfigLoader reads JSON
+    LoadingConfig : Merge with Python defaults
+    LoadingConfig : Get geometry parameters
+    LoadingConfig --> QueryingTerrain : Config loaded
+    
+    QueryingTerrain : get_height_at(position)
+    QueryingTerrain : Query sea floor height map
+    QueryingTerrain : Adjust Y position to floor
+    QueryingTerrain --> CreatingXform : Position adjusted
+    
+    CreatingXform : Base Xform defined in USD
+    CreatingXform --> GeneratingMesh : Xform created
+    
+    GeneratingMesh : CylinderGenerator creates mesh
+    GeneratingMesh : Vertices generated with flare
+    GeneratingMesh : Topology defined
+    GeneratingMesh --> ConformingToTerrain : Mesh created
+    
+    ConformingToTerrain : TerrainConform adjusts base
+    ConformingToTerrain : Query height for each base vertex
+    ConformingToTerrain : Adjust Y to terrain contours
+    ConformingToTerrain : Update mesh with conformed vertices
+    ConformingToTerrain --> InitializingComponents_Internal : Base conformed
+    
+    InitializingComponents_Internal : MaterialSafetyChecker created
+    InitializingComponents_Internal : MeshVertexUpdater created
+    InitializingComponents_Internal : WarpDeformer created (GPU)
+    InitializingComponents_Internal : Uses conformed vertices
+    InitializingComponents_Internal : BreathingAnimator created
+    InitializingComponents_Internal : Load animation params from config
+    InitializingComponents_Internal --> CheckingMaterial : Components ready
+    
+    CheckingMaterial : Initial material safety check
+    CheckingMaterial --> [*] : Check complete
+  }
+  
+  GeometryCreated --> [*] : is_created = True
 }
 
-Creating --> Idle : create() complete
-note on link
-    Tendroid fully initialized
-    Added to SceneManager
-end note
+Uninitialized --> Ready : Creation successful
 
-state Active {
-    state "Breathing Animation" as Breathing
-
-    Idle --> Breathing : first update(dt)
-
-    state Breathing {
-        [*] --> CalculatingWave
-        CalculatingWave --> DeformingMesh : wave parameters ready
-        DeformingMesh --> UpdatingStage : vertices deformed
-        UpdatingStage --> [*] : stage updated
+state Ready {
+  [*] --> Inactive
+  
+  state Inactive {
+    state "Waiting" as InactiveWaiting
+    InactiveWaiting : is_active = False
+    InactiveWaiting : Not receiving updates
+    InactiveWaiting : Base conformed to terrain
+  }
+  
+  Inactive --> Active : set_active(True)
+  Active --> Inactive : set_active(False)
+  
+  state Active {
+    [*] --> CheckingMaterialSafety
+    
+    state CheckingMaterialSafety {
+      [*] --> CheckCounter
+      CheckCounter : Increment counter each frame
+      CheckCounter --> PerformCheck : counter >= 30
+      CheckCounter --> SkipCheck : counter < 30
+      
+      PerformCheck : Get material binding
+      PerformCheck : Check for glass keywords
+      PerformCheck --> MaterialSafe : No glass detected
+      PerformCheck --> MaterialUnsafe : Glass detected
+      
+      SkipCheck --> [*]
     }
-
-    Breathing --> Breathing : update(dt) every frame
-
-    note bottom of Breathing
-        Target: 60fps (min 30fps)
-        - Calculate wave parameters
-        - Apply GPU deformation
-        - Update USD mesh points
-    end note
+    
+    CheckingMaterialSafety --> [*]
+    
+    state MaterialSafe {
+      [*] --> UpdatingAnimation
+      
+      state UpdatingAnimation {
+        [*] --> CalculatingWave
+        CalculatingWave : BreathingAnimator.update(dt)
+        CalculatingWave : Get wave parameters
+        CalculatingWave --> CheckingWaveActive : Parameters returned
+        
+        CheckingWaveActive --> DeformingMesh : active = True
+        CheckingWaveActive --> WaitingForNextCycle : active = False
+        
+        state DeformingMesh {
+          [*] --> LaunchingWarpKernel
+          LaunchingWarpKernel : WarpDeformer.update()
+          LaunchingWarpKernel : Uses conformed vertices as base
+          LaunchingWarpKernel : GPU kernel execution
+          LaunchingWarpKernel --> CopyingResults : Kernel complete
+          
+          CopyingResults : Copy deformed vertices to CPU
+          CopyingResults --> UpdatingUSD : Data ready
+          
+          UpdatingUSD : MeshVertexUpdater.update_vertices()
+          UpdatingUSD : Set USD points attribute
+          UpdatingUSD --> [*] : Mesh updated
+        }
+        
+        DeformingMesh --> CheckingBubble : Deformation complete
+        
+        CheckingBubble --> EmittingBubble : Wave at 95% height
+        CheckingBubble --> [*] : No bubble emission
+        
+        state EmittingBubble {
+          state "Placeholder" as BubblePlaceholder
+          BubblePlaceholder : Currently just logging
+          BubblePlaceholder : Phase 2: Create sphere prim
+        }
+        
+        EmittingBubble --> [*]
+        WaitingForNextCycle --> [*]
+      }
+      
+      UpdatingAnimation --> [*] : Frame complete
+    }
+    
+    state MaterialUnsafe {
+      state "Blocked" as AnimationBlocked
+      AnimationBlocked : is_glass_material = True
+      AnimationBlocked : All updates skipped
+      AnimationBlocked : Status: "Animation disabled"
+      AnimationBlocked : Waiting for material change
+      
+      AnimationBlocked --> CheckingMaterialSafety : Next check cycle
+    }
+    
+    MaterialSafe --> CheckingMaterialSafety : Next frame
+    MaterialUnsafe --> CheckingMaterialSafety : Next check
+  }
 }
 
-Active --> Paused : performance degradation
-note on link
-    Optional: if FPS drops
-    below threshold
-end note
+Ready --> ParameterUpdate : set_breathing_parameters()
 
-Paused --> Active : performance restored
-note on link
-    Resume animation
-    when resources available
-end note
-
-Active --> BeingDestroyed : destroy() called
-Paused --> BeingDestroyed : destroy() called
-Idle --> BeingDestroyed : clear_all()
-
-state BeingDestroyed {
-    [*] --> CleaningGPU
-    CleaningGPU --> RemovingFromStage : GPU resources freed
-    RemovingFromStage --> [*] : prim removed
+state ParameterUpdate {
+  [*] --> ValidatingMaterial
+  ValidatingMaterial : Check if material safe
+  ValidatingMaterial --> Rejecting : Glass material
+  ValidatingMaterial --> Updating : Material safe
+  
+  Rejecting : Log warning
+  Rejecting : Ignore parameter changes
+  Rejecting --> [*]
+  
+  Updating : Update BreathingAnimator
+  Updating : Recalculate timing values
+  Updating --> [*]
 }
 
-BeingDestroyed --> [*] : cleanup complete
+ParameterUpdate --> Ready
 
-note right of Uninitialized
-    Before spawn_tendroid()
-    is called
+Ready --> Destroying : destroy() called
+
+state Destroying {
+  [*] --> RemovingPrim
+  RemovingPrim : stage.RemovePrim(base_path)
+  RemovingPrim --> CleaningUpWarp : USD prim removed
+  
+  CleaningUpWarp : WarpDeformer.cleanup()
+  CleaningUpWarp : Release CUDA memory
+  CleaningUpWarp --> SettingFlags : Resources freed
+  
+  SettingFlags : is_created = False
+  SettingFlags --> [*]
+}
+
+Destroying --> [*] : Cleanup complete
+
+note right of LoadingConfig
+  NEW: Config system loads
+  parameters from JSON file
+  with Python defaults fallback
 end note
 
-note right of Idle
-    Created but not yet
-    animating. Waiting for
-    first update() call.
+note right of QueryingTerrain
+  NEW: Sea floor height query
+  Adjusts position to sit
+  naturally on terrain
 end note
 
-note left of Active
-    Normal operational state
-    Continuously updating and
-    deforming mesh every frame
+note right of ConformingToTerrain
+  NEW: Terrain conforming
+  Base vertices follow
+  floor contours for
+  natural appearance
 end note
 
-note left of Paused
-    Optional state for
-    performance management
-    (not yet implemented)
+note right of CheckingMaterialSafety
+  Material safety is checked
+  every 30 frames (not per-frame)
+  to minimize performance impact
 end note
 
-note bottom of BeingDestroyed
-    User clicked "Clear All"
-    or individual Tendroid
-    removal requested
+note right of MaterialUnsafe
+  CRITICAL SAFETY FEATURE:
+  When glass material detected,
+  animation completely blocked
+  to prevent GPU crashes
+end note
+
+note right of DeformingMesh
+  GPU-accelerated deformation
+  using NVIDIA Warp kernels
+  provides smooth, organic motion
+  Base stays conformed to terrain
 end note
 
 @enduml

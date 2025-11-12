@@ -1,0 +1,424 @@
+== Architecture and Design
+
+=== System Architecture
+
+==== Technology Stack
+
+[cols="1,2"]
+|===
+|Component |Technology
+
+|Platform |NVIDIA Omniverse USD Composer
+|Scene Graph |Universal Scene Description (USD)
+|Performance API |Fabric/USDRT 7.6.1
+|GPU Compute |NVIDIA Warp (Python GPU kernel framework)
+|Language |Python 3.10+
+|UI Framework |Omniverse UI (omni.ui)
+|===
+
+==== Module Organization
+
+----
+qixotic.tendroids/
+├── core/              # Tendroid geometry and deformation
+│   ├── tendroid.py                 # Main Tendroid class (controller)
+│   ├── tendroid_builder.py         # USD creation (static methods)
+│   ├── tendroid_lifecycle.py       # State management (static methods)
+│   ├── cylinder_generator.py       # Procedural mesh creation
+│   ├── warp_deformer.py            # GPU vertex deformation
+│   ├── material_safety.py          # Glass material detection
+│   └── mesh_updater.py             # USD vertex writes
+├── animation/         # Animation controllers
+│   ├── breathing.py                # Breathing wave timing
+│   └── idle_motion.py              # Subtle swaying (future)
+├── scene/             # Multi-Tendroid management
+│   ├── manager.py                  # Scene coordinator
+│   ├── animation_controller.py     # Update loop subscription
+│   ├── tendroid_factory.py         # Creation patterns
+│   ├── environment_setup.py        # Lighting and sky
+│   └── sea_floor_controller.py     # Terrain generation
+├── ui/                # User interface
+│   ├── control_panel.py            # Main UI coordinator
+│   ├── spawn_settings_ui.py        # Parameter controls
+│   ├── action_buttons.py           # Button event handlers
+│   └── status_display.py           # Status labels
+├── config/            # Configuration system
+│   ├── config_loader.py            # JSON loading logic
+│   └── tendroids_config.json       # User-editable settings
+└── utils/             # Shared utilities
+    └── math_helpers.py             # Wave calculations
+----
+
+=== Design Patterns
+
+==== Builder Pattern
+
+**TendroidBuilder** separates complex USD creation logic from the main Tendroid class:
+
+* Creates base Xform hierarchy
+* Generates cylinder mesh with CylinderGenerator
+* Initializes all component objects (safety, updater, deformer, animator)
+* Returns fully-configured Tendroid ready for animation
+
+**Benefits**:
+
+* Clean separation of construction vs. operation
+* Single responsibility: USD scene graph creation
+* Easy to modify without affecting Tendroid class
+* Testable in isolation
+
+==== Factory Pattern
+
+**TendroidFactory** provides consistent instantiation with parameter variations:
+
+* `create_single()`: Custom parameters for detailed control
+* `create_batch()`: Randomized positions and sizes for variety
+* Handles parameter validation and logging
+* Encapsulates creation complexity
+
+**Benefits**:
+
+* Consistent object creation
+* Parameter validation in one place
+* Easy to add new creation patterns
+* Supports both single and batch workflows
+
+==== Lifecycle Pattern
+
+**TendroidLifecycle** manages state transitions separate from animation logic:
+
+* Activation/deactivation with material safety checks
+* Parameter updates with validation
+* Cleanup and resource management
+* Status reporting
+
+**Benefits**:
+
+* State management isolated from animation
+* Reusable across different Tendroid types
+* Clear separation of concerns
+* Easier debugging and testing
+
+==== Component Pattern
+
+Clean separation of concerns with specialized components:
+
+[cols="1,3"]
+|===
+|Component |Responsibility
+
+|*Tendroid* |Core controller, delegates to specialized components
+|*WarpDeformer* |GPU computation only, no USD interaction
+|*MeshVertexUpdater* |USD writes only, no computation
+|*BreathingAnimator* |Timing calculations only, no geometry
+|*MaterialSafetyChecker* |Safety monitoring only, no animation
+|===
+
+**Benefits**:
+
+* Single responsibility per component
+* Easy to swap implementations
+* Independent testing
+* Clear interfaces
+
+=== Class Relationships
+
+.Core System Class Diagram
+[plantuml, tendroids-core-classes, svg]
+----
+@startuml
+class Tendroid {
+  - mesh_prim: Usd.Prim
+  - safety_checker: MaterialSafetyChecker
+  - mesh_updater: MeshVertexUpdater
+  - warp_deformer: WarpDeformer
+  - breathing_animator: BreathingAnimator
+  --
+  + create(stage, parent_path): bool
+  + update(dt: float): void
+  + set_active(active: bool): void
+  + set_breathing_parameters(**kwargs): void
+  + destroy(stage): void
+}
+
+class TendroidBuilder {
+  + build_tendroid(stage, params): Tendroid
+  - _create_usd_hierarchy(): Usd.Prim
+  - _initialize_components(): void
+}
+
+class TendroidFactory {
+  + create_single(stage, **params): Tendroid
+  + create_batch(stage, count, **params): list[Tendroid]
+}
+
+class TendroidLifecycle {
+  + activate(tendroid): bool
+  + deactivate(tendroid): void
+  + update_parameters(tendroid, **params): void
+  + cleanup(tendroid, stage): void
+}
+
+class TendroidSceneManager {
+  - tendroids: list[Tendroid]
+  - animation_controller: AnimationController
+  --
+  + create_tendroids(**params): bool
+  + create_single_tendroid(**params): bool
+  + start_animation(): void
+  + stop_animation(): void
+  + clear_tendroids(): void
+}
+
+TendroidSceneManager --> TendroidFactory : creates
+TendroidFactory --> TendroidBuilder : uses
+TendroidBuilder --> Tendroid : constructs
+TendroidLifecycle ..> Tendroid : manages
+TendroidSceneManager *-- Tendroid : contains
+@enduml
+----
+
+=== Performance Design
+
+==== Target Metrics
+
+[cols="1,2,1"]
+|===
+|Metric |Description |Target
+
+|Primary FPS |Sustained frame rate |60 FPS
+|Minimum FPS |Acceptable baseline |30 FPS
+|Creature Count |Simultaneous Tendroids |15
+|Scalability |Linear performance |Up to 20 creatures
+|===
+
+==== Optimization Strategy
+
+**GPU-Accelerated Deformation**::
+* Warp kernels for vertex processing
+* Parallel computation on all vertices
+* Minimal CPU involvement
+
+**Transform-Based Animation** (Current)::
+* Single traveling bulge wave
+* Transform scaling per segment
+* Simple and reliable
+* Good performance baseline
+
+**Vertex Deformation** (Planned Phase 3)::
+* Direct vertex manipulation
+* More organic motion
+* Requires careful material handling
+* Higher visual quality
+
+**Efficient Updates**::
+* Material safety checks at 30-frame intervals (not per-frame)
+* Clean separation between geometry updates and rendering
+* Direct USD points attribute writes
+* No intermediate buffering
+
+==== GPU Memory Management
+
+[cols="1,2"]
+|===
+|Resource |Strategy
+
+|Warp Memory |Automatic CUDA memory management
+|Original Vertices |Immutable reference data (read-only)
+|Deformed Vertices |Updated each frame, copied to CPU
+|Vertex Buffer Size |~100KB per Tendroid (32 segments × 16 radial)
+|===
+
+==== Update Frequency
+
+[cols="1,1"]
+|===
+|System |Frequency
+
+|Material Safety Check |Every 30 frames (~0.5 sec @ 60fps)
+|Breathing Animation |Every frame
+|Mesh Vertex Writes |Every frame (when wave active)
+|Wave Calculations |Every frame (minimal CPU cost)
+|===
+
+==== Scalability Analysis
+
+[cols="1,2,2"]
+|===
+|Creature Count |Expected Performance |Notes
+
+|1-5 |Excellent (60fps+) |Ideal for testing
+|6-10 |Very good (50-60fps) |Good user experience
+|11-15 |Good (40-50fps) |Target configuration
+|16-20 |Acceptable (30-40fps) |May need tuning
+|20+ |Variable |LOD or throttling needed
+|===
+
+=== File Size Management
+
+==== Design Guidelines
+
+All files maintain 100-150 line target (excluding comments/blanks):
+
+**Class Files**:: Controllers with business logic only
+**Helper Files**:: Frequently-changing methods, static utilities
+**__init__.py**:: Module initialization and exports only
+
+==== Current Implementation
+
+Approximate line counts across 24 Python files:
+
+----
+Core Module:        ~400 lines (6 files)
+Animation Module:   ~150 lines (2 files)
+Scene Module:       ~350 lines (5 files)
+UI Module:          ~250 lines (4 files)
+Geometry Module:    ~200 lines (3 files)
+Config Module:      ~100 lines (2 files)
+Utils Module:       ~50 lines (1 file)
+                    ─────────────────
+Total:              ~1,500 lines
+----
+
+=== API Reference
+
+==== TendroidSceneManager
+
+Main interface for managing Tendroids in scene.
+
+**create_tendroids(count, spawn_area, radius_range, length_range, num_segments)**
+
+Create multiple Tendroids with randomized positions and sizes.
+
+Parameters:
+
+* `count`: Number of Tendroids to create
+* `spawn_area`: (width, depth) of spawning region
+* `radius_range`: (min, max) radius for variation
+* `length_range`: (min, max) length for variation
+* `num_segments`: Vertical resolution per Tendroid
+
+Returns: `True` if successful, `False` otherwise
+
+**create_single_tendroid(position, radius, length, num_segments, ...)**
+
+Create single Tendroid with custom parameters.
+
+Parameters:
+
+* `position`: (x, y, z) world position
+* `radius`: Cylinder radius
+* `length`: Total length
+* `num_segments`: Vertical resolution
+* `bulge_length_percent`: Wave size as % of length
+* `amplitude`: Maximum radial expansion
+* `wave_speed`: Wave travel speed
+* `cycle_delay`: Pause between cycles
+
+Returns: `True` if successful, `False` otherwise
+
+**start_animation()**
+
+Begin animating all Tendroids. Subscribes to update event stream.
+
+**stop_animation()**
+
+Pause animation for all Tendroids. Unsubscribes from updates.
+
+**clear_tendroids(stage)**
+
+Remove all Tendroids from scene and cleanup resources.
+
+==== Tendroid
+
+Individual Tendroid creature class.
+
+**create(stage, parent_path)**
+
+Create Tendroid geometry in USD stage. Delegates to TendroidBuilder.
+
+**update(dt)**
+
+Update animation for current frame. Checks material safety periodically.
+
+Parameter: `dt` - Delta time since last update (seconds)
+
+**set_active(active)**
+
+Enable/disable animation. Respects material safety.
+
+Parameter: `active` - Whether to activate animation
+
+**set_breathing_parameters(**kwargs)**
+
+Update breathing animation parameters at runtime.
+
+Keyword Arguments:
+
+* `wave_speed`: New wave speed
+* `bulge_length_percent`: New bulge size
+* `amplitude`: New amplitude
+* `cycle_delay`: New pause duration
+
+**destroy(stage)**
+
+Remove from scene and cleanup resources.
+
+**is_animation_enabled()**
+
+Check if animation is safe (not blocked by glass material).
+
+Returns: `True` if animation enabled, `False` if blocked
+
+**get_status_message()**
+
+Get human-readable status message.
+
+Returns: Status string (e.g., "✓ Active", "⚠️ Animation disabled")
+
+=== Testing Strategy
+
+==== Visual Validation
+
+Primary test method for animation quality:
+
+* Side-by-side comparisons
+* Frame-by-frame recording
+* Parameter sweep testing
+* Visual fidelity assessment
+
+==== Performance Monitoring
+
+FPS tracking and profiling:
+
+* Omniverse viewport FPS display
+* Python profiler for bottlenecks
+* GPU utilization monitoring
+* Memory usage tracking
+
+==== Material Safety Testing
+
+Verify protection system:
+
+* Test with various glass materials
+* Rapid material switching
+* Animation disable/enable cycles
+* Console warning verification
+
+==== No Formal Unit Tests
+
+Decision rationale:
+
+* Visual effects require human observation
+* GPU behavior difficult to mock/test
+* Rapid iteration more important than test coverage
+* Profile-driven optimization more valuable than theoretical tests
+
+==== Ad-Hoc Testing Approach
+
+Tests added reactively when issues arise:
+
+* Math validation for wave calculations if bugs appear
+* Boundary condition checks if crashes occur
+* Performance profiling if FPS drops below target
+* Visual regression testing when refactoring

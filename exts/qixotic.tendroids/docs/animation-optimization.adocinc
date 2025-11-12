@@ -1,76 +1,71 @@
-:doctitle: Tendroid Breathing Animation Optimization
-:revdate: 2025-11-11 09:40
-:toc:
-:toclevels: 3
-:sectnums:
-:idprefix:
-:idseparator: -
-:source-highlighter: pygments
-include::C:\Dev\asciidoc-common\common-asciidoc-attributes.adoc[]
+== Animation Optimization Strategies
 
-== Overview
+=== Overview
 
 The current breathing animation system calculates deformation offsets for each segment in real-time every frame. Since the deformation shape is constant and only its vertical position changes, we can precompute the deformation profile and use lookup tables to significantly reduce computational overhead.
 
-=== Current Performance Bottleneck
+=== Current Performance Analysis
 
-**Per-frame calculations** (for each of 16 segments × 15 Tendroids = 240 segments):
+==== Per-Frame Calculations
 
-----
+For each of 16 segments × 15 Tendroids = 240 segments:
+
 1. Determine segment's position in wave (phase calculation)
 2. Calculate radial scale factor at that phase
 3. Apply scale transformation to segment
-----
 
-**Redundant work**:
+==== Redundant Work Identified
 
 * Same wave shape calculated repeatedly
 * Identical scale factors recomputed
 * No caching of intermediate results
+* Trigonometric functions computed per-frame
 
-=== Optimization Strategy
+=== Optimization Strategy: Lookup Tables
 
-**Precompute once**:
+==== Precompute Once
 
 * Wave profile (amplitude vs. phase)
 * Scale lookup table (256 entries)
 * Interpolation coefficients
 
-**Per-frame runtime**:
+==== Per-Frame Runtime
 
-* Calculate wave phase → O(1)
-* Lookup scale factor → O(1)
-* Apply cached transformation → O(1)
+* Calculate wave phase → stem:[O(1)]
+* Lookup scale factor → stem:[O(1)]
+* Apply cached transformation → stem:[O(1)]
 
-**Expected speedup**: 5-10× faster per-segment updates
+**Expected speedup**: 2-3× faster per-segment updates
 
-== Deformation Profile Analysis
+=== Deformation Profile Analysis
 
-=== Wave Characteristics
+==== Wave Characteristics
 
-The breathing wave is a **traveling sine wave** with consistent shape:
+The breathing wave is a traveling sine wave with consistent shape:
 
-----
-Amplitude(phase) = base_scale + wave_amplitude × sin(phase)
-----
+[stem]
+++++
+\text{Amplitude}(\phi) = \text{base\_scale} + \text{wave\_amplitude} \times \sin(\phi)
+++++
 
 Where:
 
-* `phase ∈ [0, 2π]` is position in the wave cycle
+* stem:[\phi \in [0, 2\pi\]] is position in the wave cycle
 * `base_scale = 1.0` (neutral state)
 * `wave_amplitude` determines breathing depth (typically 0.1-0.3)
 
-=== Spatial Propagation
+==== Spatial Propagation
 
 The wave travels vertically from base to tip:
 
-----
-phase(segment, time) = 2π × (segment_y / total_height + time × frequency)
-----
+[stem]
+++++
+\phi(\text{segment}, t) = 2\pi \times \left(\frac{\text{segment}_y}{\text{total\_height}} + t \times \text{frequency}\right)
+++++
 
 This creates the "breathing motion" effect as the wave moves up the cylinder.
 
-=== Key Insight
+==== Key Insight
 
 **The wave SHAPE is constant** - only its Y-position changes over time.
 
@@ -79,12 +74,12 @@ This means:
 * For any given phase value, the scale factor is always the same
 * We can precompute all possible scale factors
 * Runtime becomes a simple table lookup
+* No trigonometry needed per-frame
 
-== Lookup Table Implementation
+=== Lookup Table Implementation
 
-=== Table Structure
+==== Table Structure
 
-.Breathing Wave Lookup Table
 ----
 lookup_table[256] = {
   scale_0,   // phase = 0.000 × 2π
@@ -101,10 +96,11 @@ lookup_table[256] = {
 * Small memory footprint (1 KB)
 * Fast indexing
 
-=== Precomputation
+==== Precomputation Code
 
 Initialize once at startup:
 
+[source,python]
 ----
 def precompute_breathing_lookup():
     table = []
@@ -117,10 +113,11 @@ def precompute_breathing_lookup():
 
 **Cost**: 256 sine evaluations (< 1ms, done once)
 
-=== Runtime Lookup
+==== Runtime Lookup Code
 
 Per-frame for each segment:
 
+[source,python]
 ----
 def get_scale_factor(phase, lookup_table):
     # Normalize phase to [0, 1]
@@ -135,10 +132,11 @@ def get_scale_factor(phase, lookup_table):
 
 **No trigonometry** - just arithmetic and array indexing.
 
-=== Interpolation Option
+==== Interpolation Enhancement
 
 For even smoother animation, add linear interpolation:
 
+[source,python]
 ----
 def get_scale_factor_interpolated(phase, lookup_table):
     normalized_phase = (phase % (2 * math.pi)) / (2 * math.pi)
@@ -161,9 +159,9 @@ def get_scale_factor_interpolated(phase, lookup_table):
 * Slightly more computation (still faster than sine)
 * Negligible performance impact
 
-== Performance Comparison
+=== Performance Comparison
 
-=== Current Implementation
+==== Current Implementation
 
 Per segment update:
 
@@ -180,7 +178,8 @@ For 15 Tendroids × 16 segments = 240 segments:
 
 * **10,320 operations per frame**
 * Dominated by sine calculations
-=== Optimized Implementation
+
+==== Optimized Implementation
 
 Per segment update:
 
@@ -198,26 +197,15 @@ For 240 segments:
 * **4,560 operations per frame**
 * **2.3× fewer operations**
 
-=== Real-World Impact
+==== Real-World Impact
 
-[cols="1,1,1,1", options="header"]
+[cols="1,1,1,1"]
 |===
 |Configuration |Current (μs) |Optimized (μs) |Speedup
 
-|1 Tendroid (16 seg)
-|70
-|30
-|2.3×
-
-|15 Tendroids (240 seg)
-|1,050
-|450
-|2.3×
-
-|30 Tendroids (480 seg)
-|2,100
-|900
-|2.3×
+|1 Tendroid (16 seg) |70 |30 |2.3×
+|15 Tendroids (240 seg) |1,050 |450 |2.3×
+|30 Tendroids (480 seg) |2,100 |900 |2.3×
 |===
 
 **Frame budget saved**: ~600 μs for 15 Tendroids
@@ -228,9 +216,9 @@ At 60 FPS (16.67ms frame time):
 * Optimized: 2.7% of frame budget
 * **Recovered: 3.6% frame budget**
 
-== Implementation Architecture
+=== Implementation Architecture
 
-=== Module Structure
+==== Module Structure
 
 ----
 qixotic/tendroids/animation/
@@ -238,7 +226,7 @@ qixotic/tendroids/animation/
   └── breathing_helpers.py       # Original helpers (modified)
 ----
 
-=== Class Design
+==== Class Design
 
 .Optimization Class Diagram
 [plantuml, breathing-optimization-classes, svg]
@@ -267,10 +255,12 @@ class BreathingAnimationController {
 BreathingAnimationController --> BreathingOptimizer : uses
 @enduml
 ----
-=== Integration Points
+
+==== Integration Points
 
 **Initialization** (once at startup):
 
+[source,python]
 ----
 # In BreathingAnimationController.__init__()
 self.optimizer = BreathingOptimizer(
@@ -281,6 +271,7 @@ self.optimizer = BreathingOptimizer(
 
 **Update loop** (per frame):
 
+[source,python]
 ----
 # In update_breathing()
 for segment in self.segments:
@@ -289,9 +280,9 @@ for segment in self.segments:
     self._apply_scale(segment, scale)
 ----
 
-== Advanced Optimizations
+=== Advanced Optimizations
 
-=== Multi-Resolution Tables
+==== Multi-Resolution Tables
 
 Different detail levels for different use cases:
 
@@ -307,19 +298,11 @@ Select based on:
 * Performance requirements
 * Visual quality needs
 
-=== SIMD Vectorization
+==== SIMD Vectorization
 
-Process multiple segments simultaneously:
+Process multiple segments simultaneously using NumPy:
 
-----
-# Pseudo-code for SIMD approach
-phases = [phase_0, phase_1, phase_2, phase_3]  # 4 segments
-indices = [int(p * 256) for p in phases]       # Vectorized
-scales = lookup_table[indices]                 # Parallel lookup
-----
-
-Using NumPy:
-
+[source,python]
 ----
 import numpy as np
 
@@ -331,10 +314,11 @@ scales = lookup_table[indices]  # Vectorized!
 
 **Potential speedup**: 4-8× with proper vectorization
 
-=== GPU Acceleration Path
+==== GPU Acceleration Path
 
 For future Warp kernel implementation:
 
+[source,python]
 ----
 # Warp kernel with lookup table
 @wp.kernel
@@ -363,9 +347,9 @@ def breathing_deform_kernel(
 * Shared memory for lookup table (ultra-fast)
 * Thousands of vertices per millisecond
 
-== Memory Considerations
+=== Memory Considerations
 
-=== Per-Tendroid Memory
+==== Per-Tendroid Memory
 
 **Current approach**:
 
@@ -382,7 +366,7 @@ For 15 Tendroids: 15 KB total
 
 **Negligible memory cost** for significant performance gain.
 
-=== Shared vs. Per-Instance
+==== Shared vs. Per-Instance
 
 **Option 1: Shared table** (recommended):
 
@@ -396,9 +380,9 @@ For 15 Tendroids: 15 KB total
 * 15 KB total memory
 * Allows customized wave shapes per Tendroid
 
-== Implementation Roadmap
+=== Implementation Roadmap
 
-=== Phase 1: Basic Lookup (Current Priority)
+==== Phase 1: Basic Lookup
 
 **Goals**:
 
@@ -416,7 +400,7 @@ For 15 Tendroids: 15 KB total
 
 **Expected outcome**: 2-3× speedup
 
-=== Phase 2: Interpolation & Polish
+==== Phase 2: Interpolation & Polish
 
 **Goals**:
 
@@ -433,7 +417,7 @@ For 15 Tendroids: 15 KB total
 
 **Expected outcome**: Smoother motion with minimal cost
 
-=== Phase 3: Vectorization
+==== Phase 3: Vectorization
 
 **Goals**:
 
@@ -450,7 +434,7 @@ For 15 Tendroids: 15 KB total
 
 **Expected outcome**: Additional 2-4× speedup
 
-=== Phase 4: GPU Preparation
+==== Phase 4: GPU Preparation
 
 **Goals**:
 
@@ -467,47 +451,34 @@ For 15 Tendroids: 15 KB total
 
 **Expected outcome**: Foundation for GPU acceleration
 
-== Testing Strategy
+=== Testing Strategy
 
-=== Visual Validation
+==== Visual Validation
 
 Ensure optimized version matches original:
 
-----
 1. Run side-by-side comparison
 2. Record animation at multiple speeds
 3. Compare frame-by-frame
 4. Validate amplitude accuracy
-----
 
 **Acceptance criteria**: < 1% visual difference
 
-=== Performance Benchmarking
+==== Performance Benchmarking
 
 Measure improvement across scenarios:
 
-[cols="1,2,2", options="header"]
+[cols="1,2,2"]
 |===
 |Test Case |Metric |Target
 
-|Single Tendroid
-|μs per frame
-|< 50 μs
-
-|15 Tendroids
-|μs per frame
-|< 500 μs
-
-|30 Tendroids
-|μs per frame
-|< 1000 μs
-
-|Frame time impact
-|% of 16.67ms
-|< 3%
+|Single Tendroid |μs per frame |< 50 μs
+|15 Tendroids |μs per frame |< 500 μs
+|30 Tendroids |μs per frame |< 1000 μs
+|Frame time impact |% of 16.67ms |< 3%
 |===
 
-=== Stress Testing
+==== Stress Testing
 
 Push system to limits:
 
@@ -516,57 +487,7 @@ Push system to limits:
 * Different table resolutions
 * Profile memory usage
 
-== Alternative Approaches Considered
-
-=== Approach 1: Analytical Simplification
-
-**Idea**: Simplify the sine function for faster computation
-
-**Analysis**:
-
-* Taylor series approximation: sin(x) ≈ x - x³/6
-* Reduces to polynomial evaluation
-* Still requires per-segment calculation
-
-**Verdict**: Lookup table is simpler and faster
-
-=== Approach 2: Keyframe Animation
-
-**Idea**: Precompute entire animation cycle, replay frames
-
-**Analysis**:
-
-* Requires massive storage (all segments × all frames)
-* Loss of flexibility (can't adjust speed dynamically)
-* Complex synchronization
-
-**Verdict**: Not suitable for procedural animation
-
-=== Approach 3: Shader-Based Deformation
-
-**Idea**: Move calculation to GPU shader
-
-**Analysis**:
-
-* GPU can handle sin() efficiently
-* Requires vertex shader support
-* May conflict with USD animation system
-
-**Verdict**: Good future direction, but requires Warp integration
-
-=== Approach 4: Hierarchical Animation
-
-**Idea**: Animate parent, let children inherit
-
-**Analysis**:
-
-* USD supports hierarchical transforms
-* Doesn't produce traveling wave effect
-* Each segment needs independent control
-
-**Verdict**: Not applicable to breathing animation
-
-== Conclusion
+=== Conclusion
 
 The lookup table optimization provides:
 
@@ -576,5 +497,4 @@ The lookup table optimization provides:
 * **Simple implementation** (single new class)
 * **Future-proof design** (compatible with GPU acceleration)
 
-**Recommendation**: Implement Phase 1 immediately for baseline performance improvement.
-
+**Recommendation**: Implement Phase 1 for baseline performance improvement, then proceed to Phase 2 for enhanced quality.

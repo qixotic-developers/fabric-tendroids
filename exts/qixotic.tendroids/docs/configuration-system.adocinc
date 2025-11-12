@@ -1,8 +1,6 @@
-= Tendroids Configuration System
-:toc:
-:toclevels: 3
+== Configuration System
 
-== Overview
+=== Overview
 
 The Tendroids project uses a **hybrid configuration system** that combines:
 
@@ -11,21 +9,22 @@ The Tendroids project uses a **hybrid configuration system** that combines:
 
 The JSON file (`tendroids_config.json`) contains overrides that are merged with Python defaults at runtime.
 
-== Configuration File Location
+=== Configuration File Location
 
 ----
-C:\Dev\Omniverse\fabric-tendroids\exts\qixotic.tendroids\qixotic\tendroids\config\tendroids_config.json
+C:\Dev\Omniverse\fabric-tendroids\exts\qixotic.tendroids\
+  qixotic\tendroids\config\tendroids_config.json
 ----
 
-== How It Works
+=== How It Works
 
-=== Loading Priority
+==== Loading Priority
 
 1. **Python defaults** (lowest priority) - Defined in dataclasses
 2. **JSON overrides** (medium priority) - Values in `tendroids_config.json`
 3. **Explicit parameters** (highest priority) - Values passed to functions
 
-=== Example
+==== Example Usage
 
 [source,python]
 ----
@@ -36,11 +35,11 @@ config = SeaFloorConfig.from_json()
 config = SeaFloorConfig.from_json(width=1000.0, amplitude=50.0)
 ----
 
-== Configuration Sections
+=== Configuration Sections
 
-=== Sea Floor
+==== Sea Floor Configuration
 
-Controls terrain generation.
+Controls Perlin noise terrain generation.
 
 [cols="1,1,3"]
 |===
@@ -57,9 +56,9 @@ Controls terrain generation.
 |`mesh_name` |"sea_floor" |Mesh prim name
 |===
 
-=== Environment
+==== Environment Configuration
 
-==== Sky
+===== Sky Settings
 
 [cols="1,1,3"]
 |===
@@ -72,7 +71,7 @@ Controls terrain generation.
 |`intensity` |0.4 |Light intensity
 |===
 
-==== Distant Light
+===== Distant Light Settings
 
 [cols="1,1,3"]
 |===
@@ -89,7 +88,7 @@ Controls terrain generation.
 |`color` |[1.0, 1.0, 1.0] |RGB color (white)
 |===
 
-==== Sea Floor Material
+===== Sea Floor Material Settings
 
 [cols="1,1,3"]
 |===
@@ -102,7 +101,7 @@ Controls terrain generation.
 |`metallic` |0.0 |Metallic value
 |===
 
-=== Tendroid Geometry
+==== Tendroid Geometry Configuration
 
 Controls cylinder shape and flare characteristics.
 
@@ -118,7 +117,7 @@ Controls cylinder shape and flare characteristics.
 |`flare_radius_multiplier` |2.0 |Base radius multiplier
 |===
 
-=== Tendroid Animation
+==== Tendroid Animation Configuration
 
 Controls breathing wave behavior.
 
@@ -126,13 +125,13 @@ Controls breathing wave behavior.
 |===
 |Parameter |Default |Description
 
-|`wave_speed` |40.0 |Wave travel speed
+|`wave_speed` |40.0 |Wave travel speed (units/sec)
 |`bulge_length_percent` |40.0 |Bulge size (% of length)
 |`amplitude` |0.35 |Radial expansion
 |`cycle_delay` |2.0 |Pause between cycles (seconds)
 |===
 
-=== Tendroid Spawning
+==== Tendroid Spawning Configuration
 
 Controls batch creation behavior.
 
@@ -148,9 +147,9 @@ Controls batch creation behavior.
 |`max_placement_attempts` |200 |Retry limit per Tendroid
 |===
 
-== Usage Examples
+=== Usage Examples
 
-=== Modifying Values
+==== Modifying Configuration Values
 
 Edit `tendroids_config.json` to change any value:
 
@@ -169,7 +168,7 @@ Edit `tendroids_config.json` to change any value:
 }
 ----
 
-=== Reloading Configuration
+==== Reloading Configuration
 
 [source,python]
 ----
@@ -179,24 +178,34 @@ from qixotic.tendroids.config import ConfigLoader
 ConfigLoader.reload()
 ----
 
-=== Getting Individual Values
+==== Getting Individual Values
 
 [source,python]
 ----
 from qixotic.tendroids.config import get_config_value
 
 # Get specific value with fallback
-wave_speed = get_config_value("tendroid_animation", "wave_speed", default=40.0)
+wave_speed = get_config_value(
+    "tendroid_animation", 
+    "wave_speed", 
+    default=40.0
+)
 
 # Nested access
-sky_intensity = get_config_value("environment", "sky", "intensity", default=0.4)
+sky_intensity = get_config_value(
+    "environment", 
+    "sky", 
+    "intensity", 
+    default=0.4
+)
 ----
 
-=== Using in Code
+==== Using in Code
+
+**Sea floor with JSON config**:
 
 [source,python]
 ----
-# Sea floor with JSON config
 from qixotic.tendroids.sea_floor import SeaFloorConfig, SeaFloorController
 
 config = SeaFloorConfig.from_json()
@@ -206,18 +215,20 @@ SeaFloorController.create_sea_floor(stage, config)
 config = SeaFloorConfig.from_json(width=1200.0, amplitude=40.0)
 ----
 
+**Environment with JSON config**:
+
 [source,python]
 ----
-# Environment with JSON config
 from qixotic.tendroids.scene import EnvironmentConfig, EnvironmentSetup
 
 env_config = EnvironmentConfig.from_json()
 EnvironmentSetup.setup_environment(stage, env_config)
 ----
 
+**Factory uses JSON automatically**:
+
 [source,python]
 ----
-# Factory uses JSON automatically
 from qixotic.tendroids.scene import TendroidFactory
 
 # Uses JSON defaults
@@ -232,7 +243,7 @@ tendroids = TendroidFactory.create_batch(
 )
 ----
 
-== Benefits
+=== Benefits
 
 [cols="1,3"]
 |===
@@ -246,7 +257,7 @@ tendroids = TendroidFactory.create_batch(
 |**Backward Compatible** |Existing code works without JSON file
 |===
 
-== File Structure
+=== File Structure
 
 ----
 qixotic/tendroids/
@@ -260,17 +271,17 @@ qixotic/tendroids/
     └── environment_config.py       # With from_json() classmethod
 ----
 
-== Troubleshooting
+=== Troubleshooting
 
-=== JSON File Not Found
+==== JSON File Not Found
 
 If `tendroids_config.json` is missing, Python defaults are used automatically. A warning is logged but execution continues normally.
 
-=== Invalid JSON
+==== Invalid JSON Syntax
 
-If the JSON file has syntax errors, Python defaults are used. Check the console for error messages.
+If the JSON file has syntax errors, Python defaults are used. Check the console for error messages showing the syntax problem.
 
-=== Changes Not Taking Effect
+==== Changes Not Taking Effect
 
 Call `ConfigLoader.reload()` to force reload from disk:
 
@@ -280,10 +291,21 @@ from qixotic.tendroids.config import ConfigLoader
 ConfigLoader.reload()
 ----
 
-== Future Enhancements
+==== Default Values Unclear
 
-* UI panel for live editing
-* Schema validation
-* Per-scene config overrides
-* Config export/import
-* Animation presets
+Check the dataclass definitions in the source files:
+
+* `sea_floor_config.py` for sea floor defaults
+* `environment_config.py` for environment defaults
+* Factory and builder classes for geometry defaults
+
+=== Future Enhancements
+
+Planned configuration improvements:
+
+* **UI Panel**: Live editing interface in control panel
+* **Schema Validation**: JSON schema for configuration validation
+* **Per-Scene Overrides**: Scene-specific configuration files
+* **Export/Import**: Save and share configuration presets
+* **Animation Presets**: Named configurations for different animation styles
+* **Configuration Profiles**: Quick switching between development/production settings

@@ -1,0 +1,331 @@
+== Swept Torus Geometry (Future Implementation)
+
+=== Overview
+
+The swept torus solution will create the trumpet-bell flared base of each Tendroid by sweeping a circle profile along a circular path while dynamically adjusting the profile radius. This produces a smooth, organic bell shape that transitions naturally into the cylindrical body.
+
+NOTE: This feature is planned for Phase 3 implementation. Current system uses transform-based scaling for the flared base.
+
+=== Key Advantages
+
+* **Smooth topology**: Single continuous mesh without seams
+* **Configurable flare**: Adjustable bell diameter and height
+* **Clean geometry**: Predictable vertex/face counts for GPU performance
+* **Natural transition**: Seamless connection to cylinder segments
+
+=== Mathematical Foundation
+
+==== Swept Surface Definition
+
+A swept torus is created by sweeping a 2D profile curve along a 3D path curve:
+
+[stem]
+++++
+\text{Surface}(u, v) = \text{Path}(u) + \text{Radius}(u) \times \text{Profile}(v)
+++++
+
+Where:
+
+* stem:[u \in [0, 1\]] parametrizes position along the path
+* stem:[v \in [0, 2\pi\]] parametrizes position around the profile circle
+* stem:[\text{Path}(u)] defines the sweep trajectory
+* stem:[\text{Radius}(u)] scales the profile at each path position
+
+==== Circular Path
+
+The base path is a horizontal circle in the XZ plane:
+
+[stem]
+++++
+\text{Path}(u) = (\text{path\_radius} \times \cos(2\pi u), 0, \text{path\_radius} \times \sin(2\pi u))
+++++
+
+This creates the circular footprint of the bell base.
+
+==== Profile Circle
+
+At each path position, the profile is a vertical circle in a local coordinate system:
+
+[stem]
+++++
+\text{Profile}(v) = (0, \text{profile\_radius} \times \sin(v), \text{profile\_radius} \times \cos(v))
+++++
+
+The profile must be rotated to align with the path tangent direction.
+
+==== Dynamic Radius Function
+
+The key to creating the bell flare is modulating the profile radius along the path:
+
+[stem]
+++++
+\text{Radius}(u) = \text{base\_radius} + (\text{flare\_radius} - \text{base\_radius}) \times \text{BlendFunction}(u)
+++++
+
+Where:
+
+* `base_radius`: Radius at center (matches cylinder)
+* `flare_radius`: Maximum radius at ground level
+* `BlendFunction(u)`: Controls the flare profile shape
+
+===== Blend Function Options
+
+**Linear blend**:
+
+[stem]
+++++
+\text{BlendFunction}(u) = u
+++++
+
+**Smooth blend** (ease-in-out):
+
+[stem]
+++++
+\text{BlendFunction}(u) = 3u^2 - 2u^3
+++++
+
+**Exponential blend** (more natural):
+
+[stem]
+++++
+\text{BlendFunction}(u) = 1 - e^{-ku}
+++++
+
+=== Mesh Generation Algorithm
+
+.Swept Torus Generation Process
+[plantuml, swept-torus-algorithm, svg]
+----
+@startuml
+start
+:Initialize parameters\n(path_radius, base_radius, flare_radius);
+:Calculate path segments (u_steps);
+:Calculate profile segments (v_steps);
+
+partition "Generate Vertices" {
+  :For each path position u;
+  :Calculate path point P(u);
+  :Calculate path tangent T(u);
+  :Calculate current radius R(u);
+  :For each profile angle v;
+  :Generate profile point in local frame;
+  :Rotate by path tangent;
+  :Translate to path position;
+  :Store vertex;
+}
+
+partition "Generate Faces" {
+  :For each quad in the grid;
+  :Create two triangular faces;
+  :Ensure correct winding order;
+  :Store face indices;
+}
+
+:Create USD mesh;
+:Set vertex positions;
+:Set face indices;
+:Compute normals;
+stop
+@enduml
+----
+
+=== Coordinate System Transformation
+
+Each profile circle must be oriented perpendicular to the path tangent:
+
+[stem]
+++++
+\begin{align*}
+\text{Tangent}(u) &= \text{Path}'(u) = (-\sin(2\pi u), 0, \cos(2\pi u)) \\
+\text{Normal}(u) &= (0, 1, 0) \text{ (always vertical)} \\
+\text{Binormal}(u) &= \text{Tangent} \times \text{Normal}
+\end{align*}
+++++
+
+The profile point in world coordinates:
+
+[stem]
+++++
+\text{Vertex}(u,v) = \text{Path}(u) + R(u) \times [\sin(v) \times \text{Normal} + \cos(v) \times \text{Binormal}]
+++++
+
+=== Vertex Indexing
+
+For a mesh with stem:[U] path segments and stem:[V] profile segments:
+
+[stem]
+++++
+\begin{align*}
+\text{Vertex index} &= u \times (V + 1) + v \\
+\text{Total vertices} &= (U + 1) \times (V + 1)
+\end{align*}
+++++
+
+Each quad generates 2 triangular faces:
+
+----
+Face 1: [v0, v1, v2]
+Face 2: [v0, v2, v3]
+
+Where:
+  v0 = u × (V+1) + v
+  v1 = (u+1) × (V+1) + v  
+  v2 = (u+1) × (V+1) + (v+1)
+  v3 = u × (V+1) + (v+1)
+----
+
+=== Configuration Parameters
+
+==== Primary Parameters
+
+[cols="1,1,3"]
+|===
+|Parameter |Type |Description
+
+|`path_radius` |float |Radius of the circular path (bell footprint)
+|`base_radius` |float |Profile radius at center (matches cylinder)
+|`flare_radius` |float |Maximum profile radius at ground level
+|`height` |float |Vertical span of the bell shape
+|`u_steps` |int |Number of segments around the path circle
+|`v_steps` |int |Number of segments around each profile circle
+|===
+
+==== Derived Parameters
+
+[cols="1,3"]
+|===
+|Parameter |Calculation
+
+|`flare_ratio` |stem:[\frac{\text{flare\_radius}}{\text{base\_radius}}] (typically 2.0-3.0)
+|`total_vertices` |stem:[(\text{u\_steps} + 1) \times (\text{v\_steps} + 1)]
+|`total_faces` |stem:[\text{u\_steps} \times \text{v\_steps} \times 2] (quads = 2 triangles)
+|`profile_angle_step` |stem:[\frac{2\pi}{\text{v\_steps}}]
+|`path_parameter_step` |stem:[\frac{1.0}{\text{u\_steps}}]
+|===
+
+==== Typical Values
+
+For a standard Tendroid base:
+
+----
+path_radius: 2.0      # 4.0 diameter footprint
+base_radius: 0.5      # Matches cylinder radius
+flare_radius: 1.5     # 3× flare ratio
+height: 1.0           # 1 meter tall bell
+u_steps: 32           # Smooth circle
+v_steps: 16           # Adequate resolution
+----
+
+Results in:
+
+* Vertices: 33 × 17 = 561
+* Faces: 32 × 16 × 2 = 1,024 triangles
+* Memory: ~22 KB for positions + ~8 KB for indices
+
+=== Performance Characteristics
+
+==== Computational Complexity
+
+[cols="1,2,3"]
+|===
+|Operation |Complexity |Notes
+
+|Vertex generation |stem:[O(U \times V)] |Linear in mesh resolution
+|Face generation |stem:[O(U \times V)] |Same as vertex count
+|Normal computation |stem:[O(U \times V)] |Per-vertex calculation
+|Total mesh creation |stem:[O(U \times V)] |Dominated by vertex operations
+|===
+
+==== Memory Footprint
+
+Per swept torus base:
+
+[stem]
+++++
+\begin{align*}
+\text{Positions} &= (U+1) \times (V+1) \times 3 \times 4 = 12(U+1)(V+1) \text{ bytes} \\
+\text{Indices} &= U \times V \times 2 \times 3 \times 4 = 24UV \text{ bytes} \\
+\text{Normals} &= (U+1) \times (V+1) \times 3 \times 4 = 12(U+1)(V+1) \text{ bytes} \\
+\text{Total} &\approx 24(U+1)(V+1) + 24UV \text{ bytes}
+\end{align*}
+++++
+
+For typical parameters (U=32, V=16):
+
+* Positions: ~6.4 KB
+* Indices: ~12.3 KB
+* Normals: ~6.4 KB
+* **Total: ~25 KB per base**
+
+==== GPU Performance
+
+* **Static geometry**: No per-frame updates needed
+* **Low vertex count**: 561 vertices per base is negligible
+* **Simple topology**: Regular grid structure
+* **Batching friendly**: All bases use same vertex/index layout
+
+For 15 Tendroids:
+
+* Total vertices: 8,415
+* Total faces: 15,360
+* Combined memory: ~375 KB
+* **GPU impact: Minimal** (modern GPUs handle millions of vertices)
+
+=== Integration with Tendroid System
+
+==== Connection to Cylinder Segments
+
+The swept torus base connects to the first cylinder segment:
+
+----
+Base top radius = base_radius
+Cylinder bottom radius = base_radius
+Connection point Y = base height
+----
+
+Seamless transition requires:
+
+* Matching radii at connection point
+* Aligned vertex rings (same V resolution)
+* Consistent material application
+
+==== Material Application
+
+The base inherits the Tendroid's material:
+
+----
+Base material = Tendroid body material
+Supports: diffuse, specular, translucency
+Avoids: glass (GPU crash risk with dynamic geo)
+----
+
+==== Scene Hierarchy
+
+----
+/World/Tendroids/Tendroid_001
+  ├── Base (Swept Torus Mesh)
+  └── Body
+      ├── Segment_00 (Cylinder)
+      ├── Segment_01 (Cylinder)
+      └── ...
+----
+
+=== Implementation Plan
+
+==== Phase 3 Roadmap
+
+1. **Design**: Finalize swept torus parameters
+2. **Prototype**: Single static swept torus implementation
+3. **Integration**: Connect to Tendroid builder
+4. **Testing**: Visual validation and performance profiling
+5. **Optimization**: GPU memory and rendering tuning
+6. **Documentation**: Update manual with implementation details
+
+==== Material Safety Considerations
+
+The swept torus will require careful handling with the material safety system:
+
+* Test thoroughly with opaque materials first
+* Validate animation compatibility
+* Implement fallback to transform-based if issues arise
+* Document any limitations discovered

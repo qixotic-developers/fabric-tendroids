@@ -1,347 +1,147 @@
 = FastMeshUpdater C++ Extension
-:toc: left
-:toclevels: 3
+:toc:
 :icons: font
-:source-highlighter: pygments
 
 High-performance mesh vertex updates for Tendroids animation system.
 
-== Phase 1: Hello World (Current)
+== Quick Links
 
-Basic pybind11 integration to verify CLion + Visual Studio 2022 toolchain.
+* 📖 link:START_HERE.adoc[**START HERE** - Quick Start Guide]
+* 🔧 link:README.adoc[Complete Documentation]
+* ⚙️ link:CLION_SETUP.adoc[CLion Setup]
+* 🚀 link:PHASE2_USD_SETUP.adoc[**Phase 2 USD Integration**]
 
-=== Prerequisites
+== Current Status
 
-==== Software Requirements
-
-* *CLion* (with CMake support)
-* *Visual Studio 2022* (C++ compiler and build tools)
-* *Python 3.10* (from Omniverse Kit SDK)
-* *pybind11*: `pip install pybind11`
-* *NVIDIA Omniverse Composer 2024.1.0* (or your Kit SDK version)
-
-=== Quick Start
-
-==== 1. Open Project in CLion
-
-----
-File → Open → C:\Dev\Omniverse\fabric-tendroids\exts\qixotic.tendroids\qixotic\tendroids\cpp
-----
-
-==== 2. Configure CMake
-
-If not auto-detected:
-
-* Settings → Build, Execution, Deployment → CMake
-* Build type: `Release`
-* CMake options:
-+
-----
--DKIT_SDK_PATH="C:/Users/YOUR_USERNAME/AppData/Local/ov/pkg/composer-2024.1.0"
-----
-
-==== 3. Build
-
-Build → Build Project (Ctrl+F9)
-
-==== 4. Test
-
-[source,bash]
-----
-cd C:\Dev\Omniverse\fabric-tendroids\exts\qixotic.tendroids\qixotic\tendroids
-python test_phase1.py
-----
-
-=== Command Line Build
-
-[source,bash]
-----
-cd C:\Dev\Omniverse\fabric-tendroids\exts\qixotic.tendroids\qixotic\tendroids\cpp
-mkdir cmake-build-release
-cd cmake-build-release
-cmake .. -G "Visual Studio 17 2022" -A x64
-cmake --build . --config Release
-----
-
-=== Expected Output
-
-[source]
-----
-======================================================================
-FastMeshUpdater Phase 1 Tests - Hello World
-======================================================================
-
-Found module at: C:\Dev\Omniverse\...\cpp\cmake-build-release\Release\fast_mesh_updater.pyd
-[PASS] Successfully imported fast_mesh_updater module
-  Module version: 0.1.0-alpha-phase1
-
-----------------------------------------------------------------------
-Testing module-level functions...
-----------------------------------------------------------------------
-[PASS] hello_world() = 'Hello from C++ FastMeshUpdater module!'
-
-----------------------------------------------------------------------
-Testing FastMeshUpdater class...
-----------------------------------------------------------------------
-[PASS] FastMeshUpdater instance created
-
-[PASS] get_version() = '0.1.0-alpha-phase1'
-[PASS] hello_world() = 'Hello from C++ FastMeshUpdater v0.1.0-alpha-phase1'
-[PASS] add_numbers(42, 58) = 100
-[PASS] echo_array([1.0, 2.0, 3.0, 4.0, 5.0]) = [2.0, 4.0, 6.0, 8.0, 10.0]
-
-======================================================================
-[SUCCESS] All tests PASSED - Phase 1 complete!
-======================================================================
-----
-
-== Architecture
-
-[plantuml, phase1-architecture, svg]
-----
-@startuml
-!theme plain
-skinparam backgroundColor #FEFEFE
-skinparam componentStyle rectangle
-
-package "Python Layer" {
-  [test_phase1.py] as test
-}
-
-package "pybind11 Bindings" {
-  [python_bindings.cpp] as bindings
-}
-
-package "C++ Implementation" {
-  [FastMeshUpdater Class] as cpp
-  [fast_mesh_updater.h] as header
-  [fast_mesh_updater.cpp] as impl
-}
-
-package "Future: Phase 2+" {
-  [USD/Fabric API] as usd
-}
-
-test -down-> bindings : import
-bindings -down-> cpp : calls
-cpp ..> usd : (Phase 2+)
-header <-right- impl : includes
-
-note right of cpp
-  Phase 1: Simple test functions
-  - get_version()
-  - add_numbers()
-  - echo_array()
-end note
-
-note right of usd
-  Not yet implemented
-  - Stage attachment
-  - Mesh registration
-  - Vertex updates
-end note
-
-@enduml
-----
-
-== Troubleshooting
-
-=== Import Error
-
-*Problem:* `ImportError: DLL load failed` or `ModuleNotFoundError: No module named 'fast_mesh_updater'`
-
-*Solutions:*
-
-. Check that `fast_mesh_updater.pyd` exists in `cpp/cmake-build-release/Release/`
-. Verify Python version matches Kit SDK (should be 3.10)
-. Rebuild: `cmake --build . --config Release --clean-first`
-
-=== CMake Configuration Failed
-
-*Problem:* CMake can't find Kit SDK or pybind11
-
-*Solutions:*
-
-. Install pybind11: `pip install pybind11`
-. Set Kit SDK path explicitly:
-+
-[source,bash]
-----
-cmake .. -DKIT_SDK_PATH="C:/path/to/your/kit-sdk"
-----
-. Verify path exists and contains `include/` and `lib/` folders
-
-=== Linker Errors
-
-*Problem:* LNK2019 unresolved external symbol errors
-
-*Solutions:*
-
-. Ensure Visual Studio 2022 is properly installed with C++ tools
-. Check Python library paths match your Kit SDK Python
-. Verify build type matches (Release vs Debug)
-
-=== Wrong Python Version
-
-*Problem:* Module built for Python 3.10 but running with different version
-
-*Solutions:*
-
-. Use Python from Kit SDK:
-+
-----
-C:/Users/USERNAME/AppData/Local/ov/pkg/composer-2024.1.0/python.bat
-----
-. Or ensure system Python matches (3.10.x)
-
-== Phase Roadmap
-
-[plantuml, phase-roadmap, svg]
-----
-@startuml
-!theme plain
-skinparam backgroundColor #FEFEFE
-
-[*] --> Phase1
-Phase1 : ✅ Hello World
-Phase1 : pybind11 basics
-Phase1 : Toolchain verification
-
-Phase1 --> Phase2
-Phase2 : 📋 Numpy Integration
-Phase2 : USD stage attachment
-Phase2 : Single mesh update
-
-Phase2 --> Phase3
-Phase3 : 📋 Batch Updates
-Phase3 : Multiple mesh registration
-Phase3 : Batch vertex updates
-Phase3 : Performance profiling
-
-Phase3 --> Phase4
-Phase4 : 📋 Production Integration
-Phase4 : Warp kernel integration
-Phase4 : fabric_batch_updater.py
-Phase4 : 15-Tendroid test
-
-Phase4 --> [*]
-
-@enduml
-----
-
-=== Phase 1: Hello World ✅
-
-* [x] Basic CMake configuration
-* [x] pybind11 module creation
-* [x] Simple test functions (strings, integers, vectors)
-* [x] CLion + VS2022 toolchain verification
-
-=== Phase 2: Numpy Integration 📋
-
-* [ ] Add numpy array support (zero-copy)
-* [ ] USD stage attachment
-* [ ] Single mesh vertex update
-* [ ] Performance baseline measurement
-
-=== Phase 3: Batch Updates 📋
-
-* [ ] Register multiple meshes
-* [ ] Batch vertex updates from numpy arrays
-* [ ] Memory-efficient bulk operations
-* [ ] Performance profiling vs Python
-
-=== Phase 4: Production Integration 📋
-
-* [ ] Integrate with existing Warp kernel workflow
-* [ ] Update `fabric_batch_updater.py` to use C++ backend
-* [ ] Multi-threading support
-* [ ] Full 15-Tendroid performance test
-
-== File Structure
-
-----
-cpp/
-├── CMakeLists.txt              # Build configuration
-├── README.adoc                 # This file
-├── src/
-│   ├── fast_mesh_updater.h     # Class header
-│   ├── fast_mesh_updater.cpp   # Implementation
-│   └── python_bindings.cpp     # pybind11 wrapper
-└── cmake-build-release/        # Build artifacts (gitignored)
-    └── Release/
-        └── fast_mesh_updater.pyd
-----
-
-== Performance Goals
-
-[cols="1,3"]
+[cols="1,2,1"]
 |===
-|Goal |Target
+|Phase |Description |Status
 
-|Speed improvement
-|*5-10× faster* than pure Python mesh updates
+|Phase 1
+|Basic pybind11 integration
+|✅ **COMPLETE**
 
-|Batch updates
-|*Sub-millisecond* batch updates for 15 Tendroids
+|Phase 2
+|USD/Fabric + Numpy arrays
+|✅ **STRUCTURE COMPLETE**
 
-|Memory
-|*Zero-copy* numpy array handling
+|Phase 2b
+|USD Integration
+|🔨 **IN PROGRESS**
 
-|Concurrency
-|*Thread-safe* for concurrent updates
+|Phase 3
+|Batch multi-mesh updates
+|📋 Planned
 
-|Frame rate
-|*60 FPS* with 15 animated Tendroids
+|Phase 4
+|Production integration
+|📋 Planned
 |===
 
-== Contributing
+== Phase 2 Status
 
-When adding features:
+**Structure Complete:**
+- ✅ Numpy array support (zero-copy)
+- ✅ USD/Fabric API defined
+- ✅ PIMPL pattern implemented
+- ✅ Conditional compilation working
 
-. Keep files under 150 lines (excluding comments)
-. Add tests to `test_phase1.py` (or create phase-specific test files)
-. Update this README with new functionality
-. Measure and document performance improvements
+**Next: USD Integration**
+- 🔨 Find Kit SDK path
+- 🔨 Enable PHASE2_USD_ENABLED
+- 🔨 Link USD libraries
+- 🔨 Test with real USD stage
 
-== Current Performance Bottleneck
+== Quick Start
 
-[plantuml, performance-bottleneck, svg]
+=== Build (Phase 1 + Phase 2 structure)
 
-@startuml
-!theme plain
-skinparam backgroundColor #FEFEFE
-
-start
-
-:Warp GPU Kernel Deformation;
-note right: 3.5-4ms ✅ FAST
-
-:Copy to CPU (numpy);
-note right: Negligible
-
-:Python Tuple Conversion;
-note right
-  35ms ❌ BOTTLENECK
-  list(map(lambda v: (float(v[0]), 
-    float(v[1]), float(v[2])), vertices))
-end note
-
-:Fabric API Set Vertices;
-note right: Fast once data ready
-
-stop
-
-note bottom
-  Total: ~40ms per frame
-  = ~25 FPS for 15 Tendroids
-  
-  **Goal:** Bypass Python tuple
-  conversion with C++
-end note
-
-@enduml
+[source,bash]
+----
+cd cpp
+build.bat
 ----
 
-== License
+=== Test
 
-Part of the Tendroids project - see main project LICENSE.
+[source,bash]
+----
+cd ..
+python test_phase1.py  # Phase 1 tests
+python test_phase2.py  # Phase 2 API tests
+----
+
+=== Enable Full USD Support
+
+See link:PHASE2_USD_SETUP.adoc[**Phase 2 USD Setup Guide**] for complete instructions.
+
+== Performance Goal
+
+[cols="2,1,3"]
+|===
+|Operation |Current |Target (C++)
+
+|Warp GPU Kernel
+|3.5-4ms
+|3.5-4ms (unchanged)
+
+|Python Tuple Conversion
+|**35ms** ❌
+|**<1ms** ✅
+
+|**Total Frame Time**
+|**~40ms** (25 FPS)
+|**~5ms** (60+ FPS)
+|===
+
+== Documentation
+
+[cols="2,3"]
+|===
+|Document |Purpose
+
+|link:START_HERE.adoc[START_HERE]
+|Quick start guide for Phase 1
+
+|link:README.adoc[README]
+|Complete guide with architecture
+
+|link:CLION_SETUP.adoc[CLION_SETUP]
+|IDE configuration
+
+|link:PHASE1_SUMMARY.adoc[PHASE1_SUMMARY]
+|Phase 1 implementation details
+
+|link:PHASE2_SUMMARY.adoc[PHASE2_SUMMARY]
+|Phase 2 architecture and API
+
+|link:PHASE2_USD_SETUP.adoc[**PHASE2_USD_SETUP**]
+|**Complete USD integration guide**
+|===
+
+== Integration
+
+Once USD is enabled, replace Python implementation:
+
+[source,python]
+----
+# OLD: Python tuple conversion (35ms)
+from .fabric_batch_updater import FabricBatchMeshUpdater
+
+# NEW: C++ direct pointer access (<1ms)
+from .cpp_fabric_updater import CPPFabricBatchUpdater
+----
+
+See `warp_test/cpp_fabric_updater.py` for drop-in replacement wrapper.
+
+== Support
+
+**Issues?** Check:
+
+. link:PHASE2_USD_SETUP.adoc#troubleshooting[Troubleshooting Guide]
+. link:CLION_CMAKE_FIX.adoc[CLion CMake Fix]
+. Main Tendroids documentation
+
+---
+
+**Last Updated:** 2025-11-12 | **Version:** 0.2.0-alpha-phase2

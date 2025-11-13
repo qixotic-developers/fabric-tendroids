@@ -1,0 +1,129 @@
+= FastMeshUpdater C++ Extension
+:toc:
+:icons: font
+
+High-performance mesh vertex updates for Tendroids animation system.
+
+== Quick Links
+
+* 📖 link:documentation/START_HERE.adoc[**START HERE** - Quick Start Guide]
+* 📖 link:documentation/README.adoc[Complete Documentation]
+* 🔧 link:documentation/CLION_SETUP.adoc[CLion Setup]
+* 🚀 link:documentation/PHASE2_USD_SETUP.adoc[**Phase 2 USD Integration**]
+* ✅ link:documentation/PHASE2_COMPLETE.adoc[Phase 2 Complete Summary]
+
+== Current Status
+
+[cols="1,2,1"]
+|===
+|Phase |Description |Status
+
+|Phase 1
+|Basic pybind11 integration
+|✅ **COMPLETE**
+
+|Phase 2
+|USD/Fabric + Numpy arrays
+|✅ **STRUCTURE COMPLETE**
+
+|Phase 2b
+|USD Integration
+|🔨 **IN PROGRESS**
+
+|Phase 3
+|Batch multi-mesh updates
+|📋 Planned
+
+|Phase 4
+|Production integration
+|📋 Planned
+|===
+
+== Quick Start
+
+=== Build
+
+[source,bash]
+----
+cd cpp
+build.bat
+----
+
+=== Test
+
+[source,bash]
+----
+cd ..
+python test_phase1.py  # Phase 1 tests
+python test_phase2.py  # Phase 2 API tests
+----
+
+=== Enable Full USD Support
+
+See link:documentation/PHASE2_USD_SETUP.adoc[**Phase 2 USD Setup Guide**]
+
+== Performance Goal
+
+[cols="2,1,3"]
+|===
+|Operation |Current |Target (C++)
+
+|Warp GPU Kernel
+|3.5-4ms
+|3.5-4ms (unchanged)
+
+|Python Tuple Conversion
+|**35ms** ❌
+|**<1ms** ✅
+
+|**Total Frame Time**
+|**~40ms** (25 FPS)
+|**~5ms** (60+ FPS)
+|===
+
+== Documentation
+
+All documentation is in the link:documentation/[documentation/] folder:
+
+[cols="2,3"]
+|===
+|Document |Purpose
+
+|link:documentation/START_HERE.adoc[START_HERE]
+|Quick start for Phase 1
+
+|link:documentation/README.adoc[README]
+|Complete guide with architecture
+
+|link:documentation/CLION_SETUP.adoc[CLION_SETUP]
+|IDE configuration
+
+|link:documentation/PHASE1_SUMMARY.adoc[PHASE1_SUMMARY]
+|Phase 1 implementation
+
+|link:documentation/PHASE2_SUMMARY.adoc[PHASE2_SUMMARY]
+|Phase 2 architecture
+
+|link:documentation/PHASE2_USD_SETUP.adoc[**PHASE2_USD_SETUP**]
+|**USD integration guide**
+
+|link:documentation/PHASE2_COMPLETE.adoc[PHASE2_COMPLETE]
+|Complete summary
+|===
+
+== Integration
+
+Replace Python implementation with C++:
+
+[source,python]
+----
+# In batch_test_controller.py, change:
+from .fabric_batch_updater import FabricBatchMeshUpdater
+
+# To:
+from .cpp_fabric_updater import CPPFabricBatchUpdater
+----
+
+---
+
+**Version:** 0.2.0-alpha-phase2 | **Last Updated:** 2025-11-12

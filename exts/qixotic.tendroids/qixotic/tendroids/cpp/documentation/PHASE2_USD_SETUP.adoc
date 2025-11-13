@@ -1,0 +1,375 @@
+= Phase 2 USD Integration Setup Guide
+:toc: left
+:toclevels: 3
+:icons: font
+:source-highlighter: pygments
+
+Complete guide to enable full USD/Fabric integration in FastMeshUpdater.
+
+[[overview]]
+== Overview
+
+Phase 2 adds USD/USDRT support for high-performance mesh vertex updates. This guide walks through finding your Kit SDK, configuring CMake, and testing the integration.
+
+[[step-1-find-kit-sdk]]
+== Step 1: Find Your Kit SDK
+
+[[option-a-search-locations]]
+=== Option A: Search Common Locations
+
+[source,powershell]
+----
+# Search for Omniverse installations
+Get-ChildItem "C:\Users\$env:USERNAME\AppData\Local" -Recurse -Depth 3 -Directory | 
+  Where-Object { $_.Name -like "*composer*" -or $_.Name -like "*kit-sdk*" }
+
+# Check Program Files
+Get-ChildItem "C:\Program Files" -Recurse -Depth 2 -Directory | 
+  Where-Object { $_.Name -like "*omniverse*" }
+----
+
+[[option-b-launcher]]
+=== Option B: Check Omniverse Launcher
+
+. Open **Omniverse Launcher**
+. Go to **Library** tab
+. Find **USD Composer** (or Create)
+. Click the **⋮** menu → **Settings**
+. Look for installation path
+
+Common paths:
+----
+C:\Users\<USERNAME>\AppData\Local\ov\pkg\composer-2024.1.0
+C:\Users\<USERNAME>\AppData\Local\ov\pkg\create-2024.1.0
+----
+
+[[option-c-process]]
+=== Option C: Use Running Process
+
+If USD Composer is running:
+
+[source,powershell]
+----
+Get-Process | Where-Object { $_.ProcessName -like "*composer*" } | 
+  Select-Object Path
+----
+
+[[verify-kit-sdk]]
+=== Verify Kit SDK
+
+Your Kit SDK should contain:
+
+----
+<KIT_SDK_PATH>/
+├── include/
+│   ├── pxr/          # USD headers
+│   └── usdrt/        # USDRT/Fabric headers
+├── lib/
+│   ├── usd_*.lib     # USD libraries
+│   └── usdrt*.lib    # USDRT libraries
+└── python.bat        # Python 3.10
+----
+
+[[step-2-update-cmake]]
+== Step 2: Update CMakeLists.txt
+
+Edit `cpp/CMakeLists.txt`:
+
+[source,cmake]
+----
+# Line ~67 - Update with YOUR path
+set(KIT_SDK_PATH "C:/Users/YOUR_USERNAME/AppData/Local/ov/pkg/composer-2024.1.0" 
+    CACHE PATH "Kit SDK installation path")
+----
+
+[[step-3-enable-usd]]
+== Step 3: Enable USD Compilation
+
+Add USD compile definition and libraries to `cpp/CMakeLists.txt`:
+
+[source,cmake]
+----
+# After line ~80 (after finding USD paths)
+if(EXISTS ${USD_INCLUDE_DIR} AND EXISTS ${USD_LIB_DIR})
+    message(STATUS "✓ USD SDK found - enabling Phase 2")
+    
+    # Enable USD support
+    target_compile_definitions(fast_mesh_updater PRIVATE
+        PHASE2_USD_ENABLED
+    )
+    
+    # Add USD include directories
+    target_include_directories(fast_mesh_updater PRIVATE
+        ${USD_INCLUDE_DIR}
+        ${USD_INCLUDE_DIR}/boost-1_78
+    )
+    
+    # Link USD libraries
+    target_link_libraries(fast_mesh_updater PRIVATE
+        ${USD_LIB_DIR}/usd_ms.lib
+        ${USD_LIB_DIR}/usd_usd_ms.lib
+        ${USD_LIB_DIR}/usd_usdGeom_ms.lib
+        ${USD_LIB_DIR}/usd_vt_ms.lib
+        ${USD_LIB_DIR}/usd_gf_ms.lib
+        ${USD_LIB_DIR}/usd_sdf_ms.lib
+        ${USD_LIB_DIR}/usd_tf_ms.lib
+        ${USD_LIB_DIR}/usdrt_ms.lib
+    )
+    
+    message(STATUS "✓ USD libraries linked")
+else()
+    message(WARNING "USD SDK not found - Phase 2 disabled")
+    message(WARNING "Methods will compile but return false")
+endif()
+----
+
+[[step-4-rebuild]]
+== Step 4: Rebuild with USD
+
+[source,bash]
+----
+cd C:\Dev\Omniverse\fabric-tendroids\exts\qixotic.tendroids\qixotic\tendroids\cpp
+build.bat clean
+----
+
+You should see:
+
+----
+-- ✓ USD SDK found - enabling Phase 2
+-- ✓ USD libraries linked
+----
+
+[[step-5-test-integration]]
+== Step 5: Test USD Integration
+
+Create test script `test_phase2_usd.py`:
+
+[source,text]
+----
+import omni.usd
+import fast_mesh_updater
+import numpy as np
+
+# Create updater
+updater = fast_mesh_updater.FastMeshUpdater()
+version = updater.get_version()
+print("Version: " + version)
+
+# Attach to stage
+context = omni.usd.get_context()
+stage_id = context.get_stage_id()
+
+if updater.attach_stage(stage_id):
+    print("Stage attached!")
+    
+    # Register a mesh
+    mesh_path = "/World/YourMesh"  # Update with actual path
+    if updater.register_mesh(mesh_path):
+        print("Registered: " + mesh_path)
+        
+        # Create test vertices
+        vertices = np.array([
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+        ], dtype=np.float32)
+        
+        # Update mesh
+        if updater.update_mesh_vertices(mesh_path, vertices):
+            print("Vertices updated!")
+        else:
+            print("Update failed")
+    else:
+        print("Registration failed")
+else:
+    print("Stage attachment failed")
+    print("Check that USD is enabled in build")
+----
+
+Run in USD Composer script editor.
+
+[[step-6-integration]]
+== Step 6: Integration with Existing Code
+
+Replace `FabricBatchMeshUpdater` with C++ version:
+
+[source,text]
+----
+# In batch_test_controller.py, change:
+# from .fabric_batch_updater import FabricBatchMeshUpdater
+
+# To:
+from .cpp_fabric_updater import CPPFabricBatchUpdater
+
+# Then use as normal:
+self.fabric_updater = CPPFabricBatchUpdater()
+
+# Everything else stays the same!
+----
+
+[[troubleshooting]]
+== Troubleshooting
+
+[[build-errors]]
+=== Build Errors
+
+[[error-headers-not-found]]
+==== "Cannot find pxr/usd/usd/stage.h"
+
+*Problem:* USD headers not found
+
+*Solution:* Verify `USD_INCLUDE_DIR` exists and contains `pxr/` folder
+
+[[error-linker]]
+==== "LNK2019: unresolved external symbol"
+
+*Problem:* USD libraries not linked
+
+*Solution:* Check that `.lib` files exist in `USD_LIB_DIR`
+
+[[error-not-enabled]]
+==== "PHASE2_USD_ENABLED not defined"
+
+*Problem:* Conditional compilation not triggered
+
+*Solution:* Check CMake output for "✓ USD SDK found" message
+
+[[runtime-errors]]
+=== Runtime Errors
+
+[[error-attach-fails]]
+==== "attach_stage() returns False"
+
+*Possible causes:*
+
+. USD not enabled in build (check `hello_world()` output)
+. Invalid stage_id passed
+. USDRT not available in your Kit SDK
+
+*Solution:*
+
+[source,text]
+----
+# Check USD status
+updater = fast_mesh_updater.FastMeshUpdater()
+message = updater.hello_world()
+print(message)
+# Should show: "(USD enabled)"
+----
+
+[[error-register-fails]]
+==== "register_mesh() returns False"
+
+*Possible causes:*
+
+. Stage not attached
+. Invalid mesh path
+. Prim doesn't exist
+. Prim is not a mesh
+
+*Solution:*
+
+[source,text]
+----
+# Verify mesh exists
+stage = omni.usd.get_context().get_stage()
+prim = stage.GetPrimAtPath("/World/YourMesh")
+is_valid = prim.IsValid()
+prim_type = prim.GetTypeName()
+print("Prim valid: " + str(is_valid))
+print("Prim type: " + str(prim_type))
+----
+
+[[performance-testing]]
+== Performance Testing
+
+Once integrated, compare performance:
+
+[source,text]
+----
+import time
+
+# Test Python version
+start = time.perf_counter()
+fabric_updater.batch_update_vertices_gpu(warp_array, vertex_count)
+python_time = time.perf_counter() - start
+
+# Test C++ version
+start = time.perf_counter()
+cpp_updater.batch_update_vertices_gpu(warp_array, vertex_count)
+cpp_time = time.perf_counter() - start
+
+speedup = python_time / cpp_time
+python_ms = python_time * 1000
+cpp_ms = cpp_time * 1000
+print("Python: {:.2f}ms".format(python_ms))
+print("C++:    {:.2f}ms".format(cpp_ms))
+print("Speedup: {:.1f}x".format(speedup))
+----
+
+Expected results:
+----
+Python: ~35ms (tuple conversion bottleneck)
+C++:    ~4ms  (direct pointer access)
+Speedup: ~8x
+----
+
+[[common-paths]]
+== Common Kit SDK Paths
+
+[cols="2,3"]
+|===
+|Platform |Path
+
+|Windows
+|`C:\Users\<USER>\AppData\Local\ov\pkg\composer-2024.1.0`
+
+|Linux
+|`~/.local/share/ov/pkg/composer-2024.1.0`
+
+|Alternative
+|`C:\ProgramData\NVIDIA Corporation\Omniverse\`
+|===
+
+[[next-steps]]
+== Next Steps
+
+After successful integration:
+
+. Run batch test with 15 Tendroids
+. Measure FPS improvement
+. Update `batch_test_controller.py` to use C++ by default
+. Document performance gains
+. Move to Phase 3 (multi-threading)
+
+[[quick-reference]]
+== Quick Reference Card
+
+[cols="1,2"]
+|===
+|Action |Command
+
+|Find Kit SDK
+|Check Omniverse Launcher → Library → USD Composer → Settings
+
+|Update CMake
+|Edit `cpp/CMakeLists.txt` line 67
+
+|Rebuild
+|`cd cpp && build.bat clean`
+
+|Test
+|Run `test_phase2_usd.py` in USD Composer
+
+|Integrate
+|Replace `FabricBatchMeshUpdater` with `CPPFabricBatchUpdater`
+
+|Verify
+|Check `hello_world()` contains "(USD enabled)"
+|===
+
+'''
+
+**Need Help?** Check <<troubleshooting,Troubleshooting>> section or link:README.adoc[README]
+
+**Last Updated:** 2025-11-12

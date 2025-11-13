@@ -79,6 +79,14 @@ class WarpTestWindow(ui.Window):
             ui.Label("Maximum capacity: find the limits", word_wrap=True)
             ui.Button("Run Batch 50", clicked_fn=lambda: self._start_batch_test(BatchTestPhase.BATCH_50_TUBES))
 
+            ui.Spacer(height=10)
+            ui.Separator()
+            ui.Spacer(height=10)
+
+            ui.Label("🎯 C++ Accelerated Tests", style={ "font_size": 14, "color": 0xFFFFAA00 })
+            ui.Label("C++ computation + Python USD updates", word_wrap=True)
+            ui.Button("Run C++ Batch 15", clicked_fn=lambda: self._start_cpp_batch_test())
+
         ui.Spacer(height=10)
         ui.Line()
         ui.Spacer(height=10)
@@ -164,6 +172,32 @@ class WarpTestWindow(ui.Window):
       carb.log_info(f"Started batch test: {phase.name}")
     except Exception as e:
       carb.log_error(f"Failed to start batch test: {e}")
+      self.status_label.text = f"Error: {str(e)}"
+      import traceback
+      traceback.print_exc()
+
+  def _start_cpp_batch_test(self):
+    """Start C++ accelerated batch test"""
+    try:
+      carb.log_info("[TestWindow] Starting C++ Batch 15 test")
+      
+      # Import here to avoid issues if C++ not built
+      from . import cpp_batch_test_controller
+      
+      # Stop any running tests
+      if self.controller.running:
+        self.controller.stop_test()
+      if self.batch_controller and self.batch_controller.running:
+        self.batch_controller.stop_test()
+      
+      # Create new C++ batch controller
+      self.batch_controller = cpp_batch_test_controller.CppBatchTestController()
+      self.batch_controller.start_test()
+      self.status_label.text = "Running C++ Batch 15 Test"
+      carb.log_info("[TestWindow] C++ batch test started")
+      
+    except Exception as e:
+      carb.log_error(f"[TestWindow] Failed to start C++ batch test: {e}")
       self.status_label.text = f"Error: {str(e)}"
       import traceback
       traceback.print_exc()

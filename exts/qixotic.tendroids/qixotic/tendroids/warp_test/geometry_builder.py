@@ -290,3 +290,61 @@ class GeometryBuilder:
         carb.log_info(f"[GeometryBuilder] Created proper tube: {len(positions)} vertices, {len(centerline)} centerline points")
         
         return mesh, np.array(positions), centerline
+
+
+# Standalone helper functions for simple use cases
+
+def create_simple_cylinder(
+    stage: Usd.Stage,
+    path: str,
+    segments: int = 16,
+    radial_segments: int = 12,
+    radius: float = 0.5,
+    height: float = 8.0,
+    position: Tuple[float, float, float] = (0, 0, 0)
+) -> UsdGeom.Mesh:
+    """
+    Create a simple cylinder mesh at the specified path.
+    
+    Standalone function for quick cylinder creation without GeometryBuilder class.
+    """
+    # Create mesh
+    mesh = UsdGeom.Mesh.Define(stage, path)
+    
+    # Generate vertices
+    positions = []
+    for seg in range(segments + 1):
+        y = (seg / segments) * height
+        
+        for rad in range(radial_segments):
+            angle = (rad / radial_segments) * 2.0 * np.pi
+            x = radius * np.cos(angle)
+            z = radius * np.sin(angle)
+            positions.append(Gf.Vec3f(x, y, z))
+    
+    # Generate faces
+    face_indices = []
+    face_counts = []
+    
+    for seg in range(segments):
+        for rad in range(radial_segments):
+            i0 = seg * radial_segments + rad
+            i1 = seg * radial_segments + (rad + 1) % radial_segments
+            i2 = (seg + 1) * radial_segments + (rad + 1) % radial_segments
+            i3 = (seg + 1) * radial_segments + rad
+            
+            face_indices.extend([i0, i1, i2, i3])
+            face_counts.append(4)
+    
+    # Set mesh attributes
+    mesh.CreatePointsAttr(positions)
+    mesh.CreateFaceVertexIndicesAttr(face_indices)
+    mesh.CreateFaceVertexCountsAttr(face_counts)
+    mesh.CreateSubdivisionSchemeAttr(UsdGeom.Tokens.none)
+    
+    # Set position if provided
+    if position != (0, 0, 0):
+        xform = UsdGeom.Xformable(mesh)
+        xform.AddTranslateOp().Set(Gf.Vec3d(*position))
+    
+    return mesh

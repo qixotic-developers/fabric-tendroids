@@ -19,6 +19,7 @@ class TestPhase(Enum):
     PHASE_6B = 7  # Dynamic thick-wall glass (thicker walls)
     PHASE_6C_STATIC = 8  # Proper tube topology - STATIC test
     PHASE_6C = 9  # Proper tube topology - DYNAMIC test
+    BATCH_15_CPP = 15  # 15 tubes with C++ computation
 
 
 @dataclass
@@ -173,6 +174,23 @@ PHASE_6C_SCENARIO = TestScenario(
 )
 
 
+# Batch 15 CPP: 15 tubes with C++ accelerated computation
+BATCH_15_CPP_SCENARIO = TestScenario(
+    phase=TestPhase.BATCH_15_CPP,
+    name="15 Tubes - C++ Accelerated",
+    description="15 tubes using C++ for vertex computation, Python for USD updates. Stress test for C++ optimization.",
+    cylinder_count=15,
+    segments=16,
+    radial_segments=12,
+    kernel_type="sine_wave",
+    max_frames=2000,
+    use_materials=False,
+    use_transparency=False,
+    static_test=False,
+    target_fps=60
+)
+
+
 class TestScenarioManager:
     """Manages test scenario selection and configuration"""
     
@@ -184,7 +202,8 @@ class TestScenarioManager:
             TestPhase.PHASE_6A: PHASE_6A_SCENARIO,
             TestPhase.PHASE_6B: PHASE_6B_SCENARIO,
             TestPhase.PHASE_6C_STATIC: PHASE_6C_STATIC_SCENARIO,
-            TestPhase.PHASE_6C: PHASE_6C_SCENARIO
+            TestPhase.PHASE_6C: PHASE_6C_SCENARIO,
+            TestPhase.BATCH_15_CPP: BATCH_15_CPP_SCENARIO
         }
         self.current_scenario: Optional[TestScenario] = None
         

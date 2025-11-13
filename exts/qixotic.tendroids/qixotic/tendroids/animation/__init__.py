@@ -1,10 +1,14 @@
 """
-Tendroid animation systems
+Animation system for Tendroids
 
-Breathing waves, idle motion, and other animation controllers.
+Provides breathing animation controllers and mode configuration.
 """
 
 from .breathing import BreathingAnimator
-from .idle_motion import IdleMotionAnimator
+from .animation_mode import AnimationMode
 
-__all__ = ['BreathingAnimator', 'IdleMotionAnimator']
+
+__all__ = [
+  'BreathingAnimator',
+  'AnimationMode',
+]

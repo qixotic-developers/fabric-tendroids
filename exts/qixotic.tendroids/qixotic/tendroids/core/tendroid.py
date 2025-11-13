@@ -1,20 +1,23 @@
 """
-Core Tendroid class with Warp-based smooth vertex deformation
+Core Tendroid class with dual animation mode support
 
-Manages a single Tendroid creature with GPU-accelerated breathing animation.
+Manages a single Tendroid creature with either transform-based or
+vertex deformation animation.
 """
 
 import carb
 from .tendroid_builder import TendroidBuilder
 from .tendroid_lifecycle import TendroidLifecycle
+from ..animation.animation_mode import AnimationMode
 
 
 class Tendroid:
   """
-  A single Tendroid creature with smooth vertex deformation.
+  A single Tendroid creature with configurable animation mode.
   
-  Uses Warp for GPU-accelerated mesh deformation to create realistic
-  breathing animation with a single traveling bulge effect.
+  Animation Modes:
+  - TRANSFORM: Scale individual segment cylinders (Phase 1, stable fallback)
+  - VERTEX_DEFORM: GPU-accelerated mesh deformation (Phase 2A, high-performance)
   
   IMPORTANT: Glass/transparent materials disable animation to prevent GPU crashes.
   
@@ -30,7 +33,8 @@ class Tendroid:
     radius: float = 10.0,
     length: float = 100.0,
     num_segments: int = 32,
-    radial_resolution: int = 16
+    radial_resolution: int = 16,
+    animation_mode: AnimationMode = AnimationMode.VERTEX_DEFORM
   ):
     """
     Initialize Tendroid.
@@ -42,6 +46,7 @@ class Tendroid:
         length: Total length
         num_segments: Vertical resolution (higher = smoother)
         radial_resolution: Circumference resolution
+        animation_mode: TRANSFORM or VERTEX_DEFORM
     """
     self.name = name
     self.position = position
@@ -49,6 +54,7 @@ class Tendroid:
     self.length = length
     self.num_segments = num_segments
     self.radial_resolution = radial_resolution
+    self.animation_mode = animation_mode
     
     # USD references
     self.base_path = None
@@ -56,10 +62,11 @@ class Tendroid:
     self.mesh_prim = None
     
     # Component objects (initialized by TendroidBuilder)
-    self.warp_deformer = None
+    self.warp_deformer = None  # Used in VERTEX_DEFORM mode
     self.breathing_animator = None
     self.material_safety = None
-    self.mesh_updater = None
+    self.mesh_updater = None  # Phase 1 updater (TRANSFORM mode)
+    self.vertex_deform_helper = None  # Phase 2A updater (VERTEX_DEFORM mode)
     
     # Internal state
     self.deform_start_height = 0.0
@@ -67,7 +74,10 @@ class Tendroid:
     self.is_created = False
     self.is_active = True
     
-    carb.log_info(f"[Tendroid] Initialized '{name}' at {position}")
+    carb.log_info(
+      f"[Tendroid] Initialized '{name}' at {position}, "
+      f"mode={animation_mode}"
+    )
   
   def create(self, stage, parent_path: str = "/World/Tendroids") -> bool:
     """
@@ -88,6 +98,8 @@ class Tendroid:
     """
     Update animation for current frame.
     
+    Routes to appropriate update method based on animation_mode.
+    
     SAFETY: Checks for glass material periodically and blocks updates.
     
     Args:
@@ -97,8 +109,7 @@ class Tendroid:
       return
     
     # No components initialized
-    if not all([self.warp_deformer, self.breathing_animator,
-                self.material_safety, self.mesh_updater]):
+    if not self.breathing_animator or not self.material_safety:
       return
     
     # Periodic material safety check
@@ -107,6 +118,29 @@ class Tendroid:
     
     # CRITICAL: Block all updates for glass materials
     if not self.material_safety.is_safe_for_animation():
+      return
+    
+    # Route to animation-mode-specific update
+    if self.animation_mode == AnimationMode.VERTEX_DEFORM:
+      self._update_vertex_deform(dt)
+    else:  # TRANSFORM mode
+      self._update_transform(dt)
+  
+  def _update_vertex_deform(self, dt: float):
+    """
+    Update using vertex deformation (Phase 2A).
+    
+    Supports both FastMeshUpdater (C++) and Python fallback.
+    """
+    if not self.warp_deformer:
+      return
+    
+    # Check which updater is available
+    has_fast_updater = (self.vertex_deform_helper and 
+                        self.vertex_deform_helper.is_initialized())
+    has_fallback = self.mesh_updater and self.mesh_updater.is_valid()
+    
+    if not (has_fast_updater or has_fallback):
       return
     
     try:
@@ -123,15 +157,32 @@ class Tendroid:
           distance_traveled=wave_params.get('distance_traveled', 0.0)
         )
         
-        # Update mesh in USD
-        self.mesh_updater.update_vertices(deformed_vertices)
+        # Update mesh via FastMeshUpdater or fallback
+        if has_fast_updater:
+          self.vertex_deform_helper.update_vertices(deformed_vertices)
+        else:
+          self.mesh_updater.update_vertices(deformed_vertices)
       
       # Check for bubble emission
       if self.breathing_animator.should_emit_bubble():
         self._emit_bubble()
     
     except Exception as e:
-      carb.log_error(f"[Tendroid] Update failed for '{self.name}': {e}")
+      carb.log_error(
+        f"[Tendroid] Vertex deform update failed for '{self.name}': {e}"
+      )
+  
+  def _update_transform(self, dt: float):
+    """
+    Update using transform scaling (Phase 1 fallback).
+    
+    Requires: mesh_updater
+    
+    NOTE: Transform mode not yet implemented - placeholder for future.
+    """
+    carb.log_warn(
+      f"[Tendroid] Transform mode not yet implemented for '{self.name}'"
+    )
   
   def _emit_bubble(self):
     """Emit bubble from top (Phase 2 feature)."""
@@ -162,3 +213,7 @@ class Tendroid:
   def get_status_message(self) -> str:
     """Get human-readable status message. Delegates to TendroidLifecycle."""
     return TendroidLifecycle.get_status_message(self)
+  
+  def get_animation_mode_name(self) -> str:
+    """Get human-readable animation mode name."""
+    return str(self.animation_mode)

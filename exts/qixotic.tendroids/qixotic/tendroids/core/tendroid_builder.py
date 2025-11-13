@@ -2,6 +2,7 @@
 Tendroid USD builder for geometry creation
 
 Handles all USD stage creation, mesh generation, and component initialization.
+Supports both TRANSFORM and VERTEX_DEFORM animation modes.
 """
 
 import carb
@@ -10,8 +11,10 @@ from .cylinder_generator import CylinderGenerator
 from .warp_deformer import WarpDeformer
 from .material_safety import MaterialSafetyChecker
 from .mesh_updater import MeshVertexUpdater
+from .vertex_deform_helper import VertexDeformHelper
 from .terrain_conform import conform_base_to_terrain
 from ..animation.breathing import BreathingAnimator
+from ..animation.animation_mode import AnimationMode
 from ..sea_floor import get_height_at
 from ..config import get_config_value
 
@@ -20,9 +23,17 @@ class TendroidBuilder:
   """
   Builder for creating Tendroid USD geometry and initializing components.
   
+  Supports both animation modes:
+  - TRANSFORM: Scale-based animation (Phase 1)
+  - VERTEX_DEFORM: GPU vertex deformation (Phase 2A)
+  
   Separates complex creation logic from the main Tendroid class,
   following the Builder pattern for clean separation of concerns.
   """
+  
+  # Shared FastMeshUpdater instance for all Tendroids in VERTEX_DEFORM mode
+  _fast_mesh_updater = None
+  _stage_id = None
   
   @staticmethod
   def create_in_stage(
@@ -42,6 +53,10 @@ class TendroidBuilder:
         Success status
     """
     try:
+      # Store stage ID for vertex deform mode
+      if tendroid.animation_mode == AnimationMode.VERTEX_DEFORM:
+        TendroidBuilder._ensure_fast_mesh_updater(stage)
+      
       # Query sea floor height at tendroid position
       floor_height = get_height_at(tendroid.position[0], tendroid.position[1])
       
@@ -62,7 +77,7 @@ class TendroidBuilder:
         return False
       
       # Initialize all components
-      if not TendroidBuilder._initialize_components(tendroid):
+      if not TendroidBuilder._initialize_components(tendroid, stage):
         return False
       
       # Log creation status
@@ -76,6 +91,46 @@ class TendroidBuilder:
       import traceback
       traceback.print_exc()
       return False
+  
+  @staticmethod
+  def _ensure_fast_mesh_updater(stage):
+    """Initialize FastMeshUpdater if not already created."""
+    if TendroidBuilder._fast_mesh_updater is None:
+      try:
+        import sys
+        import os
+        import omni.usd
+        
+        # Add the C++ build directory to Python path
+        cpp_build_dir = os.path.join(
+          os.path.dirname(os.path.dirname(__file__)),
+          'cpp', 'build-vs2022', 'Release'
+        )
+        if cpp_build_dir not in sys.path:
+          sys.path.insert(0, cpp_build_dir)
+          carb.log_info(f"[TendroidBuilder] Added to sys.path: {cpp_build_dir}")
+        
+        # Import the compiled module
+        import fast_mesh_updater
+        
+        TendroidBuilder._fast_mesh_updater = fast_mesh_updater.FastMeshUpdater()
+        
+        # Get stage ID
+        ctx = omni.usd.get_context()
+        TendroidBuilder._stage_id = ctx.get_stage_id()
+        
+        carb.log_info(
+          f"[TendroidBuilder] ✅ Initialized FastMeshUpdater "
+          f"(stage_id={TendroidBuilder._stage_id})"
+        )
+      
+      except Exception as e:
+        carb.log_warn(
+          f"[TendroidBuilder] ⚠️ FastMeshUpdater not available: {e}\n"
+          f"Falling back to Python MeshVertexUpdater (slower but functional)"
+        )
+        # Set to 'unavailable' marker so we don't keep trying
+        TendroidBuilder._fast_mesh_updater = 'unavailable'
   
   @staticmethod
   def _create_usd_geometry(tendroid, stage, parent_path: str) -> bool:
@@ -154,26 +209,28 @@ class TendroidBuilder:
       return False
   
   @staticmethod
-  def _initialize_components(tendroid) -> bool:
-    """Initialize all Tendroid components (safety, updater, deformer, animator)."""
+  def _initialize_components(tendroid, stage) -> bool:
+    """
+    Initialize all Tendroid components.
+    
+    Components vary by animation mode:
+    - TRANSFORM: mesh_updater only
+    - VERTEX_DEFORM: warp_deformer + vertex_deform_helper
+    """
     try:
-      # Material safety checker
+      # Material safety checker (both modes)
       tendroid.material_safety = MaterialSafetyChecker(tendroid.mesh_path)
       tendroid.material_safety.check_material()
       
-      # Mesh updater
-      tendroid.mesh_updater = MeshVertexUpdater(tendroid.mesh_prim)
-      if not tendroid.mesh_updater.is_valid():
-        carb.log_error("[TendroidBuilder] Mesh updater initialization failed")
-        return False
+      # Mode-specific initialization
+      if tendroid.animation_mode == AnimationMode.VERTEX_DEFORM:
+        if not TendroidBuilder._init_vertex_deform_mode(tendroid):
+          return False
+      else:  # TRANSFORM mode
+        if not TendroidBuilder._init_transform_mode(tendroid):
+          return False
       
-      # Warp deformer
-      tendroid.warp_deformer = WarpDeformer(
-        tendroid._initial_vertices,
-        tendroid.deform_start_height
-      )
-      
-      # Load animation config from JSON
+      # Load animation config from JSON (both modes)
       wave_speed = get_config_value(
         "tendroid_animation", "wave_speed", default=40.0
       )
@@ -187,7 +244,7 @@ class TendroidBuilder:
         "tendroid_animation", "cycle_delay", default=2.0
       )
       
-      # Breathing animator with config values
+      # Breathing animator with config values (both modes)
       tendroid.breathing_animator = BreathingAnimator(
         length=tendroid.length,
         deform_start_height=tendroid.deform_start_height,
@@ -204,14 +261,79 @@ class TendroidBuilder:
       return False
   
   @staticmethod
+  def _init_vertex_deform_mode(tendroid) -> bool:
+    """Initialize components for VERTEX_DEFORM mode."""
+    try:
+      # Warp deformer for GPU vertex computation
+      tendroid.warp_deformer = WarpDeformer(
+        tendroid._initial_vertices,
+        tendroid.deform_start_height
+      )
+      
+      # Check if FastMeshUpdater is available
+      if TendroidBuilder._fast_mesh_updater == 'unavailable':
+        carb.log_info(
+          f"[TendroidBuilder] '{tendroid.name}' using Python fallback "
+          f"(FastMeshUpdater unavailable)"
+        )
+        # Fall back to Python MeshVertexUpdater
+        tendroid.mesh_updater = MeshVertexUpdater(tendroid.mesh_prim)
+        if not tendroid.mesh_updater.is_valid():
+          carb.log_error("[TendroidBuilder] Mesh updater initialization failed")
+          return False
+      else:
+        # Use FastMeshUpdater (C++ high-performance path)
+        tendroid.vertex_deform_helper = VertexDeformHelper(tendroid.mesh_path)
+        
+        if not tendroid.vertex_deform_helper.initialize(
+          TendroidBuilder._stage_id,
+          TendroidBuilder._fast_mesh_updater
+        ):
+          carb.log_error(
+            f"[TendroidBuilder] Vertex deform helper init failed for '{tendroid.name}'"
+          )
+          return False
+      
+      return True
+    
+    except Exception as e:
+      carb.log_error(f"[TendroidBuilder] VERTEX_DEFORM init failed: {e}")
+      return False
+  
+  @staticmethod
+  def _init_transform_mode(tendroid) -> bool:
+    """Initialize components for TRANSFORM mode."""
+    try:
+      # Mesh updater for direct vertex writes
+      tendroid.mesh_updater = MeshVertexUpdater(tendroid.mesh_prim)
+      
+      if not tendroid.mesh_updater.is_valid():
+        carb.log_error("[TendroidBuilder] Mesh updater initialization failed")
+        return False
+      
+      # NOTE: Transform mode animation not yet implemented
+      carb.log_warn(
+        f"[TendroidBuilder] '{tendroid.name}' using TRANSFORM mode "
+        f"(not yet implemented)"
+      )
+      
+      return True
+    
+    except Exception as e:
+      carb.log_error(f"[TendroidBuilder] TRANSFORM init failed: {e}")
+      return False
+  
+  @staticmethod
   def _log_creation_status(tendroid):
-    """Log creation status based on material safety."""
+    """Log creation status based on material safety and animation mode."""
+    mode_str = tendroid.get_animation_mode_name()
+    
     if not tendroid.material_safety.is_safe_for_animation():
       carb.log_error(
-        f"[TendroidBuilder] ❌ '{tendroid.name}' has GLASS material - "
+        f"[TendroidBuilder] ❌ '{tendroid.name}' ({mode_str}) has GLASS material - "
         f"animation will be blocked"
       )
     else:
       carb.log_info(
-        f"[TendroidBuilder] Created '{tendroid.name}' with animation enabled"
+        f"[TendroidBuilder] ✅ '{tendroid.name}' created ({mode_str} mode)"
       )

@@ -3,93 +3,86 @@
 
 #include <string>
 #include <vector>
-#include <memory>
 #include <cstdint>
 
 
 namespace qixotic::tendroids {
 
 /**
- * FastMeshUpdater - High-performance mesh vertex updates
+ * FastMeshUpdater - High-performance vertex computation
  * 
- * Phase 1: Simple test functions to verify toolchain ✅
- * Phase 2: USD/Fabric integration with numpy arrays (CURRENT)
- * Phase 3: Batch updates for multiple meshes
+ * Phase 2: Pure computation mode
+ * - C++ handles all vertex math/deformation
+ * - Python handles USD updates
+ * - Numpy arrays for zero-copy data transfer
  */
 class FastMeshUpdater {
 public:
     FastMeshUpdater();
     ~FastMeshUpdater();
     
-    // Phase 1: Simple test functions ✅
+    // Version info
     [[nodiscard]] std::string get_version() const;
-    [[nodiscard]] std::string hello_world() const;
-    static int add_numbers(int a, int b);
-    static std::vector<float> echo_array(const std::vector<float> &input);
-    
-    // Phase 2: USD/Fabric integration
+    [[nodiscard]] std::string get_mode() const;
     
     /**
-     * Attach to USD stage by stage ID
-     * @param stage_id Stage pointer as uintptr_t from omni.usd.get_context().get_stage_id()
-     * @return true if attachment successful
+     * Batch compute vertices for multiple tubes
+     * Computes breathing wave deformation on GPU-style batch
+     * 
+     * @param base_vertices Input vertices [num_tubes * verts_per_tube * 3]
+     * @param output_vertices Output buffer (same size as input)
+     * @param num_tubes Number of tubes in batch
+     * @param verts_per_tube Vertices per tube
+     * @param time Current animation time
+     * @param wave_speed Speed of wave propagation
+     * @param amplitude Wave amplitude
+     * @param frequency Wave frequency
+     * @return Number of vertices processed
      */
-    bool attach_stage(uintptr_t stage_id);
-    
-    /**
-     * Register a mesh for fast updates
-     * @param mesh_path USD prim path (e.g., "/World/BatchTest/Tube_00")
-     * @return true if mesh registered successfully
-     */
-    bool register_mesh(const std::string& mesh_path);
-    
-    /**
-     * Update single mesh vertices from raw float pointer
-     * @param mesh_path USD prim path
-     * @param vertices_ptr Pointer to float array [x,y,z,x,y,z,...]
-     * @param vertex_count Number of vertices (array size = vertex_count * 3)
-     * @return true if update successful
-     */
-    bool update_mesh_vertices(
-        const std::string& mesh_path,
-        const float* vertices_ptr,
-        size_t vertex_count
+    size_t batch_compute_vertices(
+        const float* base_vertices,
+        float* output_vertices,
+        size_t num_tubes,
+        size_t verts_per_tube,
+        float time,
+        float wave_speed,
+        float amplitude,
+        float frequency
     );
     
     /**
-     * Batch update all registered meshes from contiguous memory
-     * @param vertices_ptr Pointer to float array for ALL meshes
-     * @param total_vertices Total vertices across all meshes
-     * @param vertices_per_mesh Vertices in each individual mesh
-     * @return Number of meshes updated
+     * Single tube vertex computation (for testing)
      */
-    size_t batch_update_vertices(
-        const float* vertices_ptr,
-        size_t total_vertices,
-        size_t vertices_per_mesh
+    size_t compute_tube_vertices(
+        const float* base_vertices,
+        float* output_vertices,
+        size_t vertex_count,
+        float time,
+        float wave_speed,
+        float amplitude,
+        float frequency
     );
     
     /**
-     * Clear all registered meshes
+     * Get performance stats
      */
-    void clear_meshes();
+    struct PerfStats {
+        size_t total_calls = 0;
+        size_t total_vertices = 0;
+        double total_time_ms = 0.0;
+        double avg_time_ms = 0.0;
+    };
     
-    /**
-     * Get number of registered meshes
-     */
-    [[nodiscard]] size_t get_mesh_count() const;
-    
-    /**
-     * Check if stage is attached
-     */
-    [[nodiscard]] bool is_stage_attached() const;
+    [[nodiscard]] PerfStats get_stats() const;
+    void reset_stats();
     
 private:
     std::string version_;
     
-    // Forward declare implementation details to avoid exposing USD headers
-    class Impl;
-    std::unique_ptr<Impl> impl_;
+    // Performance tracking
+    size_t total_calls_ = 0;
+    size_t total_vertices_ = 0;
+    double total_time_ms_ = 0.0;
 };
 
 } // namespace qixotic::tendroids

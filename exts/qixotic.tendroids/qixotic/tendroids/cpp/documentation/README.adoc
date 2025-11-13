@@ -306,7 +306,7 @@ When adding features:
 == Current Performance Bottleneck
 
 [plantuml, performance-bottleneck, svg]
-----
+
 @startuml
 !theme plain
 skinparam backgroundColor #FEFEFE

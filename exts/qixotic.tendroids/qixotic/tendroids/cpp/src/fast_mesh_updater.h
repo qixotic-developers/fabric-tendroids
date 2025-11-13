@@ -4,8 +4,8 @@
 #include <string>
 #include <vector>
 
-namespace qixotic {
-namespace tendroids {
+
+namespace qixotic::tendroids {
 
 /**
  * FastMeshUpdater - High-performance mesh vertex updates
@@ -20,18 +20,18 @@ public:
     ~FastMeshUpdater();
     
     // Phase 1: Simple test functions
-    std::string get_version() const;
-    int add_numbers(int a, int b) const;
-    std::vector<float> echo_array(const std::vector<float>& input) const;
+    [[nodiscard]] std::string get_version() const;
+    [[nodiscard]] std::string hello_world() const;
     
-    // Phase 1: Verify basic string operations
-    std::string hello_world() const;
+    // Static utility functions
+    static int add_numbers(int a, int b);
+    static std::vector<float> echo_array(const std::vector<float> &input);
     
 private:
     std::string version_;
 };
 
-} // namespace tendroids
-} // namespace qixotic
+} // namespace qixotic::tendroids
+
 
 #endif // FAST_MESH_UPDATER_H

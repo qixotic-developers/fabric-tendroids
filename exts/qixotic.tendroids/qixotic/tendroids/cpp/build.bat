@@ -1,35 +1,32 @@
 @echo off
 REM Quick build script for FastMeshUpdater C++ extension
-REM Run from cpp/ directory
+REM Works from any directory
 
-echo ============================================================
-echo FastMeshUpdater Phase 1 Build Script
-echo ============================================================
+echo ========================================
+echo Building FastMeshUpdater C++ Extension
+echo ========================================
 echo.
 
-REM Check if we're in the right directory
-if not exist CMakeLists.txt (
-    echo ERROR: CMakeLists.txt not found
-    echo Please run this script from the cpp/ directory
-    pause
-    exit /b 1
+cd /d "%~dp0"
+
+REM Clean old build if requested
+if "%1"=="clean" (
+    echo Cleaning build directories...
+    if exist build-vs2022 rmdir /s /q build-vs2022
+    if exist build rmdir /s /q build
+    echo Clean complete.
+    echo.
 )
 
-echo Creating build directory...
-if not exist _build mkdir _build
-cd _build
+REM Create build directory
+if not exist build-vs2022 mkdir build-vs2022
 
-echo.
-echo Configuring CMake...
+echo Configuring with CMake...
+cd build-vs2022
 cmake .. -G "Visual Studio 17 2022" -A x64
 if errorlevel 1 (
     echo.
-    echo ERROR: CMake configuration failed
-    echo.
-    echo Common fixes:
-    echo   1. Install pybind11: pip install pybind11
-    echo   2. Verify Visual Studio 2022 is installed
-    echo   3. Check KIT_SDK_PATH in CMakeLists.txt
+    echo [ERROR] CMake configuration failed!
     echo.
     pause
     exit /b 1
@@ -40,23 +37,28 @@ echo Building Release configuration...
 cmake --build . --config Release
 if errorlevel 1 (
     echo.
-    echo ERROR: Build failed
-    echo Check the error messages above
+    echo [ERROR] Build failed!
     echo.
     pause
     exit /b 1
 )
 
-cd ..
+echo.
+echo ========================================
+echo Build complete!
+echo ========================================
+echo.
+echo Output: build-vs2022\Release\fast_mesh_updater.pyd
+echo.
+echo To test, run:
+echo   cd ..
+echo   python test_phase1.py
+echo.
 
-echo.
-echo ============================================================
-echo Build successful!
-echo ============================================================
-echo.
-echo Output: cpp\_build\Release\fast_mesh_updater.pyd
-echo.
-echo Next step: Run tests
-echo   python ..\test_phase1.py
-echo.
-pause
+if "%1"=="test" (
+    echo Running tests...
+    cd ..
+    python test_phase1.py
+)
+
+if not "%1"=="test" pause

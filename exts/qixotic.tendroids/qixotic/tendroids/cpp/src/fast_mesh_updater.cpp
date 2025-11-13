@@ -1,25 +1,24 @@
 #include "fast_mesh_updater.h"
 #include <sstream>
 
-namespace qixotic {
-namespace tendroids {
+
+namespace qixotic::tendroids {
 
 FastMeshUpdater::FastMeshUpdater() 
     : version_("0.1.0-alpha-phase1") {
 }
 
-FastMeshUpdater::~FastMeshUpdater() {
-}
+FastMeshUpdater::~FastMeshUpdater() = default;
 
 std::string FastMeshUpdater::get_version() const {
     return version_;
 }
 
-int FastMeshUpdater::add_numbers(int a, int b) const {
+int FastMeshUpdater::add_numbers(int a, int b) {
     return a + b;
 }
 
-std::vector<float> FastMeshUpdater::echo_array(const std::vector<float>& input) const {
+std::vector<float> FastMeshUpdater::echo_array(const std::vector<float>& input) {
     // Double each value to verify data transfer works
     std::vector<float> result;
     result.reserve(input.size());
@@ -37,5 +36,5 @@ std::string FastMeshUpdater::hello_world() const {
     return oss.str();
 }
 
-} // namespace tendroids
-} // namespace qixotic
+} // namespace qixotic::tendroids
+

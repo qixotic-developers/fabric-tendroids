@@ -170,7 +170,7 @@ Phase 1 is complete when:
 === Phase 2 Planning
 
 [plantuml, phase2-plan, svg]
-----
+
 @startuml
 !theme plain
 skinparam backgroundColor #FEFEFE
@@ -194,7 +194,6 @@ skinparam backgroundColor #FEFEFE
 "Benchmark" --> (*)
 
 @enduml
-----
 
 Once Phase 1 works:
 
@@ -281,7 +280,7 @@ Three levels of documentation:
 . *CLION_SETUP.adoc* - Quick CLion reference and workflow
 . *This file* - Implementation summary and next steps
 
----
+'''
 
 *Status:* ✅ Phase 1 files created and ready to build
 

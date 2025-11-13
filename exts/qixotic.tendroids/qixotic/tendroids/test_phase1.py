@@ -24,7 +24,11 @@ def find_cpp_module():
     cpp_dir = Path(__file__).parent / "cpp"
     
     search_paths = [
-        # MSVC build directories (prioritize these)
+        # build.bat output directory (prioritize this)
+        cpp_dir / "build-vs2022" / "Release",
+        cpp_dir / "build-vs2022" / "Debug",
+        cpp_dir / "build-vs2022",
+        # MSVC build directories
         cpp_dir / "build-msvc" / "Release",
         cpp_dir / "build-msvc" / "Debug",
         cpp_dir / "build-msvc",

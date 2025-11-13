@@ -18,13 +18,13 @@ PYBIND11_MODULE(fast_mesh_updater, m) {
              &qixotic::tendroids::FastMeshUpdater::get_version,
              "Get the version string of the C++ extension")
         
-        .def("add_numbers", 
+        .def_static("add_numbers", 
              &qixotic::tendroids::FastMeshUpdater::add_numbers,
              "Add two integers and return the result",
              py::arg("a"), 
              py::arg("b"))
         
-        .def("echo_array", 
+        .def_static("echo_array", 
              &qixotic::tendroids::FastMeshUpdater::echo_array,
              "Echo back an array with each value doubled (tests data transfer)",
              py::arg("input"))

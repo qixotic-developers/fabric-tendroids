@@ -13,8 +13,8 @@ class ActionButtons:
   """
   Manages action buttons and their event handlers.
   
-  Coordinates spawn, start/stop animation, and clear operations
-  with the scene manager and status display.
+  Coordinates spawn, start/stop animation, clear operations,
+  and stress testing with the scene manager and status display.
   """
   
   def __init__(self, scene_manager: TendroidSceneManager):
@@ -70,6 +70,20 @@ class ActionButtons:
         height=30,
         clicked_fn=self._on_clear_clicked,
         style={"background_color": 0xFF664444}
+      )
+      
+      # Spacer before stress test
+      ui.Spacer(height=10)
+      ui.Line()
+      ui.Spacer(height=5)
+      
+      # Stress test button
+      stress_test_button = ui.Button(
+        "Run Stress Test (15-30 Tendroids)",
+        height=30,
+        clicked_fn=self._on_stress_test_clicked,
+        style={"background_color": 0xFF446644},
+        tooltip="Automated performance test: spawns 15, 20, 25, 30 Tendroids and measures FPS"
       )
   
   def _on_spawn_clicked(self):
@@ -174,3 +188,33 @@ class ActionButtons:
     except Exception as e:
       self.status_display.update_status(f"Error: {e}")
       carb.log_error(f"[ActionButtons] Clear error: {e}")
+  
+  def _on_stress_test_clicked(self):
+    """Handle stress test button - run automated performance test."""
+    if not self.status_display:
+      return
+    
+    try:
+      from ..test_stress_phase2 import run_stress_test
+      
+      self.status_display.update_status("Starting stress test...")
+      carb.log_info("[ActionButtons] Starting Phase 2 stress test")
+      
+      # Run stress test in background
+      # Note: This will block UI - in production we'd use async/threading
+      results = run_stress_test()
+      
+      # Show summary in status
+      if results.test_runs:
+        final_run = results.test_runs[-1]
+        self.status_display.update_status(
+          f"Stress test complete: {final_run['actual_count']} @ {final_run['avg_fps']:.1f} fps"
+        )
+      else:
+        self.status_display.update_status("Stress test failed")
+      
+    except Exception as e:
+      self.status_display.update_status(f"Stress test error: {e}")
+      carb.log_error(f"[ActionButtons] Stress test error: {e}")
+      import traceback
+      traceback.print_exc()

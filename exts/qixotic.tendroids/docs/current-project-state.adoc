@@ -1,0 +1,137 @@
+= Tendroids Project - Current State Summary
+:toc:
+:toclevels: 3
+:sectnums:
+
+== Production Status
+
+**Date:** November 14, 2025 +
+**Version:** 2.1.0 +
+**Status:** Production-ready with 4.3x performance improvement
+
+=== Performance Metrics
+* **Current FPS:** ~50 fps with 15 animated Tendroids
+* **Optimization Achievement:** 4.3x improvement through C++ + Fabric hybrid
+* **C++ FastMeshUpdater:** 240x speedup (0.015ms vs 3.6ms Python)
+* **Architecture:** Transform-based animation with 16 segmented cylinders per Tendroid
+
+=== Recent Accomplishments
+* Comprehensive codebase cleanup (77% reduction while preserving functionality)
+* Natural contoured sea floor with Perlin noise terrain generation
+* Custom Composer workspace with optimized UI layout
+* Material safety systems for transparent materials in path-traced rendering
+
+== Current Architecture
+
+=== Core Components
+* **Animation System:** Transform-based with traveling wave breathing effects
+* **Geometry:** 16 segmented cylinders per Tendroid
+* **Performance Layer:** C++ FastMeshUpdater extension eliminates Python bottlenecks
+* **Rendering:** Material safety detection prevents GPU crashes with dynamic geometry + glass materials
+
+=== File Structure (Modular)
+* 100-150 lines per module standard
+* Class files are controllers
+* Methods that change frequently → helper files
+* `__init__.py` for initialization and module globals
+
+== Active Development Environment
+
+=== Custom Composer Application
+**Location:** `C:\Dev\Omniverse\tendroids-composer\source\apps\qixotic.usd_composer.kit`
+
+**Key Configuration:**
+* Auto-fullscreen startup
+* Streamlined UI (many default panels disabled for Tendroids focus)
+* Extensions path includes: `C:/Dev/Omniverse/fabric-tendroids/exts`
+* Custom titlebar and branding
+
+**Known Issue:**
+* Extensions panel auto-filter to remove @feature default - attempted multiple .kit file settings, none successful. Use manual filter if needed.
+
+=== Project Directories
+* **Main Extension:** `C:\Dev\Omniverse\fabric-tendroids\exts\qixotic.tendroids`
+* **C++ Extension:** `qixotic.tendroids\cpp\` (FastMeshUpdater)
+* **Documentation:** `qixotic.tendroids\docs\`
+
+== Phase 2 Roadmap (Next Development)
+
+=== Advanced Features Planned
+1. **Transparency Effects** - Visual enhancements for underwater creatures
+2. **Physics-Based Interactions** - Realistic movement and collisions
+3. **Bubble Creation Systems** - Environmental particle effects
+4. **Environmental Elements** - Flora and ecosystem additions
+
+=== Technical Investigations
+* **GPU Vertex Deformation:** Transition from transform-based to Warp kernels
+* **Swept Torus Geometry:** Handle complex manifold topology for organic motion
+* **Breathing Optimization:** Lookup functions for deformation calculations
+* **Single-Tendroid Customization:** Diameter/length/wave timing controls
+* **Stress Testing:** Find performance ceilings before expensive features
+
+== Key Technical Insights
+
+=== Manifold Topology Breakthrough
+**Critical Discovery:** Proper manifold topology with consistent wall thickness allows path tracers to handle dynamic vertex updates correctly.
+
+* Static glass geometry works perfectly
+* Dynamic updates require careful topology management
+* Swept torus geometry is the solution (not simple dual-surface cylinders)
+* This overturns hypothesis that vertex deformation is incompatible with refractive materials
+
+=== Performance Optimization Lessons
+* **Major bottleneck:** Python overhead in CPU-GPU transfers (35ms/frame)
+* **Not the bottleneck:** GPU kernel computation (4ms)
+* **Solution:** C++ extensions eliminate bottlenecks while maintaining CUDA benefits
+* **Result:** 240x speedup in vertex calculations
+
+== Development Practices
+
+=== Code Standards
+* Modular architecture with file size limits (100-150 lines)
+* Systematic performance optimization with specific benchmarks
+* Comprehensive testing phases before integration
+* Thorough documentation in AsciiDoc format
+
+=== Problem-Solving Methodology
+* Thorough technical investigation over expedient workarounds
+* Systematic debugging through controlled test phases
+* Preference for mathematically correct solutions
+* Comprehensive cleanup between development phases
+
+== Pending Work Items
+
+=== Repository Management
+* **Planned Rename:** `omni-tendroids` → `tendroids-composer` to reflect project focus
+
+=== Next Session Priorities
+1. Define specific Phase 2 feature to implement
+2. Stress test current architecture
+3. Investigate Warp kernel transition details
+4. Plan single-tendroid customization controls
+
+== Tools & Resources
+
+=== Development Stack
+* **IDE:** JetBrains CLion
+* **Compiler:** Visual Studio 2022
+* **Build:** CMake with pybind11
+* **GPU:** NVIDIA Warp for acceleration
+* **Scene Graph:** USD/Fabric/USDRT
+
+=== Key Documentation
+* Fabric & USDRT 7.6.1: https://docs.omniverse.nvidia.com/kit/docs/usdrt.scenegraph/latest/overview.html
+* Project docs in AsciiDoc with PlantUML diagrams
+
+== Session Notes
+
+=== Decisions Made This Session
+* Extensions panel auto-filter approach abandoned after testing multiple settings
+* Confirmed custom Composer configuration at `tendroids-composer/source/apps/qixotic.usd_composer.kit`
+* Documented failed approaches in memory to avoid retry in future sessions
+
+=== File Modifications
+* `qixotic.usd_composer.kit` - Attempted Extensions panel filter configuration (reverted to empty string to clear @feature)
+
+---
+*Document Purpose: Provide comprehensive context for next development session*

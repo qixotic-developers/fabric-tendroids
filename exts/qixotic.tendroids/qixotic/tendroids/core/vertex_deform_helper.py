@@ -19,6 +19,11 @@ class VertexDeformHelper:
   3. FastMeshUpdater writes directly to USD mesh (bypassing Python overhead)
   
   This avoids the tuple conversion bottleneck from Phase 1.
+  
+  NOTE: Current FastMeshUpdater C++ extension only has compute_tube_vertices()
+  and batch_compute_vertices(). The USD mesh update methods (attach_stage,
+  register_mesh, etc.) are not yet implemented. This class gracefully falls
+  back when those methods are unavailable.
   """
   
   def __init__(self, mesh_path: str):
@@ -48,6 +53,16 @@ class VertexDeformHelper:
     try:
       self.updater = fast_mesh_updater
       
+      # Check if FastMeshUpdater has USD mesh update methods
+      # Current version only has compute methods, not USD integration
+      if not hasattr(self.updater, 'is_stage_attached'):
+        carb.log_warn(
+          f"[VertexDeformHelper] FastMeshUpdater missing USD mesh methods\n"
+          f"  Current version only supports compute_tube_vertices() and batch_compute_vertices()\n"
+          f"  Vertex deformation helper cannot be used - Tendroid will fall back to Python"
+        )
+        return False
+      
       # Attach to stage (may already be attached, that's fine)
       if not self.updater.is_stage_attached():
         if not self.updater.attach_stage(stage_id):
@@ -65,6 +80,14 @@ class VertexDeformHelper:
         f"(total meshes: {self.updater.get_mesh_count()})"
       )
       return True
+    
+    except AttributeError as e:
+      # Missing method - FastMeshUpdater version doesn't support USD integration yet
+      carb.log_warn(
+        f"[VertexDeformHelper] FastMeshUpdater method not available: {e}\n"
+        f"  Vertex deformation helper cannot be used - falling back to Python"
+      )
+      return False
     
     except Exception as e:
       carb.log_error(f"[VertexDeformHelper] Initialization failed: {e}")

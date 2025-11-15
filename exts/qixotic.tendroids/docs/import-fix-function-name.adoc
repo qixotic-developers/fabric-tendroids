@@ -1,0 +1,53 @@
+= Import Fix - Function Name Mismatch
+:toc:
+
+== Issue
+
+**Error**: `ImportError: cannot import name 'create_cylinder_mesh' from 'qixotic.tendroids.warp_test.geometry_builder'`
+
+**Root Cause**: The `warp_test/__init__.py` was importing a function with the wrong name
+
+== Solution
+
+**File Modified**: `qixotic/tendroids/warp_test/__init__.py`
+
+**Change**:
+[source,python]
+----
+# Before - wrong function name
+from .geometry_builder import create_cylinder_mesh
+
+# After - correct function name
+from .geometry_builder import create_simple_cylinder
+----
+
+**Also Updated**: `__all__` export list to match
+
+== Why This Happened
+
+During cleanup, the function name in `geometry_builder.py` is `create_simple_cylinder`, but the `__init__.py` was still trying to import the old name `create_cylinder_mesh`.
+
+== Result
+
+Extension should now load successfully:
+
+✅ Correct function name imported
+✅ `__all__` export list matches
+✅ No more import errors
+✅ Extension ready to load
+
+== All Import Issues Resolved
+
+This completes the chain of import fixes:
+
+1. ✅ Removed archived `test_controller` import
+2. ✅ Removed archived `test_scenarios` import  
+3. ✅ Fixed `create_cylinder_mesh` → `create_simple_cylinder`
+
+Extension is now clean and should load without errors.
+
+'''
+
+*Function Name Fixed* +
+*Import*: `create_simple_cylinder` ✅ +
+*Extension*: Ready to load ✅

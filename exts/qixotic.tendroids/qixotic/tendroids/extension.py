@@ -8,6 +8,7 @@ import carb
 import omni.ext
 import omni.usd
 import omni.kit.ui
+import omni.kit.window.extensions
 from .scene.manager import TendroidSceneManager
 from .ui.control_panel import TendroidControlPanel
 from .warp_test.test_window import WarpTestWindow
@@ -52,6 +53,9 @@ class TendroidsExtension(omni.ext.IExt):
                 )
             ]
             
+            # Filter Extensions panel to show qixotic.tendroids
+            self._set_extensions_filter("qixotic tendroids")
+            
             carb.log_info("[TendroidsExtension] Startup complete")
             carb.log_info("[TendroidsExtension] Access 'Window > Tendroid Warp Test' to open test harness")
             
@@ -64,12 +68,30 @@ class TendroidsExtension(omni.ext.IExt):
         """Toggle visibility of Warp Test window"""
         if self._warp_test_window:
             self._warp_test_window.visible = toggled
+    
+    def _set_extensions_filter(self, filter_text: str):
+        """
+        Set the Extensions panel search filter.
+        
+        Args:
+            filter_text: Search text to filter extensions
+        """
+        try:
+            ext_manager = omni.kit.window.extensions.get_extension_manager_window()
+            if ext_manager:
+                ext_manager.set_search_text(filter_text)
+                carb.log_info(f"[TendroidsExtension] Extensions filter set to: '{filter_text}'")
+        except Exception as e:
+            carb.log_warn(f"[TendroidsExtension] Could not set extensions filter: {e}")
             
     def on_shutdown(self):
         """Called when extension is unloaded."""
         carb.log_info("[TendroidsExtension] Shutting down")
         
         try:
+            # Clear Extensions panel filter
+            self._set_extensions_filter("")
+            
             # Remove menu items
             if hasattr(self, '_menu_items'):
                 for item in self._menu_items:

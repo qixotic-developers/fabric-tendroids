@@ -1,0 +1,223 @@
+= Repository Rename Impact Analysis
+:toc:
+:toclevels: 2
+
+== Proposed Change
+
+**From**: `C:\Dev\Omniverse\omni-tendroids`
+**To**: `C:\Dev\Omniverse\tendroids-composer`
+
+== Impact Assessment
+
+=== ✅ Safe to Rename
+
+The Composer repository uses **relative paths** throughout, so renaming will NOT break the codebase.
+
+**Why It's Safe**:
+* All internal paths use `${app}` tokens
+* No hardcoded references to `omni-tendroids`
+* Extensions discovered via relative paths
+* Layouts use relative references
+* Build system uses relative paths
+
+=== ⚠️ One External Reference Found
+
+**File**: `source/apps/qixotic.usd_composer.kit`
+
+**Line**: Extension folders configuration
+
+[source,toml]
+----
+[settings.app.exts.folders]
+'++' = [
+    "${app}/../exts",
+    "${app}/../extensions",
+    "${app}/../extscache",
+    "C:/Dev/Omniverse/fabric-tendroids/exts"  # <- External reference
+]
+----
+
+**Issue**: This references the **fabric-tendroids** repository (not omni-tendroids)
+
+**Action Required**: None - this is a different repository
+
+== Files That Use Relative Paths ✅
+
+All these files are safe and will work after rename:
+
+=== Kit Configuration
+
+**File**: `source/apps/qixotic.usd_composer.kit`
+
+[source,toml]
+----
+# Uses token-based paths
+[settings.app.exts.folders]
+'++' = [
+    "${app}/../exts",           # Relative
+    "${app}/../extensions",      # Relative
+    "${app}/../extscache"        # Relative
+]
+
+iconPath = "${qixotic.usd_composer_setup_extension}/data/..."  # Token-based
+----
+
+**Status**: ✅ No changes needed
+
+=== Setup Extension
+
+**File**: `source/extensions/qixotic.usd_composer_setup_extension/qixotic/usd_composer_setup_extension/extension.py`
+
+[source,python]
+----
+# Uses tokens
+DATA_PATH = Path(carb.tokens.get_tokens_interface().resolve(
+    "${qixotic.usd_composer_setup_extension}")
+)
+
+layout_file = f"{DATA_PATH}/layouts/tendroids.json"
+----
+
+**Status**: ✅ No changes needed
+
+=== Layouts
+
+**Files**: 
+* `layouts/default.json`
+* `layouts/tendroids.json`
+
+**Content**: All window positions (no paths)
+
+**Status**: ✅ No changes needed
+
+=== Build System
+
+**Files**:
+* `repo.bat`
+* `repo.sh`
+* `repo.toml`
+* `premake5.lua`
+
+**Paths**: All relative to repository root
+
+**Status**: ✅ No changes needed
+
+== Rename Procedure
+
+=== Step 1: Close Everything
+
+. Close Composer if running
+. Close any file explorers/editors with the folder open
+. Close Git clients
+
+=== Step 2: Rename Directory
+
+**Option A: Windows Explorer**
+[source]
+----
+1. Navigate to C:\Dev\Omniverse\
+2. Right-click "omni-tendroids"
+3. Rename to "tendroids-composer"
+----
+
+**Option B: Command Line**
+[source,powershell]
+----
+cd C:\Dev\Omniverse
+Rename-Item "omni-tendroids" "tendroids-composer"
+----
+
+=== Step 3: Update Git Remote (if applicable)
+
+If you have a Git remote, update the remote URL:
+
+[source,bash]
+----
+cd C:\Dev\Omniverse\tendroids-composer
+git remote -v  # Check current remote
+
+# If needed, update remote URL
+git remote set-url origin <new-url>
+----
+
+=== Step 4: Verify
+
+Launch Composer and verify:
+
+. Composer launches correctly
+. Tendroids layout loads
+. Extensions discovered properly
+. Tendroids extension loads (from fabric-tendroids)
+
+== What Will NOT Break
+
+✅ Extension discovery
+✅ Layout loading
+✅ Build system
+✅ Launch scripts
+✅ Setup extension
+✅ Window positioning
+✅ Settings persistence
+
+== What Might Need Updates
+
+**Your IDE/Editor**:
+* PyCharm: Update project directory
+* VS Code: Update workspace folder
+* Any bookmarks or shortcuts
+
+**System Shortcuts**:
+* Desktop shortcuts
+* Start menu shortcuts
+* Taskbar pins
+
+**Documentation**:
+* Any personal notes with absolute paths
+* README files with setup instructions
+
+== After Rename
+
+=== Test Checklist
+
+After renaming, test these:
+
+. [ ] Launch Composer with `repo.bat`
+. [ ] Verify fullscreen/maximized window
+. [ ] Check Tendroids layout loads
+. [ ] Open Extensions window
+. [ ] Verify qixotic.tendroids extension visible
+. [ ] Enable Tendroids extension
+. [ ] Verify Tendroid Controls window appears
+. [ ] Spawn Tendroids
+. [ ] Test animation
+
+=== Update Your Workflow
+
+Update any personal scripts or notes that reference the old path:
+
+* Build scripts
+* Deployment scripts
+* Documentation
+* Setup instructions
+* Development notes
+
+== Summary
+
+**Safe to Rename**: ✅ YES
+
+**Code Changes Needed**: ❌ NONE
+
+**Why**: All paths are relative or token-based
+
+**External References**: Only to `fabric-tendroids` (different repo)
+
+**Risk**: Very Low
+
+**Recommendation**: Safe to proceed with rename
+
+'''
+
+*Rename Impact*: Minimal ✅ +
+*Code Changes*: None required ✅ +
+*Risk Level*: Very Low ✅ +
+*Ready*: Yes, safe to rename ✅

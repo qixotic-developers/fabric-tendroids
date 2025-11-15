@@ -1,0 +1,213 @@
+= Composer Cleanup Audit - 2025-11-14
+:toc:
+:toclevels: 2
+
+== Overview
+
+Audit of the Qixotic USD Composer repository to identify leftover code, unused documents, and empty directories.
+
+**Composer Location**: `C:\Dev\Omniverse\omni-tendroids`
+
+== Current Structure
+
+=== Active Components
+
+**Applications** (`source/apps/`)
+* `qixotic.usd_composer.kit` ✅ - Active composer configuration
+
+**Extensions** (`source/extensions/`)
+* `qixotic.usd_composer_setup_extension/` ✅ - Active setup extension
+  ** `layouts/default.json` ✅ - Original layout
+  ** `layouts/tendroids.json` ✅ - Tendroids dev layout
+* `omni.example.warp.cylinder.disabled/` ⚠️ - Disabled broken extension
+
+**Empty Directories**
+* `source/exts/` - Empty (intentional placeholder)
+* `source/extscache/` - Empty (intentional placeholder)
+
+=== Files to Consider
+
+==== 1. Disabled Warp Cylinder Extension
+
+**Location**: `source/extensions/omni.example.warp.cylinder.disabled/`
+
+**Status**: ⚠️ Can be removed
+
+**Contents**:
+* Complete extension with docs, tests, code
+* Was disabled due to import errors
+* Not used by Tendroids development
+* Takes up disk space
+
+**Recommendation**: 
+* **REMOVE** - The extension is broken and not related to Tendroids
+* Already in Git history if needed later
+* Currently just clutter
+
+**Size**: Significant (code + docs + tests)
+
+==== 2. Helper Scripts
+
+**Location**: `source/extensions/`
+
+**Files**:
+* `generate_extension_script.py` - Utility script
+* `migrate_extension.py` - Utility script
+
+**Status**: ℹ️ Keep or remove based on usage
+
+**Recommendation**:
+* **KEEP** if you generate extensions regularly
+* **REMOVE** if you don't use them
+
+==== 3. Root Debug File
+
+**Location**: Root directory
+
+**File**: `DEBUG_gpu_direct.txt`
+
+**Status**: ⚠️ Can be removed
+
+**Recommendation**:
+* **REMOVE** - Appears to be a debug log file
+* Not part of the Composer application
+
+=== Empty Directories (OK)
+
+These directories are empty but serve a purpose:
+
+* `source/exts/` - Extension folder (configured in kit file)
+* `source/extscache/` - Extension cache (configured in kit file)
+
+**Status**: ✅ Keep - They're configured in the kit file and expected to exist
+
+== Recommended Cleanup Actions
+
+=== High Priority - Remove
+
+These items are definitely not needed:
+
+[source,bash]
+----
+# 1. Remove disabled broken extension
+rmdir /s "C:\Dev\Omniverse\omni-tendroids\source\extensions\omni.example.warp.cylinder.disabled"
+
+# 2. Remove debug file
+del "C:\Dev\Omniverse\omni-tendroids\DEBUG_gpu_direct.txt"
+----
+
+**Benefit**: 
+* Cleaner repository
+* Less confusion
+* Reduced disk usage
+
+=== Optional - Review
+
+These items may or may not be useful:
+
+**Helper Scripts**:
+* `source/extensions/generate_extension_script.py`
+* `source/extensions/migrate_extension.py`
+
+**Action**: Only remove if you confirm you don't use them
+
+== Files to Keep
+
+These are all essential and should remain:
+
+**Core Composer Files**:
+* `repo.bat`, `repo.sh` - Build/launch scripts
+* `repo.toml`, `repo_tools.toml` - Repository configuration
+* `premake5.lua` - Build configuration
+* `README.md`, `LICENSE`, `SECURITY.md` - Documentation
+* `PRODUCT_TERMS_OMNIVERSE` - Legal
+
+**Configuration**:
+* `.editorconfig`, `.gitignore`, `.gitattributes` - Dev config
+* `.omniverse_eula_accepted.txt` - EULA acceptance
+
+**IDE**:
+* `.idea/` - PyCharm configuration (keep if you use PyCharm)
+* `.pytest_cache/` - Test cache (auto-generated, can ignore)
+
+**Git**:
+* `.git/` - Git repository (essential)
+* `.github/` - GitHub workflows
+
+**Build**:
+* `tools/` - Build tools
+* `_repo/` - Build artifacts
+
+== Summary
+
+=== Must Remove (Clutter)
+
+1. ❌ `omni.example.warp.cylinder.disabled/` - Broken unused extension
+2. ❌ `DEBUG_gpu_direct.txt` - Debug log file
+
+=== Review & Decide
+
+1. ❓ `generate_extension_script.py` - Keep if used
+2. ❓ `migrate_extension.py` - Keep if used
+
+=== Keep (Essential)
+
+1. ✅ `qixotic.usd_composer_setup_extension/` - Core setup
+2. ✅ `qixotic.usd_composer.kit` - Composer config
+3. ✅ All layouts (default + tendroids)
+4. ✅ Empty placeholder directories
+5. ✅ All root configuration files
+
+== After Cleanup
+
+Once you remove the recommended items, the Composer will be:
+
+* ✅ Clean and minimal
+* ✅ Only production code
+* ✅ No broken extensions
+* ✅ Clear purpose for every file
+* ✅ Easier to navigate
+* ✅ Reduced disk usage
+
+== Execution Steps
+
+To perform the cleanup:
+
+[source,powershell]
+----
+# Navigate to Composer root
+cd C:\Dev\Omniverse\omni-tendroids
+
+# Remove disabled extension
+Remove-Item -Recurse -Force "source\extensions\omni.example.warp.cylinder.disabled"
+
+# Remove debug file
+Remove-Item "DEBUG_gpu_direct.txt"
+
+# Optional: Remove helper scripts if you don't use them
+# Remove-Item "source\extensions\generate_extension_script.py"
+# Remove-Item "source\extensions\migrate_extension.py"
+----
+
+== Verification
+
+After cleanup, verify:
+
+1. Composer still launches correctly
+2. Tendroids layout loads
+3. No missing file errors
+4. Extension discovery still works
+
+== Notes
+
+* All removed items are in Git history
+* Can be restored if needed
+* This is a safe cleanup (no core functionality removed)
+* Focuses on removing broken/unused code
+
+'''
+
+*Cleanup Recommended* +
+*Remove*: Disabled extension + debug file +
+*Keep*: All production code +
+*Result*: Clean, minimal Composer

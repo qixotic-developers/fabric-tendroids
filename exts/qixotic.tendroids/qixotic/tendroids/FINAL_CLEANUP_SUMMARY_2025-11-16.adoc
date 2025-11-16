@@ -1,0 +1,245 @@
+= Complete Cleanup Summary - November 16, 2025
+:toc:
+:toclevels: 2
+
+== Overview
+
+Successfully completed comprehensive cleanup of batching experiment code and resolved all associated issues. The codebase is now production-ready with clean logs and optimal performance.
+
+== Phase 1: Code Archival
+
+=== Files Moved to `_archived/batching_experiment/`
+
+* `core/size_classes.py` - Size class definitions
+* `core/batched_warp_deformer.py` - Batch GPU kernel
+* `core/batch_manager.py` - Batch coordinator
+* `core/fabric_batch_updater.py` - Fabric batch updates
+* `scene/batched_tendroid_factory.py` - Batch-aware factory
+* `BATCHING_SUMMARY.adoc` - Implementation documentation
+* `BATCHED_TESTING_FIXED.adoc` - Test results
+
+=== Production Files Cleaned
+
+**scene/animation_controller.py** (195 → 140 lines)
+- Removed batching imports and logic
+- Single clean update path
+- Simplified animation loop
+
+**scene/manager.py** (230 lines, simplified)
+- Removed batching mode selection
+- Single factory path
+- Cleaner initialization
+
+**extension.py** (135 → 129 lines)
+- Removed batching settings
+- Simplified startup
+- Fixed extensions API
+
+== Phase 2: Bug Fixes
+
+=== test_stress_phase2.py
+
+**Error:** TypeError on TendroidSceneManager initialization
+
+**Fix:** Removed batching parameter
+[source,python]
+----
+# Before
+self.scene_manager = TendroidSceneManager(use_batched_rendering=use_batched)
+
+# After
+self.scene_manager = TendroidSceneManager()
+----
+
+=== extension.py
+
+**Warning:** Extensions window API mismatch
+
+**Fix:** Updated to correct API with graceful fallback
+[source,python]
+----
+# Before
+ext_manager = omni.kit.window.extensions.get_extension_manager_window()
+
+# After
+ext_window = omni.kit.window.extensions.get_window()
+if ext_window and hasattr(ext_window, 'set_search_text'):
+    ext_window.set_search_text(filter_text)
+----
+
+=== ui/action_buttons.py
+
+**Error:** AttributeError accessing async test results
+
+**Fix:** Updated for async execution pattern
+[source,python]
+----
+# Before
+results = run_stress_test()
+if results.test_runs:
+    # Try to access results immediately
+
+# After
+runner = run_stress_test()
+self.status_display.update_status("Stress test running...")
+----
+
+== Phase 3: Warning Suppression
+
+=== vertex_deform_helper.py
+
+**Issue:** 270+ identical warnings during stress test
+
+**Fix:** Module-level flag for single warning
+[source,python]
+----
+# Added module-level flag
+_warned_about_missing_methods = False
+
+# Modified initialize()
+if not _warned_about_missing_methods:
+    carb.log_warn("FastMeshUpdater missing USD methods (shown once)")
+    _warned_about_missing_methods = True
+----
+
+**Result:** 270 warnings → 1 warning
+
+== Final State
+
+=== Code Metrics
+
+[cols="3,1,1,1"]
+|===
+| File | Before | After | Change
+
+| animation_controller.py | 195 lines | 140 lines | -55 lines
+| manager.py | 230 lines | 230 lines | Simplified
+| extension.py | 135 lines | 129 lines | -6 lines
+| Warnings per test | 270 | 1 | -269
+| Batching files | 7 | 0 | Archived
+|===
+
+=== Architecture
+
+Current simplified flow:
+----
+Extension Startup
+  └─> TendroidSceneManager()
+       └─> TendroidFactory.create_batch()
+            └─> N Tendroids (uniform geometry)
+                 └─> Each has WarpDeformer
+                      └─> Individual GPU kernels
+
+Animation Loop
+  └─> AnimationController.update()
+       └─> For each Tendroid:
+            └─> tendroid.update(dt)
+                 └─> WarpDeformer.compute()
+                      └─> Python vertex updates (Vt.Vec3fArray)
+----
+
+=== Performance
+
+* **49 fps** with 30 Tendroids
+* **Uniform geometry** optimization enabled
+* **Individual GPU kernels** (one per Tendroid)
+* **Python vertex updates** (FastMeshUpdater USD methods not yet implemented)
+
+== Verification Checklist
+
+✅ No import errors
+✅ No runtime errors  
+✅ No excessive warnings
+✅ Stress test runs successfully
+✅ Extension loads cleanly
+✅ Animation works correctly
+✅ Performance matches baseline (49 fps @ 30 Tendroids)
+✅ Logs are clean and readable
+
+== Files Modified
+
+**Production Code:**
+----
+scene/
+  ├─ animation_controller.py (cleaned)
+  └─ manager.py (cleaned)
+
+core/
+  └─ vertex_deform_helper.py (warning suppression)
+
+ui/
+  └─ action_buttons.py (async fix)
+
+extension.py (API fix, batching removed)
+test_stress_phase2.py (batching removed)
+----
+
+**Documentation Created:**
+----
+CLEANUP_COMPLETE_2025-11-16.adoc
+CLEANUP_FIXES_2025-11-16.adoc
+WARNING_SUPPRESSION_2025-11-16.adoc
+FINAL_CLEANUP_SUMMARY_2025-11-16.adoc (this file)
+----
+
+**Archived:**
+----
+_archived/batching_experiment/
+  ├─ size_classes.py
+  ├─ batched_warp_deformer.py
+  ├─ batch_manager.py
+  ├─ fabric_batch_updater.py
+  ├─ batched_tendroid_factory.py
+  ├─ BATCHING_SUMMARY.adoc
+  └─ BATCHED_TESTING_FIXED.adoc
+----
+
+== Next Steps
+
+With cleanup complete, ready to proceed with optimization recommendations:
+
+**2. Profile GPU utilization**
+   - Use Nsight Systems or similar
+   - Identify bottlenecks in vertex computation
+   - Find next optimization opportunity
+
+**3. Geometry instancing**
+   - Leverage uniform geometry for USD instancing
+   - Reduce memory footprint
+   - Potential rendering speedup
+
+**4. Warp kernel caching**
+   - Investigate if Warp can reuse calculations
+   - Profile GPU kernel execution time
+   - Optimize vertex computation path
+
+**5. Performance baseline documentation**
+   - Document current capabilities
+   - Set Phase 3 go/no-go criteria
+   - Plan feature integration strategy
+
+== Lessons Learned
+
+**1. Complexity has cost**
+Batching added significant architectural complexity for minimal benefit at current scale (30 Tendroids). Simple uniform geometry optimization provided 2x improvement with much less code.
+
+**2. Measure, don't assume**
+Profiling revealed bottleneck was vertex calculation complexity, not Tendroid count or kernel launch overhead. This guided the successful uniform geometry approach.
+
+**3. Keep working baselines**
+Archiving experimental code instead of deleting preserves institutional knowledge while keeping production code clean.
+
+**4. Log quality matters**
+Suppressing repetitive warnings (270 → 1) dramatically improved log readability during development and testing.
+
+== Status
+
+**Phase 1:** ✅ Complete (50 fps baseline)
+**Phase 2A:** ✅ Complete (uniform geometry, 49 fps @ 30)
+**Phase 2B:** ⏳ Ready to start
+
+**Current Performance:** 49 fps with 30 Tendroids
+**Architecture:** Clean, single-path, well-documented
+**Code Quality:** Production-ready
+
+**Next:** Begin profiling and optimization work

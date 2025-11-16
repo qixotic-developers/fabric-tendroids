@@ -9,6 +9,10 @@ import numpy as np
 from typing import Optional
 
 
+# Module-level flag to warn only once about missing USD methods
+_warned_about_missing_methods = False
+
+
 class VertexDeformHelper:
   """
   Manages vertex deformation animation using FastMeshUpdater.
@@ -50,17 +54,22 @@ class VertexDeformHelper:
     Returns:
         True if initialization successful
     """
+    global _warned_about_missing_methods
+    
     try:
       self.updater = fast_mesh_updater
       
       # Check if FastMeshUpdater has USD mesh update methods
       # Current version only has compute methods, not USD integration
       if not hasattr(self.updater, 'is_stage_attached'):
-        carb.log_warn(
-          f"[VertexDeformHelper] FastMeshUpdater missing USD mesh methods\n"
-          f"  Current version only supports compute_tube_vertices() and batch_compute_vertices()\n"
-          f"  Vertex deformation helper cannot be used - Tendroid will fall back to Python"
-        )
+        # Only warn once to avoid log spam
+        if not _warned_about_missing_methods:
+          carb.log_warn(
+            f"[VertexDeformHelper] FastMeshUpdater missing USD mesh methods\n"
+            f"  Current version only supports compute_tube_vertices() and batch_compute_vertices()\n"
+            f"  Falling back to Python vertex updates (this warning shown once)"
+          )
+          _warned_about_missing_methods = True
         return False
       
       # Attach to stage (may already be attached, that's fine)

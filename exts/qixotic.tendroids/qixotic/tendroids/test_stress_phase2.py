@@ -215,16 +215,8 @@ class StressTestRunner:
     carb.log_info("[StressTest] Phase 2 Performance Ceiling Analysis")
     carb.log_info("=" * 70)
 
-    # Check if batched rendering is enabled
-    settings = carb.settings.get_settings()
-    use_batched = settings.get("/exts/qixotic.tendroids/use_batched_rendering")
-    if use_batched is None:
-      use_batched = False
-
-    mode = "BATCHED" if use_batched else "INDIVIDUAL"
-    carb.log_info(f"[StressTest] Rendering mode: {mode}")
-
-    self.scene_manager = TendroidSceneManager(use_batched_rendering=use_batched)
+    # Create scene manager (batching removed, now always individual mode)
+    self.scene_manager = TendroidSceneManager()
 
     # Subscribe to update events
     import omni.kit.app

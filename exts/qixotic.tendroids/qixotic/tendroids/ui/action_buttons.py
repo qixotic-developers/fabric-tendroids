@@ -201,17 +201,13 @@ class ActionButtons:
       carb.log_info("[ActionButtons] Starting Phase 2 stress test")
       
       # Run stress test in background
-      # Note: This will block UI - in production we'd use async/threading
-      results = run_stress_test()
+      # Note: This returns a runner that executes asynchronously
+      runner = run_stress_test()
       
-      # Show summary in status
-      if results.test_runs:
-        final_run = results.test_runs[-1]
-        self.status_display.update_status(
-          f"Stress test complete: {final_run['actual_count']} @ {final_run['avg_fps']:.1f} fps"
-        )
-      else:
-        self.status_display.update_status("Stress test failed")
+      # Update status to show test is running
+      self.status_display.update_status(
+        "Stress test running... (check console for progress)"
+      )
       
     except Exception as e:
       self.status_display.update_status(f"Stress test error: {e}")

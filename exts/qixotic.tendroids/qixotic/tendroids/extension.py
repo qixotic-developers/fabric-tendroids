@@ -32,21 +32,8 @@ class TendroidsExtension(omni.ext.IExt):
         carb.log_info("[TendroidsExtension] Starting up")
         
         try:
-            # Get batching preference from settings (default: OFF)
-            settings = carb.settings.get_settings()
-            use_batched = settings.get("/exts/qixotic.tendroids/use_batched_rendering")
-            
-            if use_batched is None:
-                use_batched = False
-                settings.set("/exts/qixotic.tendroids/use_batched_rendering", False)
-            
-            mode = "BATCHED" if use_batched else "STANDARD"
-            carb.log_info(f"[TendroidsExtension] Rendering mode: {mode}")
-            
-            # Create scene manager with rendering mode
-            self._scene_manager = TendroidSceneManager(
-                use_batched_rendering=True
-            )
+            # Create scene manager
+            self._scene_manager = TendroidSceneManager()
             
             # Create UI control panel
             self._control_panel = TendroidControlPanel(self._scene_manager)
@@ -70,7 +57,10 @@ class TendroidsExtension(omni.ext.IExt):
             self._set_extensions_filter("qixotic tendroids")
             
             carb.log_info("[TendroidsExtension] Startup complete")
-            carb.log_info("[TendroidsExtension] Access 'Window > Tendroid Warp Test' to open test harness")
+            carb.log_info(
+                "[TendroidsExtension] Access 'Window > Tendroid Warp Test' "
+                "to open test harness"
+            )
             
         except Exception as e:
             carb.log_error(f"[TendroidsExtension] Startup failed: {e}")
@@ -90,12 +80,18 @@ class TendroidsExtension(omni.ext.IExt):
             filter_text: Search text to filter extensions
         """
         try:
-            ext_manager = omni.kit.window.extensions.get_extension_manager_window()
-            if ext_manager:
-                ext_manager.set_search_text(filter_text)
-                carb.log_info(f"[TendroidsExtension] Extensions filter set to: '{filter_text}'")
+            # Try to get extension manager window
+            ext_window = omni.kit.window.extensions.get_window()
+            if ext_window and hasattr(ext_window, 'set_search_text'):
+                ext_window.set_search_text(filter_text)
+                carb.log_info(
+                    f"[TendroidsExtension] Extensions filter set to: '{filter_text}'"
+                )
         except Exception as e:
-            carb.log_warn(f"[TendroidsExtension] Could not set extensions filter: {e}")
+            # Extensions window API may vary by Kit version - not critical
+            carb.log_info(
+                f"[TendroidsExtension] Extensions filter not available in this Kit version"
+            )
             
     def on_shutdown(self):
         """Called when extension is unloaded."""

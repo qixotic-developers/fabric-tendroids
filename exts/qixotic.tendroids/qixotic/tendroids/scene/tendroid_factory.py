@@ -148,11 +148,20 @@ class TendroidFactory:
     positions = []  # Track (x, z, base_radius) for interference checking
     width, depth = spawn_area
     
+    # OPTIMIZATION: Use uniform radius for all Tendroids
+    # This enables geometry instancing and future GPU batching
+    uniform_radius = (radius_range[0] + radius_range[1]) / 2.0
+    
+    carb.log_info(
+      f"[TendroidFactory] Creating {count} Tendroids with "
+      f"UNIFORM radius={uniform_radius:.1f} (heights will vary)"
+    )
+    
     for i in range(count):
       # Initialize variables before loop to satisfy IDE warnings
       x = 0.0
       z = 0.0
-      radius = radius_range[0]  # Default to minimum radius
+      radius = uniform_radius  # USE UNIFORM RADIUS
       length = radius * 2.0 * 8.0  # Default to 8:1 aspect ratio
       base_radius = radius * flare_radius_mult
       
@@ -164,13 +173,13 @@ class TendroidFactory:
         x = random.uniform(-width / 2, width / 2)
         z = random.uniform(-depth / 2, depth / 2)
         
-        # Random radius
-        radius = random.uniform(*radius_range)
+        # UNIFORM RADIUS (already set above - no randomization here)
+        # radius = uniform_radius (already set)
         
         # Calculate actual base radius (flared)
         base_radius = radius * flare_radius_mult
         
-        # Aspect ratio with variation
+        # Aspect ratio with variation (THIS PROVIDES THE VISUAL VARIETY)
         aspect_ratio = random.uniform(aspect_range[0], aspect_range[1])
         length = radius * 2.0 * aspect_ratio  # diameter * aspect_ratio
         

@@ -7,6 +7,7 @@ Coordinates creation, placement, and lifecycle of all Tendroids in the scene.
 import carb
 import omni.usd
 from .tendroid_factory import TendroidFactory
+from .batched_tendroid_factory import BatchedTendroidFactory
 from .animation_controller import AnimationController
 from ..sea_floor.sea_floor_controller import SeaFloorController
 
@@ -19,13 +20,20 @@ class TendroidSceneManager:
   focusing on scene-level concerns like cleanup and Tendroid collection management.
   """
   
-  def __init__(self):
-    """Initialize scene manager."""
+  def __init__(self, use_batched_rendering: bool = True):
+    """
+    Initialize scene manager.
+    
+    Args:
+        use_batched_rendering: If True, use size-class batched rendering
+    """
     self.tendroids = []
     self.animation_controller = AnimationController()
     self._sea_floor_created = False
+    self.use_batched_rendering = use_batched_rendering
     
-    carb.log_info("[TendroidSceneManager] Initialized")
+    mode = "BATCHED" if use_batched_rendering else "STANDARD"
+    carb.log_info(f"[TendroidSceneManager] Initialized in {mode} mode")
   
   def _ensure_sea_floor(self, stage):
     """
@@ -81,17 +89,32 @@ class TendroidSceneManager:
       # Clear existing Tendroids
       self.clear_tendroids(stage)
       
-      # Use factory to create batch
-      self.tendroids = TendroidFactory.create_batch(
-        stage=stage,
-        count=count,
-        spawn_area=spawn_area,
-        radius_range=radius_range,
-        num_segments=num_segments
-      )
+      # Choose factory based on rendering mode
+      if self.use_batched_rendering:
+        carb.log_info("[TendroidSceneManager] Using BATCHED rendering")
+        self.tendroids = BatchedTendroidFactory.create_batch(
+          stage=stage,
+          count=count,
+          spawn_area=spawn_area,
+          radius_range=radius_range,
+          num_segments=num_segments
+        )
+      else:
+        carb.log_info("[TendroidSceneManager] Using STANDARD rendering")
+        self.tendroids = TendroidFactory.create_batch(
+          stage=stage,
+          count=count,
+          spawn_area=spawn_area,
+          radius_range=radius_range,
+          num_segments=num_segments
+        )
       
       # Update animation controller
       self.animation_controller.set_tendroids(self.tendroids)
+      
+      # Enable batching in controller if using batched mode
+      if self.use_batched_rendering:
+        self.animation_controller.enable_batching(True)
       
       carb.log_info(
         f"[TendroidSceneManager] Created {len(self.tendroids)} Tendroids"
@@ -165,6 +188,7 @@ class TendroidSceneManager:
       if tendroid:
         self.tendroids = [tendroid]
         self.animation_controller.set_tendroids(self.tendroids)
+        self.animation_controller.enable_batching(False)  # Disable batching for single
         return True
       
       return False

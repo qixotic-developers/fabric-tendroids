@@ -32,8 +32,21 @@ class TendroidsExtension(omni.ext.IExt):
         carb.log_info("[TendroidsExtension] Starting up")
         
         try:
-            # Create scene manager
-            self._scene_manager = TendroidSceneManager()
+            # Get batching preference from settings (default: OFF)
+            settings = carb.settings.get_settings()
+            use_batched = settings.get("/exts/qixotic.tendroids/use_batched_rendering")
+            
+            if use_batched is None:
+                use_batched = False
+                settings.set("/exts/qixotic.tendroids/use_batched_rendering", False)
+            
+            mode = "BATCHED" if use_batched else "STANDARD"
+            carb.log_info(f"[TendroidsExtension] Rendering mode: {mode}")
+            
+            # Create scene manager with rendering mode
+            self._scene_manager = TendroidSceneManager(
+                use_batched_rendering=True
+            )
             
             # Create UI control panel
             self._control_panel = TendroidControlPanel(self._scene_manager)

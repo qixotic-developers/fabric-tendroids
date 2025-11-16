@@ -1,12 +1,13 @@
 """
 Warp-based vertex deformer for smooth Tendroid breathing animation
 
+OPTIMIZED VERSION - Eliminates Python list comprehension bottleneck.
 Uses GPU-accelerated Warp kernels with single traveling bulge and fade-in effect.
 """
 
 import warp as wp
 import carb
-from pxr import Gf
+from pxr import Vt
 
 
 @wp.kernel
@@ -88,6 +89,9 @@ class WarpDeformer:
 
   Manages vertex buffers and applies single traveling bulge deformation
   with smooth fade-in effect.
+  
+  OPTIMIZATION: Returns Vt.Vec3fArray directly instead of Gf.Vec3f list,
+  eliminating expensive Python list comprehension.
   """
 
   def __init__(self, original_vertices: list, deform_start_height: float):
@@ -118,9 +122,11 @@ class WarpDeformer:
     amplitude: float,
     wave_growth_distance: float = 0.0,
     distance_traveled: float = 0.0
-  ) -> list:
+  ) -> Vt.Vec3fArray:
     """
     Apply deformation and return updated vertex positions.
+    
+    OPTIMIZED: Returns Vt.Vec3fArray directly, avoiding Python list conversion.
 
     Args:
         wave_center: Current Y position of bulge center
@@ -130,7 +136,7 @@ class WarpDeformer:
         distance_traveled: How far wave has traveled from start
 
     Returns:
-        List of Gf.Vec3f deformed vertices
+        Vt.Vec3fArray of deformed vertices (ready for USD)
     """
     # Launch Warp kernel
     wp.launch(
@@ -149,11 +155,12 @@ class WarpDeformer:
       device="cuda"
     )
 
-    # Copy results back to CPU
+    # OPTIMIZATION: Direct GPU→CPU→USD conversion
+    # Copy results back to CPU as numpy array
     deformed_data = self.deformed_positions.numpy()
-
-    # Convert to Gf.Vec3f
-    return [Gf.Vec3f(float(v[0]), float(v[1]), float(v[2])) for v in deformed_data]
+    
+    # Convert directly to Vt.Vec3fArray (zero-copy via buffer protocol)
+    return Vt.Vec3fArray.FromBuffer(deformed_data)
 
   def cleanup(self):
     """Release Warp resources."""

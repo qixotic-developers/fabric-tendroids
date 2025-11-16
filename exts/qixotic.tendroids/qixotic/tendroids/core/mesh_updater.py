@@ -2,10 +2,11 @@
 USD mesh vertex updater for Tendroid
 
 Handles writing deformed vertices to USD mesh efficiently.
+OPTIMIZED: Accepts Vt.Vec3fArray directly to avoid conversions.
 """
 
 import carb
-from pxr import UsdGeom, Vt, Gf
+from pxr import UsdGeom, Vt
 
 
 class MeshVertexUpdater:
@@ -14,6 +15,9 @@ class MeshVertexUpdater:
   
   Provides optimized vertex writing to USD mesh points attribute.
   Handles error cases gracefully to prevent animation crashes.
+  
+  OPTIMIZATION: Accepts Vt.Vec3fArray directly instead of list,
+  eliminating expensive array conversion overhead.
   """
   
   def __init__(self, mesh_prim):
@@ -31,12 +35,14 @@ class MeshVertexUpdater:
     if not self.points_attr:
       carb.log_error("[MeshVertexUpdater] Failed to get points attribute")
   
-  def update_vertices(self, vertices: list) -> bool:
+  def update_vertices(self, vertices: Vt.Vec3fArray) -> bool:
     """
     Write deformed vertices to USD mesh.
     
+    OPTIMIZED: Accepts Vt.Vec3fArray directly (no conversion needed).
+    
     Args:
-        vertices: List of Gf.Vec3f positions
+        vertices: Vt.Vec3fArray of deformed positions
     
     Returns:
         True if update successful, False otherwise
@@ -45,7 +51,8 @@ class MeshVertexUpdater:
       return False
     
     try:
-      self.points_attr.Set(Vt.Vec3fArray(vertices))
+      # Direct write - no conversion needed!
+      self.points_attr.Set(vertices)
       return True
     except Exception as e:
       carb.log_warn(f"[MeshVertexUpdater] Vertex update failed: {e}")

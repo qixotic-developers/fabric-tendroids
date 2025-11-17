@@ -33,7 +33,7 @@ class TendroidBuilder:
   
   # Shared FastMeshUpdater instance for all Tendroids in VERTEX_DEFORM mode
   _fast_mesh_updater = None
-  _stage_id = None
+  _stage = None  # USD stage object (not stage_id)
   
   @staticmethod
   def create_in_stage(
@@ -97,31 +97,18 @@ class TendroidBuilder:
     """Initialize FastMeshUpdater if not already created."""
     if TendroidBuilder._fast_mesh_updater is None:
       try:
-        import sys
-        import os
         import omni.usd
         
-        # Add the C++ build directory to Python path
-        cpp_build_dir = os.path.join(
-          os.path.dirname(os.path.dirname(__file__)),
-          'cpp', 'build-vs2022', 'Release'
-        )
-        if cpp_build_dir not in sys.path:
-          sys.path.insert(0, cpp_build_dir)
-          carb.log_info(f"[TendroidBuilder] Added to sys.path: {cpp_build_dir}")
-        
-        # Import the compiled module
-        import fast_mesh_updater
+        # Import the compiled module using package-qualified path
+        from qixotic.tendroids import fast_mesh_updater
         
         TendroidBuilder._fast_mesh_updater = fast_mesh_updater.FastMeshUpdater()
         
-        # Get stage ID
-        ctx = omni.usd.get_context()
-        TendroidBuilder._stage_id = ctx.get_stage_id()
+        # Store stage object (not stage_id)
+        TendroidBuilder._stage = stage
         
         carb.log_info(
-          f"[TendroidBuilder] ✅ Initialized FastMeshUpdater "
-          f"(stage_id={TendroidBuilder._stage_id})"
+          f"[TendroidBuilder] ✅ Initialized FastMeshUpdater"
         )
       
       except Exception as e:
@@ -270,28 +257,28 @@ class TendroidBuilder:
         tendroid.deform_start_height
       )
       
-      # Check if FastMeshUpdater is available
-      if TendroidBuilder._fast_mesh_updater == 'unavailable':
+      # Try to use FastMeshUpdater C++ acceleration if available
+      use_cpp = False
+      if TendroidBuilder._fast_mesh_updater != 'unavailable':
+        tendroid.vertex_deform_helper = VertexDeformHelper(tendroid.mesh_path)
+        
+        if tendroid.vertex_deform_helper.initialize(
+          TendroidBuilder._stage,
+          TendroidBuilder._fast_mesh_updater
+        ):
+          use_cpp = True
+          carb.log_info(
+            f"[TendroidBuilder] '{tendroid.name}' using C++ FastMeshUpdater acceleration"
+          )
+      
+      # Fall back to Python if C++ not available or failed to initialize
+      if not use_cpp:
         carb.log_info(
-          f"[TendroidBuilder] '{tendroid.name}' using Python fallback "
-          f"(FastMeshUpdater unavailable)"
+          f"[TendroidBuilder] '{tendroid.name}' using Python MeshVertexUpdater fallback"
         )
-        # Fall back to Python MeshVertexUpdater
         tendroid.mesh_updater = MeshVertexUpdater(tendroid.mesh_prim)
         if not tendroid.mesh_updater.is_valid():
           carb.log_error("[TendroidBuilder] Mesh updater initialization failed")
-          return False
-      else:
-        # Use FastMeshUpdater (C++ high-performance path)
-        tendroid.vertex_deform_helper = VertexDeformHelper(tendroid.mesh_path)
-        
-        if not tendroid.vertex_deform_helper.initialize(
-          TendroidBuilder._stage_id,
-          TendroidBuilder._fast_mesh_updater
-        ):
-          carb.log_error(
-            f"[TendroidBuilder] Vertex deform helper init failed for '{tendroid.name}'"
-          )
           return False
       
       return True

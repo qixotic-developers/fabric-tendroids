@@ -1,0 +1,209 @@
+= Batched Vertex Deformation Testing Guide
+:toc:
+
+== What Changed
+
+The batching system now actually works with your VERTEX_DEFORM animation mode:
+
+**Before (Individual mode):**
+- Each Tendroid calls `warp_deformer.update()` separately
+- 30 Tendroids = 30 GPU kernel launches per frame
+- Each kernel processes ~512 vertices (16 segments × 32 radial)
+
+**After (Batched mode):**
+- TendroidBatchManager groups by size class
+- 3 GPU kernel launches per frame (one per size class)
+- Each kernel processes ~5,120 vertices (10 Tendroids × 512 vertices)
+
+**Expected improvement:** 10x reduction in kernel launch overhead
+
+== Testing Steps
+
+=== 1. Baseline Test (Individual Mode - Default)
+
+[source,python]
+----
+# In Script Editor - ensure batching is OFF
+import carb
+settings = carb.settings.get_settings()
+settings.set("/exts/qixotic.tendroids/use_batched_rendering", False)
+
+# Reload extension
+# Create 15 Tendroids via UI
+# Note the FPS baseline
+----
+
+=== 2. Enable Batched Mode
+
+[source,python]
+----
+import carb
+settings = carb.settings.get_settings()
+settings.set("/exts/qixotic.tendroids/use_batched_rendering", True)
+
+# CRITICAL: Reload extension for changes to take effect
+----
+
+=== 3. Verify Batch Mode is Active
+
+Check console for these messages:
+
+----
+[TendroidsExtension] Rendering mode: BATCHED
+[TendroidSceneManager] Initialized in BATCHED mode
+[BatchedTendroidFactory] Creating 15 Tendroids in size-class batches
+[BatchedTendroidFactory] Size distribution: S:5, M:6, L:4
+[BatchedWarpDeformer] Initialized for 5 Tendroids (2560 total vertices, 512 per Tendroid)
+[BatchedWarpDeformer] Initialized for 6 Tendroids (3072 total vertices, 512 per Tendroid)
+[BatchedWarpDeformer] Initialized for 4 Tendroids (2048 total vertices, 512 per Tendroid)
+[TendroidBatchManager] Created batch SMALL: 5 Tendroids (512 verts each)
+[TendroidBatchManager] Created batch MEDIUM: 6 Tendroids (512 verts each)
+[TendroidBatchManager] Created batch LARGE: 4 Tendroids (512 verts each)
+[AnimationController] Managing 15 Tendroids in BATCHED mode
+----
+
+=== 4. Create Tendroids and Measure
+
+1. Click "Create 15 Tendroids" button
+2. Wait for creation to complete
+3. Start animation
+4. Record FPS after 5 seconds of stable animation
+
+**Expected results:**
+- Batched mode should show 20-40% FPS improvement over individual mode
+- With 30 Tendroids, improvement should be more pronounced
+
+=== 5. Stress Test Comparison
+
+Run stress test in both modes:
+
+**Individual mode:**
+[source,python]
+----
+settings.set("/exts/qixotic.tendroids/use_batched_rendering", False)
+# Reload, run stress test, record results
+----
+
+**Batched mode:**
+[source,python]
+----
+settings.set("/exts/qixotic.tendroids/use_batched_rendering", True)
+# Reload, run stress test, record results
+----
+
+== What to Look For
+
+=== Success Indicators
+
+✅ **Console shows BATCHED mode** throughout initialization
+
+✅ **Three batch deformers created** (SMALL, MEDIUM, LARGE)
+
+✅ **Vertex counts are correct** (512 per Tendroid for 16 segments × 32 radial)
+
+✅ **Animation looks identical** to individual mode
+
+✅ **FPS improvement** of 20-40% with 15 Tendroids, higher with 30
+
+=== Potential Issues
+
+❌ **If you see "INDIVIDUAL mode" in logs:**
+- Setting didn't persist or extension wasn't reloaded
+- Re-run the settings command and reload
+
+❌ **If animation is jerky or incorrect:**
+- Batch manager may have wrong wave parameters
+- Check console for errors about wave_params
+
+❌ **If FPS is worse than individual mode:**
+- Overhead of copying geometry to batched deformer
+- May need to profile kernel launch times vs copy times
+
+❌ **If Tendroids don't animate:**
+- Batch manager may not be calling breathing_animator.update()
+- Check for errors in _update_batch method
+
+== Performance Expectations
+
+|===
+| Count | Individual FPS | Batched FPS | Improvement
+
+| 15 | ~50 FPS | ~60-65 FPS | +20-30%
+| 20 | ~40 FPS | ~50-55 FPS | +25-35%
+| 25 | ~32 FPS | ~42-48 FPS | +30-40%
+| 30 | ~25 FPS | ~35-42 FPS | +40-50%
+|===
+
+**Why improvement scales with count:**
+- GPU kernel launch overhead is fixed cost
+- More Tendroids = more launches saved
+- At 30 Tendroids: 30 launches → 3 launches (90% reduction)
+
+== Troubleshooting
+
+=== No Batch Deformers Created
+
+**Symptom:** Console shows no BatchedWarpDeformer messages
+
+**Causes:**
+1. Tendroids missing `batch_metadata` attribute
+2. Tendroids have no `warp_deformer` instance
+3. Error in _organize_into_batches
+
+**Solution:** Check that BatchedTendroidFactory is being used (not standard TendroidFactory)
+
+=== Animation Stops After Switching to Batched
+
+**Symptom:** Tendroids freeze when batching enabled
+
+**Causes:**
+1. Batch manager not being called in animation loop
+2. Error in _update_batch silently failing
+3. Vertex updater compatibility issue
+
+**Debug:**
+[source,python]
+----
+# Add logging to see if batches are updating
+import carb
+carb.log_set_level(carb.logging.LEVEL_INFO)
+----
+
+=== Performance Worse in Batched Mode
+
+**Possible reasons:**
+1. Geometry copy overhead exceeds kernel launch savings (unlikely with 15+)
+2. Warp memory allocation issues
+3. CPU bottleneck in parameter collection
+
+**Profile to identify:**
+- Check GPU utilization
+- Monitor memory usage
+- Compare kernel execution times
+
+== Rollback Procedure
+
+If batched mode causes issues:
+
+[source,python]
+----
+import carb
+settings = carb.settings.get_settings()
+settings.set("/exts/qixotic.tendroids/use_batched_rendering", False)
+
+# Reload extension - back to proven individual mode
+----
+
+All individual mode code is preserved and working.
+
+== Success Criteria
+
+Batched mode is successful if:
+
+1. ✅ 30 Tendroids maintain 35+ FPS (vs 25-30 FPS individual)
+2. ✅ Visual output identical to individual mode
+3. ✅ No errors in console during batch updates
+4. ✅ Smooth, continuous animation
+5. ✅ All Tendroids animate correctly (no freezing)
+
+If these criteria are met, batching provides real performance gains for your vertex deformation architecture!

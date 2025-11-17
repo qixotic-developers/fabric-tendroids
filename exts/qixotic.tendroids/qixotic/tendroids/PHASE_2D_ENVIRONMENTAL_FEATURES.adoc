@@ -1,0 +1,550 @@
+= Phase 2D: Environmental Features Implementation Plan
+:toc:
+:toclevels: 3
+
+== Performance Baseline (Verified via HUD)
+
+**Current Performance:**
+- 15 Tendroids: 67 fps (14.9ms) ✅
+- 20 Tendroids: 59 fps (16.7ms) ✅
+- 25 Tendroids: 53 fps (18.7ms) ✅
+- 30 Tendroids: 48 fps (20.8ms) ✅
+
+**Target Scene:** 15 Tendroids maximum
+- Baseline: 67 fps (14.9ms frame time)
+- Budget: 25ms (40 fps minimum)
+- **Headroom: 10.1ms available for features** ✅
+
+**Status:** Excellent headroom for environmental features
+
+== Feature Priority Order
+
+=== Feature 1: Exhaled Bubbles (Priority 1)
+
+**Requirements:**
+- Realistic bubble appearance (not cartoon spheres)
+- Dynamic transform for visual interest
+- Single Tendroid development/testing
+- Emission from top of Tendroid
+
+**Implementation Approach:**
+
+**Bubble Visual Options:**
+1. **Refractive spheres** (simplest, may look cartoony)
+   - Use glass material with slight distortion
+   - Add slight wobble transform
+   - Cost: ~0.5-1ms per bubble
+
+2. **Particle system sprites** (recommended)
+   - Billboard sprites facing camera
+   - Texture with alpha (bubble highlights)
+   - GPU instancing for multiple bubbles
+   - Cost: ~0.2-0.5ms per bubble batch
+
+3. **Procedural bubble mesh** (most realistic)
+   - Dynamic vertex deformation
+   - Fresnel effect for rim lighting
+   - Caustic pattern overlay
+   - Cost: ~1-2ms per bubble
+
+**Recommended:** Option 2 (Particle sprites)
+- Good visual quality
+- Low performance cost
+- Easier to batch multiple bubbles
+- Standard USD particle system
+
+**Bubble Physics:**
+- Upward velocity (buoyancy)
+- Slight lateral drift (current simulation)
+- Size variation (small to medium)
+- Wobble/rotation for realism
+- Fade out at surface
+
+**Development Plan:**
+1. Create bubble emitter system (1-2 hours)
+2. Integrate with BreathingAnimator (1 hour)
+3. Add wobble/drift physics (2-3 hours)
+4. Polish visuals (1-2 hours)
+5. Performance test (30 min)
+
+**Total Time:** ~6-9 hours
+
+**Expected Performance Cost:**
+- Single Tendroid: ~0.5ms (negligible)
+- 15 Tendroids: ~2-3ms total
+- **Final FPS: 60+ fps** ✅
+
+---
+
+=== Feature 2: Wave Motion (Priority 2)
+
+**Requirements:**
+- Gentle back-and-forth sway
+- Transform vertical shape via curve (not angle)
+- Simulate underwater current/wave action
+- Should affect entire Tendroid body
+
+**Implementation Approach:**
+
+**Curve-Based Deformation:**
+Current: Straight vertical cylinder
+Target: Curved shape bending with waves
+
+**Option A: Vertex Deformation** (recommended)
+- Already have WarpDeformer infrastructure
+- Add lateral displacement to vertices
+- Sine wave applied to X/Z based on Y height
+- Smooth curve from base to top
+
+```
+For each vertex:
+  lateral_offset = sin(time + y * frequency) * amplitude
+  new_x = x + lateral_offset * cos(wave_direction)
+  new_z = z + lateral_offset * sin(wave_direction)
+```
+
+**Option B: Transform Hierarchy**
+- Divide Tendroid into segments (already have 16)
+- Apply different rotation to each segment
+- Create curve via cumulative rotation
+- Simpler but less smooth
+
+**Recommended:** Option A (Vertex deformation)
+- Smoother curves
+- Leverages existing Warp infrastructure
+- More natural motion
+- Better performance (single GPU kernel)
+
+**Wave Parameters:**
+- Period: 3-5 seconds (slow, gentle)
+- Amplitude: 0.1-0.2 units (subtle)
+- Direction: Random per Tendroid or global current
+- Phase offset: Per-Tendroid variation
+
+**Development Plan:**
+1. Extend WarpDeformer kernel (2-3 hours)
+2. Add wave motion parameters (1 hour)
+3. Test single Tendroid (1 hour)
+4. Add directional variation (1-2 hours)
+5. Polish and tune (1-2 hours)
+
+**Total Time:** ~6-9 hours
+
+**Expected Performance Cost:**
+- Additional GPU work: ~0.5-1ms
+- Negligible (same kernel, more math)
+- **Final FPS: 58+ fps** ✅
+
+---
+
+=== Feature 3: Sea Floor Enhancement (Priority 3)
+
+**Requirements:**
+- More realistic topography (not flat)
+- Better color variation
+- Improved texture detail
+- Perlin noise terrain generation
+
+**Implementation Approach:**
+
+**Terrain Generation:**
+
+**Current:**
+- Flat plane at y=0
+- Simple get_height_at() function
+- Uniform color
+
+**Target:**
+- Perlin noise heightmap
+- Multiple octaves for detail
+- Color gradient based on height
+- Normal map for lighting
+
+**Topography:**
+```python
+def generate_terrain(x, z):
+    # Multi-octave Perlin noise
+    height = 0
+    amplitude = 1.0
+    frequency = 0.1
+    
+    for octave in range(4):
+        height += perlin(x * frequency, z * frequency) * amplitude
+        amplitude *= 0.5
+        frequency *= 2.0
+    
+    return height * terrain_scale
+```
+
+**Features:**
+- Gentle rolling hills
+- Occasional rocks/outcrops
+- Sandy valleys between Tendroids
+- Height variation: ±0.5 to 1.0 units
+
+**Color Variation:**
+- Sand: Light tan/beige base
+- Darker areas: Shadows, deeper sand
+- Highlights: Shell fragments, lighter patches
+- Procedural color noise overlay
+
+**Texture Options:**
+
+**Option A: Procedural USD Shader**
+- OmniPBR material
+- Perlin noise for color variation
+- Normal mapping for detail
+- Displacement for geometry
+- Cost: ~1-2ms
+
+**Option B: Texture Map** (simpler)
+- Pre-generated sand texture
+- UV mapping on plane
+- Simpler but less dynamic
+- Cost: ~0.5ms
+
+**Option C: Mesh Displacement** (most realistic)
+- Actual geometry displaced
+- Per-vertex height variation
+- More polygons needed
+- Cost: ~2-3ms
+
+**Recommended:** Option A (Procedural shader)
+- Good detail without geometry cost
+- Runtime adjustable
+- Scales well
+
+**Development Plan:**
+1. Research Perlin noise in Python (1 hour)
+2. Generate heightmap (2-3 hours)
+3. Create procedural material (2-3 hours)
+4. Integrate with Tendroid spawning (1 hour)
+5. Add color/texture variation (2-3 hours)
+6. Performance test (1 hour)
+
+**Total Time:** ~9-12 hours
+
+**Expected Performance Cost:**
+- Procedural shader: ~1-2ms
+- One-time cost (not per Tendroid)
+- **Final FPS: 55+ fps** ✅
+
+---
+
+== Development Strategy
+
+=== Phase 2D-1: Bubble System (Week 1)
+
+**Focus:** Single feature to completion
+
+**Day 1-2: Core Bubble System**
+- Particle emitter framework
+- Integration with BreathingAnimator
+- Basic upward motion
+
+**Day 3: Visual Polish**
+- Sprite textures or materials
+- Wobble/drift physics
+- Lighting/transparency
+
+**Day 4: Testing & Optimization**
+- Performance validation
+- Multi-Tendroid testing
+- Parameter tuning
+
+**Deliverable:** Working bubble emission @ 60+ fps
+
+---
+
+=== Phase 2D-2: Wave Motion (Week 2)
+
+**Focus:** Enhance vertex deformation
+
+**Day 1-2: Kernel Extension**
+- Lateral wave displacement
+- Direction parameters
+- Per-Tendroid variation
+
+**Day 3: Integration**
+- Combine with breathing animation
+- Test interference/interaction
+- Tune parameters
+
+**Day 4: Polish**
+- Visual refinement
+- Performance validation
+- Documentation
+
+**Deliverable:** Swaying Tendroids @ 58+ fps
+
+---
+
+=== Phase 2D-3: Sea Floor (Week 3)
+
+**Focus:** Environmental enhancement
+
+**Day 1-2: Terrain Generation**
+- Perlin noise implementation
+- Heightmap generation
+- Tendroid placement adjustment
+
+**Day 3-4: Visual Enhancement**
+- Procedural material creation
+- Color/texture variation
+- Normal mapping
+
+**Day 5: Integration & Polish**
+- Scene composition
+- Lighting adjustments
+- Final performance test
+
+**Deliverable:** Realistic sea floor @ 55+ fps
+
+---
+
+== Performance Budget Allocation
+
+**Starting Point:**
+- 15 Tendroids: 67 fps (14.9ms)
+- Available budget: 10.1ms
+
+**Feature Costs:**
+- Bubbles: 2-3ms (all Tendroids)
+- Wave motion: 0.5-1ms (GPU kernel extension)
+- Sea floor: 1-2ms (one-time shader cost)
+- **Total: 3.5-6ms**
+
+**Expected Final:**
+- Frame time: 18.4-20.9ms
+- FPS: 48-54 fps
+- **Above 40 fps target** ✅
+
+**Contingency:**
+- 3.5-4.6ms buffer remaining
+- Room for iteration/polish
+- Headroom for future features
+
+---
+
+== Implementation Notes
+
+=== Bubble System Details
+
+**Emission Timing:**
+- Trigger: End of breathing cycle (exhalation)
+- Frequency: Every 2-3 cycles
+- Count: 3-5 bubbles per emission
+- Stagger: Slight delay between bubbles
+
+**Bubble Lifecycle:**
+1. Spawn at Tendroid top
+2. Initial velocity (upward + slight lateral)
+3. Accelerate upward (buoyancy)
+4. Wobble/rotate during ascent
+5. Fade out near surface (~5 units up)
+6. Despawn when fully faded
+
+**Physics Simulation:**
+- Simple kinematic (not full physics)
+- Velocity + acceleration
+- Noise-based wobble
+- No collision detection needed
+
+---
+
+=== Wave Motion Details
+
+**Deformation Parameters:**
+```python
+wave_amplitude: 0.1-0.2  # Lateral displacement
+wave_frequency: 0.5-1.0  # Cycles per unit height
+wave_period: 3.0-5.0     # Seconds per cycle
+wave_direction: 0-360    # Degrees (per Tendroid or global)
+```
+
+**Kernel Modification:**
+```warp
+# In deform_breathing_bulge kernel
+# Add after breathing deformation:
+
+wave_offset = amplitude * sin(time * wave_speed + y * wave_freq)
+lateral_x = wave_offset * cos(wave_dir)
+lateral_z = wave_offset * sin(wave_dir)
+
+new_x += lateral_x
+new_z += lateral_z
+```
+
+**Visual Effect:**
+- Gentle S-curve along length
+- Synchronized with neighbors (optional)
+- Randomized phase per Tendroid
+- Combines naturally with breathing
+
+---
+
+=== Sea Floor Details
+
+**Perlin Noise Parameters:**
+```python
+octaves: 4               # Detail levels
+persistence: 0.5         # Amplitude falloff
+lacunarity: 2.0         # Frequency multiplier
+scale: 5.0              # Overall size
+height_scale: 1.0       # Vertical displacement
+```
+
+**Color Scheme:**
+- Base: #D4B896 (sand tan)
+- Dark: #9B8B6F (shadow)
+- Light: #E8D4B8 (highlight)
+- Variation: ±20% brightness
+
+**Material Properties:**
+- Roughness: 0.7-0.9 (matte)
+- Metallic: 0.0 (non-metallic)
+- Specular: 0.1 (minimal shine)
+- Normal strength: 0.3-0.5 (subtle bumps)
+
+---
+
+== Testing Strategy
+
+=== Per-Feature Testing
+
+**After Each Feature:**
+1. Single Tendroid validation
+2. 15 Tendroid stress test
+3. FPS measurement (HUD)
+4. Visual quality review
+5. Parameter tuning
+
+**Success Criteria:**
+- FPS ≥ 40 @ 15 Tendroids
+- Visual quality acceptable
+- No crashes/errors
+- Smooth animation
+
+---
+
+=== Integration Testing
+
+**After All Features:**
+1. Full scene composition
+2. Extended runtime test (5+ minutes)
+3. Memory usage monitoring
+4. Visual coherence check
+5. Final parameter tuning
+
+**Final Validation:**
+- FPS: 48-54 @ 15 Tendroids
+- Memory: <6 GB GPU
+- Stability: No leaks/crashes
+- Quality: Production-ready
+
+---
+
+== File Organization
+
+**New Files:**
+```
+qixotic/tendroids/
+├── bubbles/
+│   ├── __init__.py
+│   ├── bubble_emitter.py      # Emission logic
+│   ├── bubble_particle.py     # Individual bubble
+│   └── bubble_physics.py      # Motion/lifecycle
+├── wave_motion/
+│   ├── __init__.py
+│   └── wave_deformer.py       # Wave motion kernel
+└── sea_floor/
+    ├── __init__.py
+    ├── perlin_noise.py        # Terrain generation
+    └── floor_material.py      # Procedural shader
+```
+
+**Modified Files:**
+- `core/warp_deformer.py` - Add wave motion
+- `animation/breathing.py` - Bubble emission triggers
+- `sea_floor.py` - Enhanced terrain
+- `tendroid_builder.py` - Feature integration
+
+---
+
+== Risk Assessment
+
+**Low Risk:**
+- ✅ Bubbles (standard particle system)
+- ✅ Performance headroom (10ms available)
+- ✅ Proven vertex deformation
+
+**Medium Risk:**
+- ⚠️ Wave motion interference with breathing
+- ⚠️ Perlin noise performance (if too detailed)
+- ⚠️ Material complexity (shader cost)
+
+**Mitigation:**
+- Test each feature independently
+- Profile performance continuously
+- Keep fallback parameters (disable features)
+- Iterate on visual quality vs performance
+
+---
+
+== Success Metrics
+
+**Phase 2D Complete When:**
+- [ ] Bubbles emit realistically
+- [ ] Tendroids sway gently
+- [ ] Sea floor has varied topography
+- [ ] FPS ≥ 48 @ 15 Tendroids
+- [ ] Visual quality production-ready
+- [ ] No crashes or memory leaks
+
+**Documentation Complete When:**
+- [ ] Each feature documented
+- [ ] Performance impacts measured
+- [ ] Parameter ranges specified
+- [ ] Code examples provided
+- [ ] Session handoff updated
+
+---
+
+== Estimated Timeline
+
+**Week 1: Bubbles**
+- Implementation: 6-9 hours
+- Testing: 2-3 hours
+- Documentation: 1-2 hours
+- **Total: 9-14 hours**
+
+**Week 2: Wave Motion**
+- Implementation: 6-9 hours
+- Testing: 2-3 hours
+- Documentation: 1-2 hours
+- **Total: 9-14 hours**
+
+**Week 3: Sea Floor**
+- Implementation: 9-12 hours
+- Testing: 2-3 hours
+- Documentation: 1-2 hours
+- **Total: 12-17 hours**
+
+**Phase 2D Total: 30-45 hours (~1-2 weeks full-time)**
+
+---
+
+== Next Immediate Steps
+
+**This Session (if tokens remain):**
+1. Create bubble emitter skeleton code
+2. Research USD particle systems
+3. Plan BreathingAnimator integration points
+
+**Next Session:**
+1. Implement basic bubble emission
+2. Add particle physics
+3. Test with single Tendroid
+4. Iterate on visuals
+
+**Ready to begin?**

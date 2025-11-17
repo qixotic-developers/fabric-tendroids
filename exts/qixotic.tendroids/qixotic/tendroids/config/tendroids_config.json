@@ -66,5 +66,27 @@
     "aspect_ratio_range": [7.5, 8.5],
     "spacing_multiplier": 1.2,
     "max_placement_attempts": 200
+  },
+  
+  "bubble_system": {
+    "enabled": true,
+    "emission_threshold": 0.90,
+    "release_threshold": 0.95,
+    "diameter_multiplier": 1.0,
+    "min_diameter": 5.0,
+    "max_diameter": 20.0,
+    "resolution": 16,
+    "rise_speed": 30.0,
+    "drift_speed": 2.0,
+    "wobble_frequency": 0.5,
+    "wobble_amplitude": 0.1,
+    "color": [0.7, 0.9, 1.0],
+    "opacity": 0.4,
+    "metallic": 0.0,
+    "roughness": 0.2,
+    "max_lifetime": 10.0,
+    "despawn_height": 200.0,
+    "max_bubbles_per_tendroid": 5,
+    "debug_logging": false
   }
 }

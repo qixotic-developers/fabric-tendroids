@@ -1,6 +1,6 @@
 [package]
 # Semantic Versionning is used: https://semver.org/
-version = "2.0.0"
+version = "2.1.0"
 
 # Lists people or organizations that are considered the "authors" of the package.
 authors = ["Qixotic Software"]
@@ -13,7 +13,7 @@ description = "Interactive cylinder-based wormlike sea creatures using Fabric/Wa
 readme = "docs/README.adoc"
 
 # Categories for UI
-categories = ["Animation", "Warp", "Fabric"]
+categories = ["Animation", "Warp", "Fabric", "Creatures", "Procedural", "Aquatic"]
 
 # Keywords for the extension
 keywords = ["tendroid", "animation", "fabric", "creature", "procedural", "aquatic"]

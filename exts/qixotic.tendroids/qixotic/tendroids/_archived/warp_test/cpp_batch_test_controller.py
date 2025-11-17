@@ -14,7 +14,12 @@ from pxr import Sdf, Usd, UsdGeom
 from .cpp_batch_updater import CppBatchMeshUpdater
 from .geometry_builder import create_simple_cylinder
 from .memory_monitor import MemoryMonitor
-from .test_scenarios import BATCH_15_CPP_SCENARIO
+
+# Production test configuration: 15 tubes, C++ accelerated
+BATCH_15_MAX_FRAMES = 2000
+BATCH_15_TUBE_COUNT = 15
+BATCH_15_SEGMENTS = 16
+BATCH_15_RADIAL_SEGMENTS = 12
 
 
 class CppBatchTestController:
@@ -23,7 +28,7 @@ class CppBatchTestController:
   def __init__(self):
     self.running = False
     self.current_frame = 0
-    self.max_frames = BATCH_15_CPP_SCENARIO.max_frames
+    self.max_frames = BATCH_15_MAX_FRAMES
     self.cpp_updater = None
     self.memory_monitor = MemoryMonitor()
     self._update_subscription = None
@@ -96,12 +101,11 @@ class CppBatchTestController:
 
     # Create 15 tubes in a grid (3x5)
     self.mesh_paths = []
-    scenario = BATCH_15_CPP_SCENARIO
 
     grid_cols = 5
     spacing = 3.0
 
-    for i in range(scenario.cylinder_count):
+    for i in range(BATCH_15_TUBE_COUNT):
       row = i // grid_cols
       col = i % grid_cols
 
@@ -113,8 +117,8 @@ class CppBatchTestController:
       create_simple_cylinder(
         stage,
         mesh_path,
-        segments=scenario.segments,
-        radial_segments=scenario.radial_segments,
+        segments=BATCH_15_SEGMENTS,
+        radial_segments=BATCH_15_RADIAL_SEGMENTS,
         radius=0.5,
         height=8.0,
         position=(x, 4.0, z)

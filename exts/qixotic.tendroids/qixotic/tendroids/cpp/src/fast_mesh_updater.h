@@ -4,17 +4,24 @@
 #include <string>
 #include <vector>
 #include <cstdint>
+#include <unordered_map>
+
+// pybind11 for Python integration
+#include <pybind11/pybind11.h>
+#include <pybind11/numpy.h>
+
+namespace py = pybind11;
 
 
 namespace qixotic::tendroids {
 
 /**
- * FastMeshUpdater - High-performance vertex computation
+ * FastMeshUpdater - High-performance vertex updates using Python USD via C-API
  * 
- * Phase 2: Pure computation mode
- * - C++ handles all vertex math/deformation
- * - Python handles USD updates
- * - Numpy arrays for zero-copy data transfer
+ * Phase 2C: Hybrid approach
+ * - C++ handles numpy array processing (zero-copy)
+ * - C++ calls Python USD via pybind11 (faster than pure Python)
+ * - Eliminates tuple conversion overhead
  */
 class FastMeshUpdater {
 public:
@@ -25,19 +32,50 @@ public:
     [[nodiscard]] std::string get_version() const;
     [[nodiscard]] std::string get_mode() const;
     
+    // === USD Integration Methods (Hybrid C++/Python) ===
+    
+    /**
+     * Attach to USD stage
+     * Stores Python stage reference for later use
+     * @param stage Python USD stage object
+     * @return True if successful
+     */
+    bool attach_stage(py::object stage);
+    
+    /**
+     * Check if stage is attached
+     */
+    [[nodiscard]] bool is_stage_attached() const;
+    
+    /**
+     * Register mesh for vertex updates
+     * Caches Python points attribute for fast updates
+     * @param mesh_path USD prim path (e.g., "/World/Tendroid_01/mesh")
+     * @return True if successful
+     */
+    bool register_mesh(const std::string& mesh_path);
+    
+    /**
+     * Get number of registered meshes
+     */
+    [[nodiscard]] size_t get_mesh_count() const;
+    
+    /**
+     * Update mesh vertices from numpy array (CRITICAL METHOD)
+     * C++ converts numpy to Vt.Vec3fArray, calls Python USD Set()
+     * @param mesh_path USD prim path
+     * @param vertices_np Numpy array shape (N, 3) dtype float32
+     * @return True if successful
+     */
+    bool update_mesh_vertices(
+        const std::string& mesh_path,
+        py::array_t<float> vertices_np
+    );
+    
+    // === Compute Methods (Existing - kept for compatibility) ===
+    
     /**
      * Batch compute vertices for multiple tubes
-     * Computes breathing wave deformation on GPU-style batch
-     * 
-     * @param base_vertices Input vertices [num_tubes * verts_per_tube * 3]
-     * @param output_vertices Output buffer (same size as input)
-     * @param num_tubes Number of tubes in batch
-     * @param verts_per_tube Vertices per tube
-     * @param time Current animation time
-     * @param wave_speed Speed of wave propagation
-     * @param amplitude Wave amplitude
-     * @param frequency Wave frequency
-     * @return Number of vertices processed
      */
     size_t batch_compute_vertices(
         const float* base_vertices,
@@ -51,7 +89,7 @@ public:
     );
     
     /**
-     * Single tube vertex computation (for testing)
+     * Single tube vertex computation
      */
     size_t compute_tube_vertices(
         const float* base_vertices,
@@ -63,9 +101,8 @@ public:
         float frequency
     );
     
-    /**
-     * Get performance stats
-     */
+    // === Performance Stats ===
+    
     struct PerfStats {
         size_t total_calls = 0;
         size_t total_vertices = 0;
@@ -78,6 +115,11 @@ public:
     
 private:
     std::string version_;
+    
+    // USD integration (Python objects via pybind11)
+    py::object stage_;  // Python USD stage
+    std::unordered_map<std::string, py::object> mesh_points_;  // Python USD attributes
+    bool stage_attached_ = false;
     
     // Performance tracking
     size_t total_calls_ = 0;

@@ -30,7 +30,8 @@ class TendroidFactory:
     bulge_length_percent: float = None,
     amplitude: float = None,
     wave_speed: float = None,
-    cycle_delay: float = None
+    cycle_delay: float = None,
+    bubble_manager = None
   ) -> Tendroid | None:
     """
     Create a single Tendroid with custom parameters.
@@ -47,6 +48,7 @@ class TendroidFactory:
         amplitude: Maximum radial expansion (uses JSON default if None)
         wave_speed: Wave travel speed (uses JSON default if None)
         cycle_delay: Pause between cycles (uses JSON default if None)
+        bubble_manager: Optional BubbleManager for bubble emission
     
     Returns:
         Created Tendroid instance or None if failed
@@ -72,7 +74,8 @@ class TendroidFactory:
       position=position,
       radius=radius,
       length=length,
-      num_segments=num_segments
+      num_segments=num_segments,
+      bubble_manager=bubble_manager
     )
     
     if tendroid.create(stage, parent_path):
@@ -104,7 +107,8 @@ class TendroidFactory:
     spawn_area: tuple = None,
     radius_range: tuple = None,
     num_segments: int = None,
-    max_attempts: int = None
+    max_attempts: int = None,
+    bubble_manager = None
   ) -> list:
     """
     Create multiple Tendroids with randomized positions and sizes.
@@ -119,6 +123,7 @@ class TendroidFactory:
         radius_range: (min, max) radius for variation (uses JSON default if None)
         num_segments: Segments per Tendroid (uses JSON default if None)
         max_attempts: Maximum position attempts per Tendroid (uses JSON default if None)
+        bubble_manager: Optional BubbleManager for bubble emission
     
     Returns:
         List of created Tendroid instances
@@ -148,11 +153,20 @@ class TendroidFactory:
     positions = []  # Track (x, z, base_radius) for interference checking
     width, depth = spawn_area
     
+    # OPTIMIZATION: Use uniform radius for all Tendroids
+    # This enables geometry instancing and future GPU batching
+    uniform_radius = (radius_range[0] + radius_range[1]) / 2.0
+    
+    carb.log_info(
+      f"[TendroidFactory] Creating {count} Tendroids with "
+      f"UNIFORM radius={uniform_radius:.1f} (heights will vary)"
+    )
+    
     for i in range(count):
       # Initialize variables before loop to satisfy IDE warnings
       x = 0.0
       z = 0.0
-      radius = radius_range[0]  # Default to minimum radius
+      radius = uniform_radius  # USE UNIFORM RADIUS
       length = radius * 2.0 * 8.0  # Default to 8:1 aspect ratio
       base_radius = radius * flare_radius_mult
       
@@ -164,13 +178,13 @@ class TendroidFactory:
         x = random.uniform(-width / 2, width / 2)
         z = random.uniform(-depth / 2, depth / 2)
         
-        # Random radius
-        radius = random.uniform(*radius_range)
+        # UNIFORM RADIUS (already set above - no randomization here)
+        # radius = uniform_radius (already set)
         
         # Calculate actual base radius (flared)
         base_radius = radius * flare_radius_mult
         
-        # Aspect ratio with variation
+        # Aspect ratio with variation (THIS PROVIDES THE VISUAL VARIETY)
         aspect_ratio = random.uniform(aspect_range[0], aspect_range[1])
         length = radius * 2.0 * aspect_ratio  # diameter * aspect_ratio
         
@@ -189,13 +203,14 @@ class TendroidFactory:
         )
         continue  # Skip this tendroid instead of forcing placement
       
-      # Create Tendroid with valid position
+      # Create Tendroid with valid position and bubble manager
       tendroid = Tendroid(
         name=f"Tendroid_{i:02d}",
         position=(x, 0, z),  # y=0 is ground level
         radius=radius,
         length=length,
-        num_segments=num_segments
+        num_segments=num_segments,
+        bubble_manager=bubble_manager
       )
       
       if tendroid.create(stage, parent_path):

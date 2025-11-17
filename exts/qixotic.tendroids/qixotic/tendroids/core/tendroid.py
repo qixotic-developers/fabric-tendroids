@@ -1,8 +1,8 @@
 """
-Core Tendroid class with dual animation mode support
+Core Tendroid class with dual animation mode support and bubble emission
 
 Manages a single Tendroid creature with either transform-based or
-vertex deformation animation.
+vertex deformation animation, plus bubble emission capability.
 """
 
 import carb
@@ -13,7 +13,7 @@ from ..animation.animation_mode import AnimationMode
 
 class Tendroid:
   """
-  A single Tendroid creature with configurable animation mode.
+  A single Tendroid creature with configurable animation mode and bubble emission.
   
   Animation Modes:
   - TRANSFORM: Scale individual segment cylinders (Phase 1, stable fallback)
@@ -24,6 +24,7 @@ class Tendroid:
   This class focuses on core animation logic, delegating:
   - Creation to TendroidBuilder
   - Lifecycle management to TendroidLifecycle
+  - Bubble emission to BubbleManager (via scene manager)
   """
   
   def __init__(
@@ -34,7 +35,8 @@ class Tendroid:
     length: float = 100.0,
     num_segments: int = 32,
     radial_resolution: int = 16,
-    animation_mode: AnimationMode = AnimationMode.VERTEX_DEFORM
+    animation_mode: AnimationMode = AnimationMode.VERTEX_DEFORM,
+    bubble_manager = None
   ):
     """
     Initialize Tendroid.
@@ -47,6 +49,7 @@ class Tendroid:
         num_segments: Vertical resolution (higher = smoother)
         radial_resolution: Circumference resolution
         animation_mode: TRANSFORM or VERTEX_DEFORM
+        bubble_manager: Optional BubbleManager instance for bubble emission
     """
     self.name = name
     self.position = position
@@ -55,6 +58,7 @@ class Tendroid:
     self.num_segments = num_segments
     self.radial_resolution = radial_resolution
     self.animation_mode = animation_mode
+    self.bubble_manager = bubble_manager
     
     # USD references
     self.base_path = None
@@ -74,9 +78,13 @@ class Tendroid:
     self.is_created = False
     self.is_active = True
     
+    # Bubble emission state
+    self._last_bubble_emission = -999.0  # Time of last bubble
+    self._min_bubble_interval = 0.1  # Minimum seconds between bubbles
+    
     carb.log_info(
       f"[Tendroid] Initialized '{name}' at {position}, "
-      f"mode={animation_mode}"
+      f"mode={animation_mode}, bubbles={'enabled' if bubble_manager else 'disabled'}"
     )
   
   def create(self, stage, parent_path: str = "/World/Tendroids") -> bool:
@@ -94,16 +102,18 @@ class Tendroid:
     """
     return TendroidBuilder.create_in_stage(self, stage, parent_path)
   
-  def update(self, dt: float):
+  def update(self, dt: float, current_time: float = 0.0):
     """
     Update animation for current frame.
     
     Routes to appropriate update method based on animation_mode.
+    Handles bubble emission when breathing wave reaches top.
     
     SAFETY: Checks for glass material periodically and blocks updates.
     
     Args:
         dt: Delta time (seconds)
+        current_time: Absolute time (for bubble timing)
     """
     if not self.is_created or not self.is_active:
       return
@@ -122,15 +132,16 @@ class Tendroid:
     
     # Route to animation-mode-specific update
     if self.animation_mode == AnimationMode.VERTEX_DEFORM:
-      self._update_vertex_deform(dt)
+      self._update_vertex_deform(dt, current_time)
     else:  # TRANSFORM mode
       self._update_transform(dt)
   
-  def _update_vertex_deform(self, dt: float):
+  def _update_vertex_deform(self, dt: float, current_time: float):
     """
     Update using vertex deformation (Phase 2A).
     
     Supports both FastMeshUpdater (C++) and Python fallback.
+    Handles bubble emission when wave reaches top.
     """
     if not self.warp_deformer:
       return
@@ -164,8 +175,10 @@ class Tendroid:
           self.mesh_updater.update_vertices(deformed_vertices)
       
       # Check for bubble emission
-      if self.breathing_animator.should_emit_bubble():
-        self._emit_bubble()
+      if self.bubble_manager and self._should_emit_bubble(current_time):
+        if self.breathing_animator.should_emit_bubble():
+          self._emit_bubble()
+          self._last_bubble_emission = current_time
     
     except Exception as e:
       carb.log_error(
@@ -184,9 +197,49 @@ class Tendroid:
       f"[Tendroid] Transform mode not yet implemented for '{self.name}'"
     )
   
+  def _should_emit_bubble(self, current_time: float) -> bool:
+    """
+    Check if enough time has passed since last bubble.
+    
+    Args:
+        current_time: Absolute time (seconds)
+    
+    Returns:
+        True if ready to emit bubble
+    """
+    return (current_time - self._last_bubble_emission) >= self._min_bubble_interval
+  
   def _emit_bubble(self):
-    """Emit bubble from top (Phase 2 feature)."""
-    carb.log_info(f"[Tendroid] '{self.name}' emitting bubble!")
+    """
+    Emit bubble from top of tendroid.
+    
+    Calculates emission position and max deformation diameter,
+    then delegates to BubbleManager.
+    """
+    if not self.bubble_manager:
+      return
+    
+    try:
+      # Get top position
+      top_position = self.get_top_position()
+      
+      # Calculate max deformation diameter
+      # Max diameter = base_radius * (1 + amplitude) * 2
+      max_deformation_diameter = self.radius * (1.0 + self.breathing_animator.amplitude) * 2.0
+      
+      # Emit bubble via manager
+      self.bubble_manager.emit_bubble(
+        tendroid_name=self.name,
+        position=top_position,
+        max_deformation_diameter=max_deformation_diameter
+      )
+      
+      carb.log_info(
+        f"[Tendroid] '{self.name}' emitted bubble, diameter={max_deformation_diameter:.1f}"
+      )
+    
+    except Exception as e:
+      carb.log_error(f"[Tendroid] Failed to emit bubble from '{self.name}': {e}")
   
   # === Lifecycle delegation methods ===
   

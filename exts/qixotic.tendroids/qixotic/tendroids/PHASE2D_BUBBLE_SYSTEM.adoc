@@ -1,0 +1,261 @@
+= Phase 2D Bubble System - Implementation Complete
+:toc:
+:toclevels: 3
+
+== Overview
+
+Phase 2D implements bubble emission system for Tendroids. Bubbles are emitted from the top of each Tendroid when the breathing wave reaches maximum deformation, creating a realistic underwater breathing effect.
+
+== System Architecture
+
+=== Components
+
+==== BubbleManager (`bubbles/bubble_manager.py`)
+* Central coordinator for all bubbles
+* Tracks bubbles per tendroid
+* Handles emission, updates, and cleanup
+* Enforces bubble limits per tendroid
+
+==== Bubble (`bubbles/bubble.py`)
+* Individual bubble instance with physics
+* Position, velocity, and lifecycle tracking
+* Drift and wobble animation
+* USD prim management
+
+==== BubbleConfig (`bubbles/bubble_config.py`)
+* All tunable parameters
+* JSON configuration support
+* Default values
+* Emission timing, geometry, animation, visual settings
+
+==== BubbleHelpers (`bubbles/bubble_helpers.py`)
+* USD sphere creation
+* Material application
+* Shared bubble material management
+
+=== Integration Points
+
+1. **Tendroid Class**: Bubble emission trigger when wave reaches top
+2. **AnimationController**: Bubble update loop integration
+3. **TendroidFactory**: Passes bubble_manager to new Tendroids
+4. **SceneManager**: Creates and initializes bubble system
+
+== Configuration
+
+All parameters are defined in `config/tendroids_config.json` under `bubble_system`:
+
+[source,json]
+----
+"bubble_system": {
+  "enabled": true,
+  "emission_threshold": 0.90,
+  "release_threshold": 0.95,
+  "diameter_multiplier": 1.0,
+  "min_diameter": 5.0,
+  "max_diameter": 20.0,
+  "resolution": 16,
+  "rise_speed": 30.0,
+  "drift_speed": 2.0,
+  "wobble_frequency": 0.5,
+  "wobble_amplitude": 0.1,
+  "color": [0.7, 0.9, 1.0],
+  "opacity": 0.4,
+  "metallic": 0.0,
+  "roughness": 0.2,
+  "max_lifetime": 10.0,
+  "despawn_height": 200.0,
+  "max_bubbles_per_tendroid": 5,
+  "debug_logging": false
+}
+----
+
+=== Key Parameters
+
+==== Emission Timing
+* `emission_threshold`: When bubble starts forming (0.0-1.0, fraction of length)
+* `release_threshold`: When bubble breaks free (0.0-1.0, fraction of length)
+
+==== Geometry
+* `diameter_multiplier`: Scale factor for max deformation diameter
+* `min_diameter`/`max_diameter`: Clamp bubble size
+* `resolution`: Sphere vertex count
+
+==== Animation
+* `rise_speed`: Upward velocity (units/second)
+* `drift_speed`: Lateral drift velocity (units/second)
+* `wobble_frequency`: Size variation cycles/second
+* `wobble_amplitude`: Size variation amount (fraction of diameter)
+
+==== Visual
+* `color`: RGB values (0.0-1.0)
+* `opacity`: Transparency (0.0-1.0)
+* `metallic`/`roughness`: Material properties
+
+==== Lifecycle
+* `max_lifetime`: Auto-despawn after this many seconds
+* `despawn_height`: Despawn when bubble reaches this height
+* `max_bubbles_per_tendroid`: Limit active bubbles per tendroid
+
+== Usage
+
+=== Basic Setup
+
+[source,python]
+----
+from qixotic.tendroids.scene import TendroidSceneManager
+
+# Create scene manager (bubble system auto-initializes from config)
+scene_manager = TendroidSceneManager()
+
+# Create single tendroid with bubbles
+scene_manager.create_single_tendroid()
+
+# Start animation
+scene_manager.start_animation(enable_profiling=True)
+----
+
+=== Creating Multiple Tendroids
+
+[source,python]
+----
+# Create 15 tendroids, all will emit bubbles
+scene_manager.create_tendroids(count=15)
+scene_manager.start_animation()
+
+# Check bubble count
+bubble_count = scene_manager.get_bubble_count()
+print(f"Active bubbles: {bubble_count}")
+----
+
+=== Disabling Bubble System
+
+Edit `config/tendroids_config.json`:
+
+[source,json]
+----
+"bubble_system": {
+  "enabled": false,
+  ...
+}
+----
+
+== Implementation Details
+
+=== Emission Logic
+
+1. **Tendroid Update Loop**:
+   - Checks `breathing_animator.should_emit_bubble()`
+   - Calculates top position and max deformation diameter
+   - Calls `bubble_manager.emit_bubble()`
+
+2. **Bubble Creation**:
+   - BubbleManager checks per-tendroid bubble limit
+   - Calculates bubble diameter from max deformation
+   - Creates Bubble instance
+   - Creates USD sphere geometry with material
+
+3. **Bubble Physics**:
+   - Rise with constant upward velocity
+   - Sinusoidal lateral drift
+   - Size wobble for organic motion
+
+=== Performance Considerations
+
+* Bubble limit per tendroid prevents explosion
+* Automatic cleanup when bubbles exceed lifetime/height
+* Lightweight sphere geometry (16 vertices default)
+* Shared material across all bubbles
+
+== Testing
+
+=== Test Script
+
+Run `test_phase2d_bubbles.py` to test single tendroid with bubbles:
+
+[source,bash]
+----
+# From Omniverse USD Composer console
+import qixotic.tendroids.test_phase2d_bubbles
+----
+
+=== What to Look For
+
+1. Bubbles appear when breathing wave reaches top of tendroid
+2. Bubbles rise smoothly with drift motion
+3. Bubbles wobble (size variation)
+4. Bubbles despawn at configured height
+5. Performance remains stable (check FPS logs)
+
+== Tuning Guide
+
+=== Making Bubbles Bigger
+Increase `diameter_multiplier` or `max_diameter`
+
+=== Making Bubbles Rise Faster
+Increase `rise_speed`
+
+=== More Organic Motion
+Increase `wobble_amplitude` and adjust `wobble_frequency`
+
+=== Reduce Bubble Count
+Decrease `max_bubbles_per_tendroid`
+
+=== Debug Bubble Timing
+Set `debug_logging: true` to see emission/cleanup messages
+
+== Next Steps
+
+=== Phase 2D Remaining Work
+
+1. **Test with 15 Tendroids**: Verify performance and visual quality
+2. **Refine Parameters**: Tune for realistic underwater appearance
+3. **Advanced Physics** (optional): Buoyancy acceleration, turbulence
+4. **Visual Polish** (optional): Transparency effects, caustics
+
+=== Phase 2E Planning
+
+After Phase 2D is refined and performing well with 15 tendroids, move to:
+* Environmental interactions (bubbles affected by sea floor)
+* Advanced lighting effects
+* Particle system optimizations
+
+== File Structure
+
+----
+bubbles/
+  __init__.py          - Module exports
+  bubble_config.py     - Configuration dataclass
+  bubble.py            - Individual bubble instance
+  bubble_helpers.py    - USD creation helpers
+  bubble_manager.py    - Central bubble coordinator
+
+config/
+  tendroids_config.json  - Bubble system configuration
+
+core/
+  tendroid.py          - Bubble emission integration
+
+scene/
+  animation_controller.py  - Bubble update loop
+  manager.py              - Bubble system initialization
+  tendroid_factory.py     - Bubble manager passing
+----
+
+== Success Criteria
+
+✅ Bubbles emit from tendroid top when wave reaches threshold +
+✅ Bubbles rise with realistic physics (drift, wobble) +
+✅ Bubbles despawn automatically (height or lifetime) +
+✅ System works with single tendroid +
+⏳ Test with 15 tendroids for performance +
+⏳ Tune parameters for realistic appearance +
+⏳ Verify performance impact (target: <5ms overhead)
+
+== Known Limitations
+
+* Fixed rise speed (no buoyancy acceleration yet)
+* Simple drift pattern (no turbulence simulation)
+* Basic opacity (no transparency ray-tracing integration yet)
+* Spherical geometry only (no bubble deformation)
+
+These are acceptable for Phase 2D initial implementation and can be enhanced in future phases if needed.

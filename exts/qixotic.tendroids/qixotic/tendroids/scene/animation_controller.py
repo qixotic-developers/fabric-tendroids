@@ -1,7 +1,7 @@
 """
-Animation controller for Tendroid updates
+Animation controller for Tendroid and bubble updates
 
-Manages animation lifecycle and update loop subscription.
+Manages animation lifecycle and update loop subscription with bubble system.
 Optional performance profiling with periodic FPS logging.
 """
 
@@ -12,18 +12,26 @@ import time
 
 class AnimationController:
     """
-    Controls animation lifecycle for a collection of Tendroids.
+    Controls animation lifecycle for Tendroids and bubbles.
     
     Manages update subscription and frame-by-frame animation updates
-    separate from scene management concerns.
+    separate from scene management concerns. Integrates bubble system
+    updates when bubble manager is provided.
     """
     
-    def __init__(self):
-        """Initialize animation controller."""
+    def __init__(self, bubble_manager=None):
+        """
+        Initialize animation controller.
+        
+        Args:
+            bubble_manager: Optional BubbleManager instance
+        """
         self.tendroids = []
+        self.bubble_manager = bubble_manager
         self.update_subscription = None
         self.is_running = False
         self._frame_count = 0
+        self._absolute_time = 0.0
         
         # Performance profiling
         self._profiling_enabled = False
@@ -32,7 +40,10 @@ class AnimationController:
         self._profile_interval = 1.0  # Log every 1 second
         self._profile_frame_start = 0
         
-        carb.log_info("[AnimationController] Initialized")
+        carb.log_info(
+            f"[AnimationController] Initialized, "
+            f"bubbles={'enabled' if bubble_manager else 'disabled'}"
+        )
     
     def set_tendroids(self, tendroids: list):
         """
@@ -46,9 +57,19 @@ class AnimationController:
             f"[AnimationController] Managing {len(tendroids)} Tendroids"
         )
     
+    def set_bubble_manager(self, bubble_manager):
+        """
+        Set bubble manager for animation updates.
+        
+        Args:
+            bubble_manager: BubbleManager instance
+        """
+        self.bubble_manager = bubble_manager
+        carb.log_info("[AnimationController] Bubble manager registered")
+    
     def start(self, enable_profiling: bool = False):
         """
-        Start animating all Tendroids.
+        Start animating all Tendroids and bubbles.
         
         Args:
             enable_profiling: If True, log FPS samples every second
@@ -65,6 +86,7 @@ class AnimationController:
         
         self.is_running = True
         self._frame_count = 0
+        self._absolute_time = 0.0
         
         # Setup profiling
         self._profiling_enabled = enable_profiling
@@ -79,7 +101,7 @@ class AnimationController:
         )
     
     def stop(self):
-        """Stop animating all Tendroids."""
+        """Stop animating all Tendroids and bubbles."""
         if not self.is_running:
             return
         
@@ -128,12 +150,19 @@ class AnimationController:
                 elif hasattr(payload, 'dt'):
                     dt = payload.dt
             
+            # Update absolute time
+            self._absolute_time += dt
+            
             # Update all active Tendroids
             active_count = 0
             for tendroid in self.tendroids:
                 if tendroid.is_animation_enabled():
-                    tendroid.update(dt)
+                    tendroid.update(dt, self._absolute_time)
                     active_count += 1
+            
+            # Update bubble system
+            if self.bubble_manager:
+                self.bubble_manager.update(dt)
             
             # Log active count on first frame
             if self._frame_count == 1:
@@ -168,10 +197,15 @@ class AnimationController:
             }
             self._profile_samples.append(sample)
             
-            # Log sample
+            # Log sample with bubble count
+            bubble_info = ""
+            if self.bubble_manager:
+                bubble_count = self.bubble_manager.get_bubble_count()
+                bubble_info = f", {bubble_count} bubbles"
+            
             carb.log_info(
                 f"[PROFILE] Frame {self._frame_count}: "
-                f"{fps:.2f} fps ({sample['frame_time_ms']:.2f} ms)"
+                f"{fps:.2f} fps ({sample['frame_time_ms']:.2f} ms){bubble_info}"
             )
             
             # Reset for next interval

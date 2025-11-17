@@ -30,7 +30,8 @@ class TendroidFactory:
     bulge_length_percent: float = None,
     amplitude: float = None,
     wave_speed: float = None,
-    cycle_delay: float = None
+    cycle_delay: float = None,
+    bubble_manager = None
   ) -> Tendroid | None:
     """
     Create a single Tendroid with custom parameters.
@@ -47,6 +48,7 @@ class TendroidFactory:
         amplitude: Maximum radial expansion (uses JSON default if None)
         wave_speed: Wave travel speed (uses JSON default if None)
         cycle_delay: Pause between cycles (uses JSON default if None)
+        bubble_manager: Optional BubbleManager for bubble emission
     
     Returns:
         Created Tendroid instance or None if failed
@@ -72,7 +74,8 @@ class TendroidFactory:
       position=position,
       radius=radius,
       length=length,
-      num_segments=num_segments
+      num_segments=num_segments,
+      bubble_manager=bubble_manager
     )
     
     if tendroid.create(stage, parent_path):
@@ -104,7 +107,8 @@ class TendroidFactory:
     spawn_area: tuple = None,
     radius_range: tuple = None,
     num_segments: int = None,
-    max_attempts: int = None
+    max_attempts: int = None,
+    bubble_manager = None
   ) -> list:
     """
     Create multiple Tendroids with randomized positions and sizes.
@@ -119,6 +123,7 @@ class TendroidFactory:
         radius_range: (min, max) radius for variation (uses JSON default if None)
         num_segments: Segments per Tendroid (uses JSON default if None)
         max_attempts: Maximum position attempts per Tendroid (uses JSON default if None)
+        bubble_manager: Optional BubbleManager for bubble emission
     
     Returns:
         List of created Tendroid instances
@@ -198,13 +203,14 @@ class TendroidFactory:
         )
         continue  # Skip this tendroid instead of forcing placement
       
-      # Create Tendroid with valid position
+      # Create Tendroid with valid position and bubble manager
       tendroid = Tendroid(
         name=f"Tendroid_{i:02d}",
         position=(x, 0, z),  # y=0 is ground level
         radius=radius,
         length=length,
-        num_segments=num_segments
+        num_segments=num_segments,
+        bubble_manager=bubble_manager
       )
       
       if tendroid.create(stage, parent_path):

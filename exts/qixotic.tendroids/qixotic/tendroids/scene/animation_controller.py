@@ -2,10 +2,12 @@
 Animation controller for Tendroid updates
 
 Manages animation lifecycle and update loop subscription.
+Optional performance profiling with periodic FPS logging.
 """
 
 import carb
 import omni.kit.app
+import time
 
 
 class AnimationController:
@@ -23,6 +25,13 @@ class AnimationController:
         self.is_running = False
         self._frame_count = 0
         
+        # Performance profiling
+        self._profiling_enabled = False
+        self._profile_samples = []
+        self._last_profile_time = 0
+        self._profile_interval = 1.0  # Log every 1 second
+        self._profile_frame_start = 0
+        
         carb.log_info("[AnimationController] Initialized")
     
     def set_tendroids(self, tendroids: list):
@@ -37,8 +46,13 @@ class AnimationController:
             f"[AnimationController] Managing {len(tendroids)} Tendroids"
         )
     
-    def start(self):
-        """Start animating all Tendroids."""
+    def start(self, enable_profiling: bool = False):
+        """
+        Start animating all Tendroids.
+        
+        Args:
+            enable_profiling: If True, log FPS samples every second
+        """
         if self.is_running:
             return
         
@@ -51,6 +65,14 @@ class AnimationController:
         
         self.is_running = True
         self._frame_count = 0
+        
+        # Setup profiling
+        self._profiling_enabled = enable_profiling
+        if enable_profiling:
+            self._profile_samples = []
+            self._last_profile_time = time.perf_counter()
+            self._profile_frame_start = 0
+            carb.log_info("[AnimationController] Profiling enabled (1s intervals)")
         
         carb.log_info(
             f"[AnimationController] Animation started for {len(self.tendroids)} Tendroids"
@@ -66,6 +88,11 @@ class AnimationController:
             self.update_subscription = None
         
         self.is_running = False
+        
+        # Log profiling summary if enabled
+        if self._profiling_enabled and self._profile_samples:
+            self._log_profile_summary()
+        
         carb.log_info(
             f"[AnimationController] Animation stopped after {self._frame_count} frames"
         )
@@ -79,6 +106,10 @@ class AnimationController:
         """
         try:
             self._frame_count += 1
+            
+            # Periodic profiling (low overhead)
+            if self._profiling_enabled:
+                self._sample_performance()
             
             # Log first few frames for debugging
             if self._frame_count <= 3:
@@ -117,6 +148,82 @@ class AnimationController:
             )
             import traceback
             traceback.print_exc()
+    
+    def _sample_performance(self):
+        """Sample FPS every profiling interval (minimal overhead)."""
+        current_time = time.perf_counter()
+        elapsed = current_time - self._last_profile_time
+        
+        if elapsed >= self._profile_interval:
+            # Calculate FPS over the interval
+            frames_rendered = self._frame_count - self._profile_frame_start
+            fps = frames_rendered / elapsed if elapsed > 0 else 0
+            
+            # Store sample
+            sample = {
+                'timestamp': current_time,
+                'frame': self._frame_count,
+                'fps': fps,
+                'frame_time_ms': (elapsed / frames_rendered * 1000) if frames_rendered > 0 else 0
+            }
+            self._profile_samples.append(sample)
+            
+            # Log sample
+            carb.log_info(
+                f"[PROFILE] Frame {self._frame_count}: "
+                f"{fps:.2f} fps ({sample['frame_time_ms']:.2f} ms)"
+            )
+            
+            # Reset for next interval
+            self._last_profile_time = current_time
+            self._profile_frame_start = self._frame_count
+    
+    def _log_profile_summary(self):
+        """Log summary statistics from profiling session."""
+        if not self._profile_samples:
+            return
+        
+        fps_values = [s['fps'] for s in self._profile_samples]
+        frame_times = [s['frame_time_ms'] for s in self._profile_samples]
+        
+        avg_fps = sum(fps_values) / len(fps_values)
+        min_fps = min(fps_values)
+        max_fps = max(fps_values)
+        avg_frame_time = sum(frame_times) / len(frame_times)
+        
+        carb.log_info("=" * 70)
+        carb.log_info("[PROFILE SUMMARY]")
+        carb.log_info("=" * 70)
+        carb.log_info(f"Total Samples: {len(self._profile_samples)}")
+        carb.log_info(f"Total Frames: {self._frame_count}")
+        carb.log_info(f"Avg FPS: {avg_fps:.2f}")
+        carb.log_info(f"Min FPS: {min_fps:.2f}")
+        carb.log_info(f"Max FPS: {max_fps:.2f}")
+        carb.log_info(f"Avg Frame Time: {avg_frame_time:.2f} ms")
+        carb.log_info("=" * 70)
+    
+    def get_profile_data(self):
+        """
+        Get collected profile data.
+        
+        Returns:
+            Dict with profile data or None if profiling not enabled
+        """
+        if not self._profiling_enabled:
+            return None
+        
+        if not self._profile_samples:
+            return None
+        
+        fps_values = [s['fps'] for s in self._profile_samples]
+        
+        return {
+            'samples': self._profile_samples,
+            'total_frames': self._frame_count,
+            'avg_fps': sum(fps_values) / len(fps_values),
+            'min_fps': min(fps_values),
+            'max_fps': max(fps_values)
+        }
     
     def set_all_active(self, active: bool):
         """Enable or disable animation for all Tendroids."""

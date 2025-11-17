@@ -6,345 +6,215 @@ Automated test to find performance limits of current transform-based architectur
 
 Test Plan:
 1. Spawn Tendroids in increments: 15, 20, 25, 30
-2. Monitor FPS for 10 seconds at each count
+2. Monitor FPS for 30 seconds at each count with profiling
 3. Log performance metrics and degradation curve
 4. Identify bottlenecks and breaking points
 
 Usage:
-    Run from Omniverse Script Editor or standalone Python with Omniverse Kit
+    Run from Omniverse Script Editor or via UI button
 """
 
-import time
-from datetime import datetime
-from pathlib import Path
-
+import asyncio
 import carb
+import json
+from pathlib import Path
+from datetime import datetime
 
 
-class StressTestResults:
-  """Container for stress test performance data."""
-
-  def __init__(self):
-    self.test_runs = []
-    self.start_time = datetime.now()
-    self.fastmesh_available = False
-
-  def add_run(self, tendroid_count: int, actual_count: int, avg_fps: float,
-              min_fps: float, max_fps: float, samples: int):
-    """Record results from a test run."""
-    self.test_runs.append({
-      'requested_count': tendroid_count,
-      'actual_count': actual_count,
-      'avg_fps': avg_fps,
-      'min_fps': min_fps,
-      'max_fps': max_fps,
-      'samples': samples,
-      'timestamp': datetime.now()
-    })
-
-  def save_to_file(self, output_dir: Path):
-    """Save results to timestamped log file."""
-    timestamp = self.start_time.strftime("%Y%m%d_%H%M%S")
-    filename = f"stress_test_{timestamp}.log"
-    filepath = output_dir / filename
-
-    with open(filepath, 'w') as f:
-      f.write("=" * 70 + "\n")
-      f.write("Tendroids Phase 2 Stress Test Results\n")
-      f.write("=" * 70 + "\n")
-      f.write(f"Test Date: {self.start_time.strftime('%Y-%m-%d %H:%M:%S')}\n")
-      f.write(f"Architecture: Transform-based (16 segments)\n")
-      fastmesh_status = "YES (C++ 240x speedup)" if self.fastmesh_available else "NO (Python fallback)"
-      f.write(f"FastMeshUpdater: {fastmesh_status}\n")
-      f.write("\n")
-
-      f.write("-" * 70 + "\n")
-      f.write("Performance Data\n")
-      f.write("-" * 70 + "\n")
-      f.write(f"{'Requested':<10} {'Actual':<8} {'Avg FPS':<10} {'Min FPS':<10} {'Max FPS':<10} {'Samples':<8}\n")
-      f.write("-" * 70 + "\n")
-
-      for run in self.test_runs:
-        f.write(
-          f"{run['requested_count']:<10} "
-          f"{run['actual_count']:<8} "
-          f"{run['avg_fps']:<10.2f} "
-          f"{run['min_fps']:<10.2f} "
-          f"{run['max_fps']:<10.2f} "
-          f"{run['samples']:<8}\n"
-        )
-
-      f.write("\n")
-      f.write("-" * 70 + "\n")
-      f.write("Analysis\n")
-      f.write("-" * 70 + "\n")
-
-      if len(self.test_runs) > 1:
-        baseline = self.test_runs[0]
-        f.write(f"Baseline ({baseline['actual_count']} Tendroids): {baseline['avg_fps']:.2f} fps\n\n")
-
-        for run in self.test_runs[1:]:
-          degradation = ((baseline['avg_fps'] - run['avg_fps']) /
-                         baseline['avg_fps'] * 100)
-          f.write(f"{run['actual_count']} Tendroids: {run['avg_fps']:.2f} fps "
-                  f"({degradation:+.1f}%)\n")
-
-      f.write("\n")
-
-      # Warnings section
-      spawn_failures = [r for r in self.test_runs if r['actual_count'] < r['requested_count']]
-      if spawn_failures:
-        f.write("-" * 70 + "\n")
-        f.write("WARNINGS\n")
-        f.write("-" * 70 + "\n")
-        for run in spawn_failures:
-          failed = run['requested_count'] - run['actual_count']
-          f.write(f"⚠ {failed} Tendroids failed to spawn at count {run['requested_count']}\n")
-        f.write("\nRecommendation: Increase spawn area or reduce test counts\n")
-        f.write("\n")
-
-      if not self.fastmesh_available:
-        if not spawn_failures:
-          f.write("-" * 70 + "\n")
-          f.write("WARNINGS\n")
-          f.write("-" * 70 + "\n")
-        f.write("⚠ FastMeshUpdater C++ extension not loaded\n")
-        f.write("Performance results are ~4x slower than production capability\n")
-        f.write("Fix PerfStats registration issue before Phase 2B\n")
-        f.write("\n")
-
-      f.write("=" * 70 + "\n")
-
-    carb.log_info(f"[StressTest] Results saved to: {filepath}")
-    return filepath
-
-
-class FPSMonitor:
-  """Monitor and calculate FPS statistics using frame timestamps."""
-
-  def __init__(self):
-    self.fps_samples = []
-    self.start_time = None
-    self.last_sample_time = None
-    self.monitoring = False
-
-  def start(self):
-    """Begin monitoring."""
-    self.fps_samples = []
-    self.start_time = time.perf_counter()
-    self.last_sample_time = self.start_time
-    self.monitoring = True
-
-  def record_frame(self):
-    """Record a frame timestamp (call this every frame)."""
-    if not self.monitoring:
-      return
-
-    current_time = time.perf_counter()
-    if self.last_sample_time is not None:
-      delta = current_time - self.last_sample_time
-      if delta > 0:
-        fps = 1.0 / delta
-        # Filter out outliers (>1000 fps likely measurement error)
-        if fps < 1000.0:
-          self.fps_samples.append(fps)
-    self.last_sample_time = current_time
-
-  def get_elapsed_time(self) -> float:
-    """Get elapsed time since monitoring started."""
-    if self.start_time is None:
-      return 0.0
-    return time.perf_counter() - self.start_time
-
-  def stop(self):
-    """Stop monitoring."""
-    self.monitoring = False
-
-  def get_statistics(self):
-    """Calculate avg, min, max FPS."""
-    if not self.fps_samples:
-      return 0.0, 0.0, 0.0, 0
-
-    return (
-      sum(self.fps_samples) / len(self.fps_samples),
-      min(self.fps_samples),
-      max(self.fps_samples),
-      len(self.fps_samples)
-    )
-
-
-def check_fastmesh_available():
-  """Check if FastMeshUpdater C++ extension is loaded."""
-  try:
-    from qixotic.tendroids import fast_mesh_updater
-    carb.log_info("[StressTest] FastMeshUpdater C++ extension detected")
-    return True
-  except ImportError:
-    carb.log_warn("[StressTest] FastMeshUpdater not available - using Python fallback")
-    return False
-
-
-class StressTestRunner:
-  """
-  Runs stress test using async update callbacks to avoid blocking Kit.
-
-  This approach lets Kit's update loop run normally while we monitor FPS.
-  """
-
-  def __init__(self, test_counts, monitoring_duration, output_dir):
-    self.test_counts = test_counts or [15, 20, 25, 30]
-    self.monitoring_duration = monitoring_duration
-    self.output_dir = output_dir or Path(__file__).parent / "stress_test_results"
-    self.output_dir.mkdir(exist_ok=True)
-
-    self.results = StressTestResults()
-    self.results.fastmesh_available = check_fastmesh_available()
-
-    self.scene_manager = None
-    self.fps_monitor = FPSMonitor()
-    self.update_sub = None
-
-    self.current_test_index = 0
-    self.test_state = "init"  # init -> creating -> monitoring -> cleanup -> done
-
-  def start(self):
-    """Start the test sequence."""
-    from qixotic.tendroids.scene.manager import TendroidSceneManager
-
-    carb.log_info("=" * 70)
-    carb.log_info("[StressTest] Phase 2 Performance Ceiling Analysis")
-    carb.log_info("=" * 70)
-
-    # Create scene manager (batching removed, now always individual mode)
-    self.scene_manager = TendroidSceneManager()
-
-    # Subscribe to update events
-    import omni.kit.app
-    update_stream = omni.kit.app.get_app().get_update_event_stream()
-    self.update_sub = update_stream.create_subscription_to_pop(
-      self._on_update,
-      name="StressTest.Monitor"
-    )
-
-    self.test_state = "creating"
-    self._start_next_test()
-
-  def _start_next_test(self):
-    """Start the next test in the sequence."""
-    if self.current_test_index >= len(self.test_counts):
-      self._finish_tests()
-      return
-
-    count = self.test_counts[self.current_test_index]
-    carb.log_info(f"\n[StressTest] Testing with {count} Tendroids...")
-
-    # Scale spawn area with count
-    spawn_size = int(300 + (count - 15) * 15)
-    carb.log_info(f"[StressTest] Spawn area: {spawn_size}x{spawn_size}")
-
-    # Create Tendroids
-    success = self.scene_manager.create_tendroids(
-      count=count,
-      spawn_area=(spawn_size, spawn_size),
-      radius_range=(8, 12),
-      num_segments=16
-    )
-
-    if not success:
-      carb.log_error(f"[StressTest] Failed to create {count} Tendroids")
-      self.current_test_index += 1
-      self._start_next_test()
-      return
-
-    actual_count = self.scene_manager.get_tendroid_count()
-    if actual_count < count:
-      carb.log_warn(
-        f"[StressTest] Only spawned {actual_count}/{count} Tendroids"
-      )
-
-    # Start animation
-    carb.log_info("[StressTest] Starting animation...")
-    self.scene_manager.start_animation()
-
-    # Start FPS monitoring after brief warmup
-    self.test_state = "monitoring"
-    self.fps_monitor.start()
-    carb.log_info(f"[StressTest] Monitoring for {self.monitoring_duration}s...")
-
-  def _on_update(self, event):
-    """Called every frame by Kit."""
-    if self.test_state == "monitoring":
-      # Record frame
-      self.fps_monitor.record_frame()
-
-      # Check if monitoring period complete
-      if self.fps_monitor.get_elapsed_time() >= self.monitoring_duration:
-        self._finish_current_test()
-
-  def _finish_current_test(self):
-    """Complete current test and move to next."""
-    count = self.test_counts[self.current_test_index]
-    actual_count = self.scene_manager.get_tendroid_count()
-
-    # Get statistics
-    self.fps_monitor.stop()
-    avg_fps, min_fps, max_fps, samples = self.fps_monitor.get_statistics()
-    self.results.add_run(count, actual_count, avg_fps, min_fps, max_fps, samples)
-
-    carb.log_info(
-      f"[StressTest] {actual_count} Tendroids: "
-      f"Avg={avg_fps:.2f} fps, Min={min_fps:.2f}, Max={max_fps:.2f}"
-    )
-
-    # Stop animation
-    self.scene_manager.stop_animation()
-
-    # Move to next test
-    self.current_test_index += 1
-    self.test_state = "creating"
-    self._start_next_test()
-
-  def _finish_tests(self):
-    """Complete all tests and save results."""
-    # Unsubscribe from updates
-    if self.update_sub:
-      self.update_sub.unsubscribe()
-      self.update_sub = None
-
-    # Save results
-    log_path = self.results.save_to_file(self.output_dir)
-
-    carb.log_info("\n" + "=" * 70)
-    carb.log_info("[StressTest] Test Complete")
-    carb.log_info(f"[StressTest] Results: {log_path}")
-    carb.log_info("=" * 70)
-
-    if not self.results.fastmesh_available:
-      carb.log_warn("[StressTest] ⚠ CRITICAL: FastMeshUpdater not loaded!")
-      carb.log_warn("[StressTest] Performance is ~4x slower than production")
-
-
-def run_stress_test(
-  test_counts: list = None,
-  monitoring_duration: float = 10.0,
-  output_dir: Path = None
+async def run_stress_test(
+    test_counts=None,
+    duration_seconds=30,
+    output_file=None
 ):
-  """
-  Execute automated stress test.
+    """
+    Run progressive stress test with profiling.
+    
+    Args:
+        test_counts: List of Tendroid counts to test (default: [15, 20, 25, 30])
+        duration_seconds: How long to run each test
+        output_file: Optional path to save JSON results
+    
+    Returns:
+        Dict with all test results
+    """
+    from qixotic.tendroids.scene.manager import TendroidSceneManager
+    
+    if test_counts is None:
+        test_counts = [15, 20, 25, 30]
+    
+    carb.log_info("\n" + "=" * 70)
+    carb.log_info("STRESS TEST - Progressive Load Testing with Profiling")
+    carb.log_info("=" * 70)
+    carb.log_info(f"Test Configuration:")
+    carb.log_info(f"  Counts: {test_counts}")
+    carb.log_info(f"  Duration: {duration_seconds}s per test")
+    carb.log_info(f"  Total Time: ~{len(test_counts) * (duration_seconds + 5) / 60:.1f} minutes")
+    
+    all_results = {
+        'timestamp': datetime.now().isoformat(),
+        'test_runs': []
+    }
+    
+    scene_manager = TendroidSceneManager()
+    
+    for count in test_counts:
+        carb.log_info("\n" + "=" * 70)
+        carb.log_info(f"Test: {count} Tendroids")
+        carb.log_info("=" * 70)
+        
+        # Create Tendroids
+        spawn_size = int(300 + (count - 15) * 15)
+        success = scene_manager.create_tendroids(
+            count=count,
+            spawn_area=(spawn_size, spawn_size),
+            radius_range=(8, 12),
+            num_segments=16
+        )
+        
+        if not success:
+            carb.log_error(f"Failed to create {count} Tendroids")
+            continue
+        
+        actual_count = scene_manager.get_tendroid_count()
+        carb.log_info(f"Created {actual_count} Tendroids")
+        
+        # Start animation WITH profiling enabled
+        scene_manager.start_animation(enable_profiling=True)
+        
+        carb.log_info(f"Running for {duration_seconds} seconds...")
+        
+        # Wait for test duration
+        await asyncio.sleep(duration_seconds)
+        
+        # Stop animation and get profile data
+        scene_manager.stop_animation()
+        profile_data = scene_manager.get_profile_data()
+        
+        # Record results
+        if profile_data:
+            test_result = {
+                'tendroid_count': count,
+                'actual_count': actual_count,
+                'duration': duration_seconds,
+                'avg_fps': profile_data['avg_fps'],
+                'min_fps': profile_data['min_fps'],
+                'max_fps': profile_data['max_fps'],
+                'samples': len(profile_data['samples']),
+                'total_frames': profile_data['total_frames']
+            }
+            all_results['test_runs'].append(test_result)
+            
+            carb.log_info(
+                f"Result: {profile_data['avg_fps']:.2f} fps avg "
+                f"(min: {profile_data['min_fps']:.2f}, max: {profile_data['max_fps']:.2f})"
+            )
+        
+        # Clear for next test
+        scene_manager.clear_tendroids()
+        
+        # Brief pause between tests
+        await asyncio.sleep(2)
+    
+    # Analyze results
+    _analyze_results(all_results)
+    
+    # Save to file if requested
+    if output_file:
+        output_path = Path(output_file)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(output_path, 'w') as f:
+            json.dump(all_results, f, indent=2)
+        carb.log_info(f"\nResults saved to: {output_path}")
+    
+    return all_results
 
-  Args:
-      test_counts: List of Tendroid counts to test (default: [15, 20, 25, 30])
-      monitoring_duration: Seconds to monitor FPS at each count
-      output_dir: Directory for log files (default: ./stress_test_results)
 
-  Returns:
-      StressTestRunner instance (test runs asynchronously)
-  """
-  runner = StressTestRunner(test_counts, monitoring_duration, output_dir)
-  runner.start()
-  return runner
+def _analyze_results(results):
+    """Print analysis of test results."""
+    if not results['test_runs']:
+        return
+    
+    carb.log_info("\n" + "=" * 70)
+    carb.log_info("STRESS TEST SUMMARY")
+    carb.log_info("=" * 70)
+    
+    carb.log_info(
+        f"\n{'Count':<8} {'Avg FPS':<12} {'Frame Time':<12} "
+        f"{'Min FPS':<10} {'Max FPS':<10}"
+    )
+    carb.log_info("-" * 70)
+    
+    for run in results['test_runs']:
+        count = run['tendroid_count']
+        fps = run['avg_fps']
+        frame_time = (1000.0 / fps) if fps > 0 else 0
+        min_fps = run.get('min_fps', 0)
+        max_fps = run.get('max_fps', 0)
+        
+        carb.log_info(
+            f"{count:<8} {fps:<12.2f} {frame_time:<12.2f} "
+            f"{min_fps:<10.2f} {max_fps:<10.2f}"
+        )
+    
+    # Calculate degradation
+    if len(results['test_runs']) >= 2:
+        baseline = results['test_runs'][0]
+        worst = results['test_runs'][-1]
+        degradation = (
+            (baseline['avg_fps'] - worst['avg_fps']) / baseline['avg_fps'] * 100
+        )
+        
+        carb.log_info(f"\nPerformance Degradation: {degradation:.1f}%")
+        carb.log_info(
+            f"  Baseline: {baseline['avg_fps']:.2f} fps @ "
+            f"{baseline['tendroid_count']} Tendroids"
+        )
+        carb.log_info(
+            f"  Worst: {worst['avg_fps']:.2f} fps @ "
+            f"{worst['tendroid_count']} Tendroids"
+        )
+    
+    # Headroom calculation
+    worst_run = min(results['test_runs'], key=lambda x: x['avg_fps'])
+    worst_fps = worst_run['avg_fps']
+    current_frame_time = (1000.0 / worst_fps) if worst_fps > 0 else 0
+    target_frame_time = 25.0  # 40 fps
+    headroom = target_frame_time - current_frame_time
+    
+    carb.log_info(f"\nFrame Budget Analysis:")
+    carb.log_info(f"  Current: {current_frame_time:.2f} ms")
+    carb.log_info(f"  Target: {target_frame_time:.2f} ms (40 fps)")
+    carb.log_info(
+        f"  Headroom: {headroom:.2f} ms "
+        f"({headroom/target_frame_time*100:.1f}%)"
+    )
+    
+    if headroom < 0:
+        carb.log_info(f"\n  ⚠️  OVER BUDGET - Optimization required before features")
+    elif headroom < 2:
+        carb.log_info(f"\n  ⚠️  CRITICAL - Complete FastMeshUpdater before features")
+    elif headroom < 5:
+        carb.log_info(f"\n  ⚠️  LIMITED - Add features cautiously")
+    else:
+        carb.log_info(f"\n  ✓  GOOD - Headroom available for features")
+    
+    carb.log_info("=" * 70)
+
+
+async def run_default_stress_test():
+    """Run with default settings (UI button compatible)."""
+    output_dir = Path(__file__).parent / "profiling_results"
+    output_dir.mkdir(exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_file = output_dir / f"stress_test_{timestamp}.json"
+    
+    await run_stress_test(
+        test_counts=[15, 20, 25, 30],
+        duration_seconds=30,
+        output_file=str(output_file)
+    )
 
 
 if __name__ == "__main__":
-  # Run with default settings
-  run_stress_test()
+    # For Script Editor execution
+    asyncio.ensure_future(run_default_stress_test())

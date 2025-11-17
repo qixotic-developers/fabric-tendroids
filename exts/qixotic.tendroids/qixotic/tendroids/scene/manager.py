@@ -179,13 +179,27 @@ class TendroidSceneManager:
             traceback.print_exc()
             return False
     
-    def start_animation(self):
-        """Start animating all Tendroids."""
-        self.animation_controller.start()
+    def start_animation(self, enable_profiling: bool = False):
+        """
+        Start animating all Tendroids.
+        
+        Args:
+            enable_profiling: Enable periodic FPS logging (1s intervals)
+        """
+        self.animation_controller.start(enable_profiling=enable_profiling)
     
     def stop_animation(self):
         """Stop animating all Tendroids."""
         self.animation_controller.stop()
+    
+    def get_profile_data(self):
+        """
+        Get performance profiling data from animation controller.
+        
+        Returns:
+            Dict with profile data or None if profiling not enabled
+        """
+        return self.animation_controller.get_profile_data()
     
     def clear_tendroids(self, stage=None):
         """

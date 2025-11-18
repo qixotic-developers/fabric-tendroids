@@ -23,7 +23,8 @@ class BubbleConfig:
   release_threshold: float = 0.95
   
   # === Bubble Geometry ===
-  # Bubble diameter as fraction of max deformation diameter
+  # Bubble diameter as fraction of deformation diameter
+  # Values > 1.0 make bubbles larger (recommended: 1.2-1.3)
   diameter_multiplier: float = 1.0
   
   # Minimum bubble diameter (world units)

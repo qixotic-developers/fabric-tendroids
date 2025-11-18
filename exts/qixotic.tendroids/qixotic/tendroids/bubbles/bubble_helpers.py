@@ -31,17 +31,21 @@ def create_bubble_sphere(
       Success status
   """
   try:
-    # Create sphere
+    # Create sphere with unit radius (will be scaled)
     sphere = UsdGeom.Sphere.Define(stage, prim_path)
     
-    # Set radius (diameter / 2)
-    radius = diameter / 2.0
-    sphere.GetRadiusAttr().Set(radius)
+    # Set unit radius - actual size comes from scale
+    sphere.GetRadiusAttr().Set(1.0)
     
-    # Set position via transform
+    # Set position and scale via transform
     xform = UsdGeom.Xformable(sphere)
     translate_op = xform.AddTranslateOp()
     translate_op.Set(Gf.Vec3d(*position))
+    
+    # Initial scale from diameter
+    initial_scale = diameter / 2.0
+    scale_op = xform.AddScaleOp()
+    scale_op.Set(Gf.Vec3f(initial_scale, initial_scale, initial_scale))
     
     # Apply material
     _apply_bubble_material(stage, sphere.GetPrim(), config)

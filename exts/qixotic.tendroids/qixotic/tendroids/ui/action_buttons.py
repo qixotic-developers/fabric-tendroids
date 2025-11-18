@@ -30,6 +30,10 @@ class ActionButtons:
         # References to external components
         self.spawn_settings = None
         self.status_display = None
+        
+        # Single tendroid test state
+        self._single_test_active = False
+        self._test_button = None
     
     def set_spawn_settings(self, spawn_settings):
         """Set reference to spawn settings UI."""
@@ -71,6 +75,20 @@ class ActionButtons:
                 height=30,
                 clicked_fn=self._on_clear_clicked,
                 style={"background_color": 0xFF664444}
+            )
+            
+            # Spacer before single tendroid test
+            ui.Spacer(height=10)
+            ui.Line()
+            ui.Spacer(height=5)
+            
+            # Single Tendroid Test section
+            ui.Label("Single Tendroid Bubble Test", height=20)
+            self._test_button = ui.Button(
+                "Start Single Test",
+                height=30,
+                clicked_fn=self._on_single_test_clicked,
+                style={"background_color": 0xFF445566}
             )
             
             # Spacer before stress test
@@ -186,9 +204,64 @@ class ActionButtons:
             self.status_display.update_status("Cleared all tendroids")
             self.status_display.update_count(0)
             self.status_display.update_animation_status("Stopped")
+            
+            # Reset single test state
+            if self._test_button:
+                self._single_test_active = False
+                self._test_button.text = "Start Single Test"
         except Exception as e:
             self.status_display.update_status(f"Error: {e}")
             carb.log_error(f"[ActionButtons] Clear error: {e}")
+    
+    def _on_single_test_clicked(self):
+        """Handle single tendroid bubble test button - toggle start/stop."""
+        if not self.status_display:
+            return
+        
+        try:
+            if self._single_test_active:
+                # Stop the test
+                self.scene_manager.stop_animation()
+                self.scene_manager.clear_tendroids()
+                self._single_test_active = False
+                self._test_button.text = "Start Single Test"
+                self.status_display.update_status("Single test stopped")
+                self.status_display.update_count(0)
+                self.status_display.update_animation_status("Stopped")
+            else:
+                # Start the test
+                self.status_display.update_status("Starting single tendroid bubble test...")
+                
+                # Create single tendroid at center
+                success = self.scene_manager.create_single_tendroid(
+                    position=(0, 0, 0),
+                    radius=10.0,
+                    length=100.0,
+                    bulge_length_percent=40.0,
+                    amplitude=0.35,
+                    wave_speed=40.0,
+                    cycle_delay=2.0
+                )
+                
+                if success:
+                    # Start animation
+                    self.scene_manager.start_animation()
+                    self._single_test_active = True
+                    self._test_button.text = "Stop Single Test"
+                    self.status_display.update_status(
+                        "Single tendroid test running - watch for bubbles!"
+                    )
+                    self.status_display.update_count(1)
+                    self.status_display.update_animation_status("Running")
+                else:
+                    self.status_display.update_status("Failed to create test tendroid")
+        
+        except Exception as e:
+            self.status_display.update_status(f"Error: {e}")
+            carb.log_error(f"[ActionButtons] Single test error: {e}")
+            self._single_test_active = False
+            if self._test_button:
+                self._test_button.text = "Start Single Test"
     
     def _on_stress_test_clicked(self):
         """Handle stress test button - run automated performance test."""

@@ -80,6 +80,14 @@ class TendroidBuilder:
       if not TendroidBuilder._initialize_components(tendroid, stage):
         return False
       
+      # Register with bubble manager if available
+      if tendroid.bubble_manager:
+        tendroid.bubble_manager.register_tendroid(
+          tendroid_name=tendroid.name,
+          cylinder_length=tendroid.length,
+          deform_start_height=tendroid.deform_start_height
+        )
+      
       # Log creation status
       TendroidBuilder._log_creation_status(tendroid)
       

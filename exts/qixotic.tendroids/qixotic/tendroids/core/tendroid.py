@@ -78,10 +78,6 @@ class Tendroid:
     self.is_created = False
     self.is_active = True
     
-    # Bubble emission state
-    self._last_bubble_emission = -999.0  # Time of last bubble
-    self._min_bubble_interval = 0.1  # Minimum seconds between bubbles
-    
     carb.log_info(
       f"[Tendroid] Initialized '{name}' at {position}, "
       f"mode={animation_mode}, bubbles={'enabled' if bubble_manager else 'disabled'}"
@@ -141,7 +137,7 @@ class Tendroid:
     Update using vertex deformation (Phase 2A).
     
     Supports both FastMeshUpdater (C++) and Python fallback.
-    Handles bubble emission when wave reaches top.
+    Handles bubble emission via deformation synchronization.
     """
     if not self.warp_deformer:
       return
@@ -158,6 +154,15 @@ class Tendroid:
       # Get wave parameters
       wave_params = self.breathing_animator.update(dt)
       
+      # Update bubble manager with wave state (handles spawn, lock, release)
+      if self.bubble_manager:
+        self.bubble_manager.update_tendroid_wave(
+          tendroid_name=self.name,
+          wave_params=wave_params,
+          base_radius=self.radius,
+          wave_speed=self.breathing_animator.wave_speed
+        )
+      
       # Apply deformation if wave is active
       if wave_params['active']:
         deformed_vertices = self.warp_deformer.update(
@@ -173,12 +178,6 @@ class Tendroid:
           self.vertex_deform_helper.update_vertices(deformed_vertices)
         else:
           self.mesh_updater.update_vertices(deformed_vertices)
-      
-      # Check for bubble emission
-      if self.bubble_manager and self._should_emit_bubble(current_time):
-        if self.breathing_animator.should_emit_bubble():
-          self._emit_bubble()
-          self._last_bubble_emission = current_time
     
     except Exception as e:
       carb.log_error(
@@ -197,49 +196,7 @@ class Tendroid:
       f"[Tendroid] Transform mode not yet implemented for '{self.name}'"
     )
   
-  def _should_emit_bubble(self, current_time: float) -> bool:
-    """
-    Check if enough time has passed since last bubble.
-    
-    Args:
-        current_time: Absolute time (seconds)
-    
-    Returns:
-        True if ready to emit bubble
-    """
-    return (current_time - self._last_bubble_emission) >= self._min_bubble_interval
-  
-  def _emit_bubble(self):
-    """
-    Emit bubble from top of tendroid.
-    
-    Calculates emission position and max deformation diameter,
-    then delegates to BubbleManager.
-    """
-    if not self.bubble_manager:
-      return
-    
-    try:
-      # Get top position
-      top_position = self.get_top_position()
-      
-      # Calculate max deformation diameter
-      # Max diameter = base_radius * (1 + amplitude) * 2
-      max_deformation_diameter = self.radius * (1.0 + self.breathing_animator.amplitude) * 2.0
-      
-      # Emit bubble via manager
-      self.bubble_manager.emit_bubble(
-        tendroid_name=self.name,
-        position=top_position,
-        max_deformation_diameter=max_deformation_diameter
-      )
-      
-      carb.log_info(
-        f"[Tendroid] '{self.name}' emitted bubble, diameter={max_deformation_diameter:.1f}"
-      )
-    
-    except Exception as e:
-      carb.log_error(f"[Tendroid] Failed to emit bubble from '{self.name}': {e}")
+
   
   # === Lifecycle delegation methods ===
   

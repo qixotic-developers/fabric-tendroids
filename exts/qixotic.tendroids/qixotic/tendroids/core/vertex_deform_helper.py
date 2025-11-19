@@ -5,8 +5,6 @@ Uses pure Python MeshVertexUpdater (fast enough at 40 fps)
 C++ hybrid approach abandoned (slower due to tuple conversion fallback)
 """
 
-import carb
-
 
 class VertexDeformHelper:
   """
@@ -23,17 +21,9 @@ class VertexDeformHelper:
   def __init__(self, mesh_path: str):
     self.mesh_path = mesh_path
     self._initialized = False
-    carb.log_info(
-      f"[VertexDeformHelper] Created for '{mesh_path}' "
-      f"(will use Python MeshVertexUpdater)"
-    )
   
   def initialize(self, stage, fast_mesh_updater) -> bool:
     """Always return False to force Python fallback."""
-    carb.log_info(
-      f"[VertexDeformHelper] Using Python MeshVertexUpdater "
-      f"(C++ hybrid abandoned - was slower)"
-    )
     return False
   
   def update_vertices(self, deformed_vertices) -> bool:

@@ -129,6 +129,9 @@ class ActionButtons:
     settings = self.spawn_settings
     self.status_display.update_status("Spawning single tendroid...")
 
+    # Apply bubble settings
+    self._apply_bubble_settings()
+
     radius = settings.single_diameter / 2.0
 
     success = self.scene_manager.create_single_tendroid(
@@ -159,6 +162,9 @@ class ActionButtons:
 
     self.status_display.update_status(f"Spawning {count} tendroids...")
 
+    # Apply bubble settings
+    self._apply_bubble_settings()
+
     success = self.scene_manager.create_tendroids(
       count=count,
       spawn_area=(settings.spawn_width, settings.spawn_depth),
@@ -171,6 +177,17 @@ class ActionButtons:
       self.status_display.update_count(actual_count)
     else:
       self.status_display.update_status("Failed to spawn tendroids")
+  
+  def _apply_bubble_settings(self):
+    """Apply bubble pop timing settings from UI to scene manager."""
+    if not self.spawn_settings:
+      return
+    
+    self.scene_manager.update_bubble_pop_timing(
+      self.spawn_settings.min_pop_time,
+      self.spawn_settings.max_pop_time
+    )
+
 
   def _on_start_clicked(self):
     """Handle start animation button."""

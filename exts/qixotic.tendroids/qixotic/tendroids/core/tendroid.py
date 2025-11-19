@@ -77,11 +77,6 @@ class Tendroid:
     self._initial_vertices = None
     self.is_created = False
     self.is_active = True
-    
-    carb.log_info(
-      f"[Tendroid] Initialized '{name}' at {position}, "
-      f"mode={animation_mode}, bubbles={'enabled' if bubble_manager else 'disabled'}"
-    )
   
   def create(self, stage, parent_path: str = "/World/Tendroids") -> bool:
     """

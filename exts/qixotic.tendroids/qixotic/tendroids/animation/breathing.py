@@ -4,7 +4,6 @@ Breathing animation controller for Tendroids
 Manages single traveling bulge timing and parameters with wave growth effect.
 """
 
-import carb
 from ..utils.math_helpers import calculate_wave_position
 
 
@@ -56,13 +55,6 @@ class BreathingAnimator:
     # State
     self.time = 0.0
     self.last_bubble_time = -999.0
-
-    carb.log_info(
-      f"[BreathingAnimator] Single bulge mode: speed={wave_speed}, "
-      f"bulge={bulge_length_percent}% ({self.bulge_length:.1f} units), "
-      f"amplitude={amplitude:.2f}, growth_dist={self.wave_growth_distance:.1f}, "
-      f"cycle={self.cycle_duration:.2f}s"
-    )
 
   def update(self, dt: float) -> dict:
     """

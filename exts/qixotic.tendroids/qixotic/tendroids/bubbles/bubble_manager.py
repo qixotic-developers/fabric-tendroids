@@ -1,8 +1,8 @@
 """
 Bubble manager with deformation synchronization
 
-Manages bubble creation, deformation-locked movement, and release
-for all Tendroids.
+Manages bubble creation, deformation-locked movement, release,
+and pop effects for all Tendroids.
 """
 
 import carb
@@ -10,6 +10,7 @@ from .bubble import Bubble
 from .bubble_config import BubbleConfig, DEFAULT_BUBBLE_CONFIG
 from .bubble_helpers import create_bubble_sphere
 from .deformation_tracker import DeformationWaveTracker
+from .bubble_particle import PopParticleManager
 
 
 class BubbleManager:
@@ -21,6 +22,7 @@ class BubbleManager:
   - Locked-phase tracking of deformation center
   - Release detection when wave contracts
   - Free-rise physics after release
+  - Pop detection and particle spray effects
   """
   
   def __init__(self, stage, config: BubbleConfig = None):
@@ -42,20 +44,18 @@ class BubbleManager:
     
     self.bubble_counter = 0
     
+    # Pop particle manager
+    self.particle_manager = PopParticleManager(stage, config)
+    
     # Parent path for bubble prims
     self.bubble_parent_path = "/World/Bubbles"
     self._ensure_bubble_parent()
-    
-    carb.log_info("[BubbleManager] Initialized with deformation sync")
   
   def _ensure_bubble_parent(self):
     """Create /World/Bubbles parent if needed."""
     if not self.stage.GetPrimAtPath(self.bubble_parent_path):
       from pxr import UsdGeom
       UsdGeom.Scope.Define(self.stage, self.bubble_parent_path)
-      carb.log_info(
-        f"[BubbleManager] Created bubble parent at '{self.bubble_parent_path}'"
-      )
   
   def register_tendroid(
     self,
@@ -81,12 +81,6 @@ class BubbleManager:
       self.bubbles[tendroid_name] = []
       self.bubble_spawned_this_cycle[tendroid_name] = False
       self.tendroid_positions[tendroid_name] = position
-      
-      if self.config.debug_logging:
-        carb.log_info(
-          f"[BubbleManager] Registered '{tendroid_name}' "
-          f"(length={cylinder_length:.1f}, pos={position})"
-        )
   
   def update_tendroid_wave(
     self,
@@ -191,22 +185,18 @@ class BubbleManager:
       bubble.prim_path = prim_path
       bubble.prim = self.stage.GetPrimAtPath(prim_path)
       self.bubbles[tendroid_name].append(bubble)
-      
-      if self.config.debug_logging:
-        carb.log_info(
-          f"[BubbleManager] Spawned '{bubble_id}' at {spawn_position}, "
-          f"initial_diameter={initial_diameter:.1f}"
-        )
   
   def _update_locked_bubbles(self, tendroid_name: str, tracker: DeformationWaveTracker, base_radius: float):
     """
-    Update bubbles in locked phase.
+    Update bubbles in locked phase and detect pops.
     
     Args:
         tendroid_name: Tendroid identifier
         tracker: DeformationWaveTracker for this tendroid
         base_radius: Cylinder base radius
     """
+    popped_bubbles = []
+    
     for bubble in self.bubbles[tendroid_name]:
       if bubble.is_locked():
         # Calculate diameter at bubble's BOTTOM position to prevent wall clipping
@@ -221,37 +211,49 @@ class BubbleManager:
         # Apply diameter multiplier from config
         target_diameter *= self.config.diameter_multiplier
         
-        if self.config.debug_logging:
-          carb.log_info(
-            f"[BubbleManager] {bubble.bubble_id}: "
-            f"bottom_y={bubble_bottom_y:.1f}, "
-            f"deform_radius={tracker.get_deformation_at_height(bubble_bottom_y, base_radius):.2f}, "
-            f"base_diameter={tracker.get_deformation_at_height(bubble_bottom_y, base_radius) * 2.0:.2f}, "
-            f"multiplier={self.config.diameter_multiplier}, "
-            f"final_diameter={target_diameter:.2f}"
-          )
-        
         # Update bubble with deformation center and target diameter
         bubble.update_locked(
           dt=1.0/60.0,
           deform_center_y=tracker.wave_center,
-          deform_radius=target_diameter / 2.0  # Pass as radius for compatibility
+          deform_radius=target_diameter / 2.0  # Pass as radius for Bubble wrapper
         )
+        
+        # Check if bubble popped during update
+        if bubble.has_popped:
+          popped_bubbles.append(bubble)
         
         # Check if bubble should be released (top clears cylinder)
         bubble_radius = bubble.physics.get_radius()
         if tracker.should_release_bubble(bubble.physics.position[1], bubble_radius):
           bubble.release()
+    
+    # Handle popped bubbles
+    for bubble in popped_bubbles:
+      self._handle_bubble_pop(bubble)
+
+  def _handle_bubble_pop(self, bubble: Bubble):
+    """
+    Handle bubble pop event - create particle spray.
+    
+    Args:
+        bubble: Bubble that just popped
+    """
+    pop_position = bubble.get_pop_position()
+    
+    # Create particle spray at pop location
+    self.particle_manager.create_pop_spray(pop_position)
   
   def update(self, dt: float):
     """
-    Update all bubbles (released phase only).
+    Update all bubbles (released phase only) and particles.
     
     Locked bubbles are updated via update_tendroid_wave().
     
     Args:
         dt: Delta time (seconds)
     """
+    popped_bubbles = []
+    
     for tendroid_name in list(self.bubbles.keys()):
       bubbles = self.bubbles[tendroid_name]
       
@@ -259,12 +261,23 @@ class BubbleManager:
       for bubble in bubbles:
         if bubble.is_released():
           bubble.update_released(dt)
+          
+          # Check if bubble popped during update
+          if bubble.has_popped:
+            popped_bubbles.append(bubble)
       
       # Remove dead bubbles
       dead_bubbles = [b for b in bubbles if not b.is_alive]
       for bubble in dead_bubbles:
         bubble.destroy()
         bubbles.remove(bubble)
+    
+    # Handle any pops that occurred
+    for bubble in popped_bubbles:
+      self._handle_bubble_pop(bubble)
+    
+    # Update pop particles
+    self.particle_manager.update(dt)
   
   def clear_tendroid_bubbles(self, tendroid_name: str):
     """
@@ -284,20 +297,16 @@ class BubbleManager:
       if tendroid_name in self.bubble_spawned_this_cycle:
         del self.bubble_spawned_this_cycle[tendroid_name]
       
-      if tendroid_name in self.wave_trackers:
+      if tendroid_name in self.tendroid_positions:
         del self.tendroid_positions[tendroid_name]
-      
-      if self.config.debug_logging:
-        carb.log_info(
-          f"[BubbleManager] Cleared bubbles for '{tendroid_name}'"
-        )
   
   def clear_all_bubbles(self):
-    """Remove all bubbles from all tendroids."""
+    """Remove all bubbles from all tendroids and all particles."""
     for tendroid_name in list(self.bubbles.keys()):
       self.clear_tendroid_bubbles(tendroid_name)
     
-    carb.log_info("[BubbleManager] Cleared all bubbles")
+    # Clear all pop particles
+    self.particle_manager.clear_all()
   
   def get_bubble_count(self, tendroid_name: str = None) -> int:
     """
@@ -319,3 +328,18 @@ class BubbleManager:
     for bubbles in self.bubbles.values():
       total += len([b for b in bubbles if b.is_alive])
     return total
+  
+  def get_particle_count(self) -> int:
+    """Get count of active pop particles."""
+    return len(self.particle_manager.particles)
+  
+  def set_pop_time_range(self, min_time: float, max_time: float):
+    """
+    Update pop time range configuration.
+    
+    Args:
+        min_time: Minimum seconds before pop
+        max_time: Maximum seconds before pop
+    """
+    self.config.min_pop_time = min_time
+    self.config.max_pop_time = max_time

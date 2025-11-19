@@ -1,7 +1,7 @@
 """
 UI control panel for Tendroid management
 
-Coordinates spawn settings, action buttons, and status display.
+Coordinates spawn settings, action buttons, bubble controls, and status display.
 """
 
 import carb
@@ -10,6 +10,7 @@ from ..scene.manager import TendroidSceneManager
 from .spawn_settings_ui import SpawnSettingsUI
 from .action_buttons import ActionButtons
 from .status_display import StatusDisplay
+from .bubble_controls import BubbleControlsBuilder
 
 
 class TendroidControlPanel:
@@ -19,6 +20,7 @@ class TendroidControlPanel:
   Delegates UI sections to specialized components:
   - SpawnSettingsUI: Parameter controls with single/multi mode switching
   - ActionButtons: Spawn, start, stop, clear operations
+  - BubbleControlsBuilder: Bubble parameters (diameter, pop timing, physics)
   - StatusDisplay: Status labels and updates
   """
   
@@ -36,6 +38,7 @@ class TendroidControlPanel:
     self.spawn_settings = SpawnSettingsUI()
     self.action_buttons = ActionButtons(scene_manager)
     self.status_display = StatusDisplay()
+    self.bubble_controls = None  # Created after bubble_manager exists
     
     # Wire up component references
     self.action_buttons.set_spawn_settings(self.spawn_settings)
@@ -47,14 +50,14 @@ class TendroidControlPanel:
     carb.log_info("[TendroidControlPanel] Initialized")
   
   def create_window(self):
-    """Create the UI window with compact two-column layout."""
+    """Create the UI window with compact layout."""
     if self.window:
       return
     
     self.window = ui.Window(
       "Tendroid Controls",
       width=400,
-      height=350
+      height=450
     )
     
     with self.window.frame:
@@ -85,6 +88,18 @@ class TendroidControlPanel:
         ui.Spacer(height=5)
         ui.Line()
         ui.Spacer(height=5)
+        
+        # Bubble controls (if bubble manager exists)
+        if self.scene_manager.bubble_manager:
+          if not self.bubble_controls:
+            self.bubble_controls = BubbleControlsBuilder(
+              self.scene_manager.bubble_manager
+            )
+          self.bubble_controls.build()
+          
+          ui.Spacer(height=5)
+          ui.Line()
+          ui.Spacer(height=5)
         
         # Status display
         self.status_display.create_ui(None)

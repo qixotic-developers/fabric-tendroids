@@ -5,22 +5,25 @@ Represents a single bubble that:
 1. Starts locked to deformation wave
 2. Releases when wave contracts
 3. Rises independently with squeeze-out acceleration
+4. Pops after random lifetime with particle spray
 """
 
 import carb
+import random
 from pxr import Gf
 from .bubble_physics import BubblePhysics
 
 
 class Bubble:
   """
-  Single bubble with deformation-synchronized physics.
+  Single bubble with deformation-synchronized physics and pop behavior.
   
   Lifecycle:
   - Spawn: Created when deformation first becomes visible
   - Locked: Rises with deformation wave, diameter matches max deformation
   - Released: Wave contracts, bubble accelerates and breaks free
   - Free: Independent buoyant rise with drift/wobble
+  - Pop: Random lifetime expires, triggers particle spray
   """
   
   def __init__(
@@ -49,7 +52,7 @@ class Bubble:
     self.config = config
     self.stage = stage
     
-    # Physics controller
+    # Physics controller - initial_diameter already includes multiplier from caller
     self.physics = BubblePhysics(
       initial_position=initial_position,
       diameter=initial_diameter,
@@ -60,6 +63,11 @@ class Bubble:
     
     # Lifecycle
     self.is_alive = True
+    self.age = 0.0
+    
+    # Pop timing - random within configured range
+    self.pop_time = random.uniform(config.min_pop_time, config.max_pop_time)
+    self.has_popped = False
     
     # USD reference
     self.prim_path = None
@@ -68,7 +76,8 @@ class Bubble:
     if config.debug_logging:
       carb.log_info(
         f"[Bubble] Created '{bubble_id}' at {initial_position}, "
-        f"initial_diameter={initial_diameter:.1f}, wave_speed={deform_wave_speed:.1f}"
+        f"diameter={initial_diameter:.1f}, wave_speed={deform_wave_speed:.1f}, "
+        f"pop_time={self.pop_time:.1f}s"
       )
   
   def update_locked(self, dt: float, deform_center_y: float, deform_radius: float):
@@ -83,7 +92,15 @@ class Bubble:
     if not self.is_alive:
       return
     
-    # Convert radius back to diameter for physics update
+    self.age += dt
+    
+    # Check if time to pop
+    if self.age >= self.pop_time and not self.has_popped:
+      self.has_popped = True
+      self.is_alive = False
+      return
+    
+    # Convert radius back to diameter (multiplier already applied by caller)
     target_diameter = deform_radius * 2.0
     self.physics.update_locked(dt, deform_center_y, target_diameter)
     
@@ -113,6 +130,14 @@ class Bubble:
         dt: Delta time
     """
     if not self.is_alive:
+      return
+    
+    self.age += dt
+    
+    # Check if time to pop
+    if self.age >= self.pop_time and not self.has_popped:
+      self.has_popped = True
+      self.is_alive = False
       return
     
     self.physics.update_released(dt)
@@ -155,6 +180,10 @@ class Bubble:
   def is_released(self) -> bool:
     """Check if bubble is in released phase."""
     return self.physics.state == BubblePhysics.STATE_RELEASED
+  
+  def get_pop_position(self) -> tuple:
+    """Get position where bubble popped for particle spawn."""
+    return tuple(self.physics.position)
   
   def destroy(self):
     """Remove bubble from USD stage."""

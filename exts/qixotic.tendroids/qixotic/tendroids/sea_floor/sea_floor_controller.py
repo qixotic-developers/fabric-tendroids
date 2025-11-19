@@ -92,11 +92,6 @@ class SeaFloorController:
       )
       UsdShade.MaterialBindingAPI(mesh_prim).Bind(material)
       
-      carb.log_info(
-        f"[SeaFloorController] Created sea floor: {config.mesh_path}, "
-        f"{len(vertices)} vertices, {len(face_counts)} faces"
-      )
-      
       return True
       
     except Exception as e:

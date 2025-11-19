@@ -1,0 +1,423 @@
+= Session Handoff: Bubble Pop System + Sizing Bug Investigation
+:toc:
+:toclevels: 3
+
+== Session Summary
+
+**Date**: Current Session +
+**Focus**: Bubble popping system implementation + Critical sizing bug +
+**Status**: ⚠️ PARTIAL - Pop system infrastructure added, sizing bug identified but not fixed
+
+== Critical Issue Discovered
+
+=== Bubble Sizing Bug: Single vs Multiple Tendroids
+
+**Symptom**: 
+- `diameter_multiplier: 1.25` works perfectly for single Tendroid
+- Same value produces bubbles that are TOO BIG with multiple Tendroids
+
+**User Quote**: 
+> "When using 1 tendroid, with diameter_multiplier at 1.25, bubble size, shape and timing is perfect. when >1, it is too big at that same setting."
+
+**This is NOT a configuration issue - it's a calculation bug!**
+
+=== What We Know
+
+From previous successful session:
+- System was working with `diameter_multiplier: 1.0` (or 1.25)
+- The key was calculating diameter at bubble's BOTTOM position
+- This prevented wall clipping
+
+**Working code pattern** (from bubble_manager.py lines 211-219):
+
+[source,python]
+----
+# Calculate diameter at bubble's BOTTOM position to prevent wall clipping
+bubble_center_y = bubble.physics.position[1]
+bubble_radius = bubble.physics.diameter / 2.0
+vertical_stretch = bubble.physics.vertical_stretch
+bubble_bottom_y = bubble_center_y - (bubble_radius * vertical_stretch)
+
+# Get target diameter at bubble BOTTOM
+target_diameter = tracker.get_deformation_at_height(bubble_bottom_y, base_radius) * 2.0
+
+# Apply diameter multiplier from config
+target_diameter *= self.config.diameter_multiplier
+----
+
+**Hypothesis**: Something in this calculation behaves differently when multiple Tendroids exist.
+
+Possible causes:
+1. Shared state between DeformationWaveTrackers?
+2. Different cylinder radii affecting calculation?
+3. Wave parameters varying between tendroids?
+4. Timing/synchronization issue?
+
+== What Was Accomplished This Session
+
+=== 1. Bubble Pop Timing System ✅
+
+**Files Created:**
+- `bubbles/bubble_config.py` - Added min_pop_time, max_pop_time parameters
+- Random pop timing within configurable range
+
+**Files Modified:**
+- `bubbles/bubble.py` - Added pop_time tracking and has_popped flag
+- `bubbles/bubble_manager.py` - Pop detection and particle spray hooks
+- `config/tendroids_config.json` - Added pop timing parameters
+
+**What Works:**
+- Bubbles assigned random lifetime between min_pop_time and max_pop_time
+- Pop detection in both locked and released phases
+- Infrastructure ready for particle spray effects
+
+**What's Missing:**
+- Actual particle spray creation (bubble_particle.py needs work)
+- Visual pop effects
+- Testing/validation
+
+=== 2. UI Confusion (Lessons Learned)
+
+**What Happened:**
+Created unnecessary UI complexity:
+- `ui/bubble_controls.py` - New file with sliders (NOT integrated properly)
+- `ui/spawn_settings_ui.py` - Added diameter slider (redundant)
+- `ui/control_panel.py` - Modified to add bubble controls (not working)
+
+**Reality Check:**
+- tendroids_config.json is the single source of truth
+- UI sliders don't persist values anyway
+- Just edit JSON directly - no UI needed
+- This was a distraction from the real bug
+
+**Lesson**: Configuration changes = edit JSON. UI is only needed for runtime experimentation.
+
+=== 3. Configuration Cleanup ✅
+
+**Current JSON state** (tendroids_config.json):
+
+[source,json]
+----
+"bubble_system": {
+  "enabled": true,
+  "emission_threshold": 0.90,
+  "release_threshold": 0.95,
+  "diameter_multiplier": 1.25,  // ← User's known-good value
+  "min_diameter": 5.0,
+  "max_diameter": 20.0,
+  "resolution": 16,
+  "rise_speed": 30.0,
+  "drift_speed": 2.0,
+  "wobble_frequency": 0.5,
+  "wobble_amplitude": 0.1,
+  "color": [0.7, 0.9, 1.0],
+  "opacity": 0.4,
+  "metallic": 0.0,
+  "roughness": 0.2,
+  "min_pop_time": 10.0,          // ← NEW
+  "max_pop_time": 25.0,          // ← NEW
+  "max_lifetime": 30.0,
+  "despawn_height": 300.0,
+  "max_bubbles_per_tendroid": 5,
+  "debug_logging": false
+}
+----
+
+== Files Modified This Session
+
+=== Core Bubble System Files
+
+**bubbles/bubble_config.py**
+- Added min_pop_time: 10.0
+- Added max_pop_time: 25.0
+- Added get_random_pop_time() method
+- Synced diameter_multiplier default to 1.2 (but JSON overrides)
+
+**bubbles/bubble.py**
+- Added pop_time parameter to __init__
+- Added has_popped flag
+- Pop detection in update_locked() and update_released()
+- Returns False when popped to signal cleanup
+
+**bubbles/bubble_manager.py**
+- Pop detection in _update_locked_bubbles()
+- _handle_bubble_pop() method (ready for particle spray)
+- Popped bubbles list and cleanup
+- set_pop_time_range() method for runtime changes
+
+**config/tendroids_config.json**
+- Set diameter_multiplier: 1.25 (user's known-good value)
+- Added min_pop_time: 10.0
+- Added max_pop_time: 25.0
+
+=== UI Files (Experimental/Not Critical)
+
+**ui/bubble_controls.py** - NEW
+- Slider-based bubble controls
+- NOT properly integrated
+- Can be ignored or removed
+
+**ui/spawn_settings_ui.py** - MODIFIED
+- Added bubble_diameter_multiplier field
+- Added diameter slider to Bubble Settings section
+- Values don't actually sync to bubble manager
+- Consider reverting these changes
+
+**ui/control_panel.py** - MODIFIED  
+- Attempted to integrate bubble_controls
+- Incomplete/not working
+- Consider reverting these changes
+
+=== Documentation Files
+
+**BUBBLE_CONTROLS_UI.adoc** - NEW
+- Documents UI sliders that don't fully work
+- Can be ignored or removed
+
+== What's Working vs Broken
+
+=== ✅ Working
+1. Pop timing infrastructure in place
+2. Random pop time assignment
+3. Pop detection during bubble updates
+4. JSON configuration clean and correct
+5. All core bubble files updated consistently
+
+=== ⚠️ Partially Working
+1. Pop particle spray - infrastructure exists but not implemented
+2. UI controls - created but not properly integrated
+
+=== ❌ Broken / Unknown
+1. **CRITICAL**: Bubble sizing with multiple Tendroids
+   - 1.25 works for single
+   - Same value too large for multiple
+   - Root cause unknown
+
+== Next Session: Debugging the Sizing Bug
+
+=== Step 1: Reproduce the Bug
+
+Test with single Tendroid:
+
+[source,python]
+----
+from qixotic.tendroids.scene import TendroidSceneManager
+
+scene_manager = TendroidSceneManager()
+scene_manager.create_single_tendroid()
+scene_manager.start_animation()
+# Observe: Bubbles should look perfect at diameter_multiplier: 1.25
+----
+
+Test with multiple Tendroids:
+
+[source,python]
+----
+scene_manager = TendroidSceneManager()
+scene_manager.create_tendroids(count=15)
+scene_manager.start_animation()
+# Observe: Bubbles too large at same 1.25 setting
+----
+
+=== Step 2: Enable Debug Logging
+
+Edit `config/tendroids_config.json`:
+
+[source,json]
+----
+"debug_logging": true
+----
+
+Restart extension and check console output for:
+- `[BubbleManager]` messages showing diameter calculations
+- Compare single vs multiple tendroid outputs
+- Look for differences in:
+  - bubble_bottom_y values
+  - deform_radius values  
+  - target_diameter values
+  - final_diameter after multiplier
+
+=== Step 3: Investigate Hypotheses
+
+**Hypothesis 1: Different cylinder sizes**
+- Check if tendroids have varying base_radius values
+- Multiple tendroids use randomized sizes from config
+- Does this affect the calculation?
+
+**Hypothesis 2: Shared state in trackers**
+- Each tendroid should have its own DeformationWaveTracker
+- Are trackers accidentally sharing data?
+- Check bubble_manager.wave_trackers dictionary
+
+**Hypothesis 3: Wave synchronization**
+- Multiple tendroids breathe at different times
+- Does wave phase affect diameter calculation?
+- Could concurrent waves interfere?
+
+**Hypothesis 4: The unused method**
+- `get_bubble_diameter_at_position()` in deformation_tracker.py
+- Returns 80% of deformation (conservative sizing)
+- Currently NEVER CALLED
+- Should this be used instead?
+
+=== Step 4: Key Code to Examine
+
+**bubble_manager.py:_update_locked_bubbles()** (lines ~210-230)
+
+[source,python]
+----
+bubble_bottom_y = bubble_center_y - (bubble_radius * vertical_stretch)
+target_diameter = tracker.get_deformation_at_height(bubble_bottom_y, base_radius) * 2.0
+target_diameter *= self.config.diameter_multiplier
+----
+
+**deformation_tracker.py:get_deformation_at_height()** (lines ~150-180)
+
+[source,python]
+----
+distance_from_center = abs(y_position - self.wave_center)
+half_bulge = self.bulge_length / 2.0
+normalized_distance = distance_from_center / half_bulge
+falloff = (math.cos(normalized_distance * math.pi) + 1.0) / 2.0
+growth_factor = self._calculate_growth_factor()
+max_radius = base_radius * (1.0 + self.amplitude * growth_factor)
+deformed_radius = base_radius + (max_radius - base_radius) * falloff
+----
+
+**Questions to answer:**
+1. Is base_radius different between single and multiple?
+2. Is amplitude different?
+3. Is wave_center positioning different?
+4. Is growth_factor calculation the same?
+
+=== Step 5: Potential Fixes
+
+**Option A: Use the conservative method**
+Call `get_bubble_diameter_at_position()` instead of direct calculation:
+
+[source,python]
+----
+# Instead of:
+target_diameter = tracker.get_deformation_at_height(bubble_bottom_y, base_radius) * 2.0
+
+# Use:
+target_diameter = tracker.get_bubble_diameter_at_position(bubble_bottom_y)
+# This returns 80% of deformation, leaving room for multiplier
+----
+
+**Option B: Add scaling factor for multiple Tendroids**
+Detect if multiple tendroids exist and adjust multiplier:
+
+[source,python]
+----
+effective_multiplier = self.config.diameter_multiplier
+if len(self.bubbles) > 1:  # Multiple tendroids
+    effective_multiplier *= 0.6  # Scale down for multi-tendroid scenes
+----
+
+**Option C: Fix the root calculation**
+If we find the actual bug in the deformation calculation, fix it properly.
+
+== Important Reminders
+
+1. **JSON is source of truth** - Don't waste time on UI sliders
+2. **Debug logging is your friend** - Enable it to see actual values
+3. **Test both scenarios** - Single vs multiple tendroids
+4. **Bottom position calculation is critical** - Don't lose that logic
+5. **File size discipline** - Keep files 100-150 lines
+
+== Files to Review Next Session
+
+**Priority 1 (Sizing Bug):**
+1. `bubbles/bubble_manager.py` - Where diameter calculation happens
+2. `bubbles/deformation_tracker.py` - The actual math
+3. `config/tendroids_config.json` - Current configuration
+
+**Priority 2 (Pop System Completion):**
+1. `bubbles/bubble_particle.py` - Needs particle spray implementation
+2. `bubbles/bubble.py` - Pop detection working
+3. `bubbles/bubble_manager.py` - Pop handling ready
+
+**Consider Reverting (UI Noise):**
+1. `ui/bubble_controls.py` - Remove or finish properly
+2. `ui/spawn_settings_ui.py` - Revert diameter slider addition
+3. `ui/control_panel.py` - Revert bubble controls integration
+4. `BUBBLE_CONTROLS_UI.adoc` - Remove if reverting UI
+
+== Session Context for Next Developer
+
+**What user wants:**
+- Realistic bubble popping with random timing ✅ (infrastructure ready)
+- Bubble size that works for both single and multiple Tendroids ❌ (bug exists)
+
+**What NOT to do:**
+- Don't add more UI complexity
+- Don't edit Python defaults (JSON overrides them anyway)
+- Don't assume configuration issue (it's a calculation bug)
+
+**What TO do:**
+1. Debug the sizing difference with logging
+2. Find why diameter calculation varies
+3. Fix the root cause
+4. Complete particle spray for pops
+5. Test everything with 1 and 15 Tendroids
+
+== Token Budget Note
+
+This session used ~102K tokens of 190K available. We have ~88K remaining which should be sufficient for debugging, but wanted to document everything first for safety.
+
+== Quick Start for Next Session
+
+[source,python]
+----
+# 1. Enable debug logging
+# Edit config/tendroids_config.json: "debug_logging": true
+
+# 2. Test single tendroid
+from qixotic.tendroids.scene import TendroidSceneManager
+scene_manager = TendroidSceneManager()
+scene_manager.create_single_tendroid()
+scene_manager.start_animation()
+# Check console for [BubbleManager] diameter calculations
+
+# 3. Test multiple tendroids
+scene_manager.clear_scene()
+scene_manager.create_tendroids(count=3)  # Start with just 3 for clearer logs
+scene_manager.start_animation()
+# Compare diameter values in console
+
+# 4. Analyze the difference
+----
+
+== Success Criteria
+
+**For sizing bug fix:**
+- [ ] diameter_multiplier: 1.25 works for single Tendroid
+- [ ] Same 1.25 value works for multiple Tendroids
+- [ ] Bubbles don't clip through cylinder walls
+- [ ] Visual size is consistent and realistic
+
+**For pop system completion:**
+- [ ] Bubbles pop at random times within range
+- [ ] Particle spray appears on pop
+- [ ] System performs well with 15 Tendroids
+- [ ] Pop timing configurable via JSON
+
+== Git Status
+
+**Commit recommendation**: DO NOT commit yet.
+
+Wait until:
+1. Sizing bug is fixed
+2. Pop system is complete and tested
+3. UI clutter is cleaned up or properly integrated
+
+Then make a single coherent commit for "Bubble pop system with random timing"
+
+== Final Notes
+
+The user was right to call out the confusion. We added unnecessary UI complexity when the real issue was a calculation bug. Next session: focus on the bug, use debug logging, and fix it properly.
+
+The pop timing infrastructure is solid - just needs particle spray implementation and testing.
+
+**Keep it simple. Debug methodically. Fix the root cause.** 🎯

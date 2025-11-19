@@ -30,12 +30,18 @@ class SpawnSettingsUI:
     self.wave_speed = 40.0
     self.pause_duration = 2.0
     
+    # Bubble settings
+    self.bubble_diameter_multiplier = 1.2
+    self.min_pop_time = 10.0
+    self.max_pop_time = 25.0
+    
     # Multi-tendroid settings
     self.num_segments = 16
     
     # UI references
     self.single_settings_frame = None
     self.multi_settings_frame = None
+    self.bubble_settings_frame = None
     
     # Callback for count changes
     self.on_count_changed_callback = None
@@ -58,6 +64,9 @@ class SpawnSettingsUI:
     
     # Multi-Spawn Settings (conditional)
     self._create_multi_settings()
+    
+    # Bubble Settings (always visible)
+    self._create_bubble_settings()
   
   def _create_single_settings(self):
     """Create single tendroid parameter controls in two columns."""
@@ -116,6 +125,50 @@ class SpawnSettingsUI:
         segments_field.model.add_value_changed_fn(
           lambda m: setattr(self, 'num_segments', m.get_value_as_int())
         )
+  
+  def _create_bubble_settings(self):
+    """Create bubble control settings."""
+    self.bubble_settings_frame = ui.CollapsableFrame(
+      "Bubble Settings",
+      height=0,
+      collapsed=False
+    )
+    with self.bubble_settings_frame:
+      # Diameter multiplier (full width)
+      with ui.HStack(spacing=3):
+        ui.Label("Diameter:", width=80)
+        field = ui.FloatDrag(
+          min=0.1,
+          max=2.0,
+          step=0.05,
+          tooltip="Bubble size as fraction of deformation (1.25 = single, 0.5-0.8 = multi)"
+        )
+        field.model.set_value(self.bubble_diameter_multiplier)
+        field.model.add_value_changed_fn(
+          lambda m: setattr(self, 'bubble_diameter_multiplier', m.get_value_as_float())
+        )
+      
+      # Pop timing in two columns
+      with ui.HStack(spacing=10):
+        # Left column
+        with ui.VStack(spacing=3, width=ui.Fraction(1)):
+          self._create_param(
+            "Min Pop (sec):",
+            self.min_pop_time,
+            5.0, 30.0, 1.0,
+            "min_pop_time",
+            "Minimum seconds before bubble pops"
+          )
+        
+        # Right column
+        with ui.VStack(spacing=3, width=ui.Fraction(1)):
+          self._create_param(
+            "Max Pop (sec):",
+            self.max_pop_time,
+            10.0, 40.0, 1.0,
+            "max_pop_time",
+            "Maximum seconds before bubble pops"
+          )
   
   def _create_param(self, label: str, value: float, min_val: float, max_val: float,
                     step: float, attr_name: str, tooltip: str, is_int: bool = False):

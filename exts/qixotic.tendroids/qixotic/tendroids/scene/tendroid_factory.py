@@ -88,12 +88,6 @@ class TendroidFactory:
           cycle_delay=cycle_delay
         )
       
-      carb.log_info(
-        f"[TendroidFactory] Created single: "
-        f"R={radius:.1f}, L={length:.1f}, "
-        f"Wave={bulge_length_percent:.0f}%, "
-        f"Amp={amplitude:.2f}, Speed={wave_speed:.0f}"
-      )
       return tendroid
     
     carb.log_error("[TendroidFactory] Failed to create single Tendroid")
@@ -157,11 +151,6 @@ class TendroidFactory:
     # This enables geometry instancing and future GPU batching
     uniform_radius = (radius_range[0] + radius_range[1]) / 2.0
     
-    carb.log_info(
-      f"[TendroidFactory] Creating {count} Tendroids with "
-      f"UNIFORM radius={uniform_radius:.1f} (heights will vary)"
-    )
-    
     for i in range(count):
       # Initialize variables before loop to satisfy IDE warnings
       x = 0.0
@@ -197,9 +186,8 @@ class TendroidFactory:
       
       if not position_found:
         carb.log_warn(
-          f"[TendroidFactory] Skipping Tendroid {i} - could not find "
-          f"non-interfering position after {max_attempts} attempts. "
-          f"Try increasing spawn_area or reducing count."
+          f"[TendroidFactory] Could not find position for Tendroid {i} "
+          f"after {max_attempts} attempts. Try increasing spawn_area."
         )
         continue  # Skip this tendroid instead of forcing placement
       
@@ -215,19 +203,11 @@ class TendroidFactory:
       
       if tendroid.create(stage, parent_path):
         tendroids.append(tendroid)
-        carb.log_info(
-          f"[TendroidFactory] Tendroid_{i:02d}: "
-          f"R={radius:.1f}, Base={base_radius:.1f}, L={length:.1f} "
-          f"(aspect={length/(radius*2):.1f}:1)"
-        )
       else:
         # Failed to create - remove from positions list
         positions.pop()
         carb.log_warn(f"[TendroidFactory] Failed to create Tendroid {i}")
     
-    carb.log_info(
-      f"[TendroidFactory] Created {len(tendroids)}/{count} Tendroids in batch"
-    )
     return tendroids
   
   @staticmethod

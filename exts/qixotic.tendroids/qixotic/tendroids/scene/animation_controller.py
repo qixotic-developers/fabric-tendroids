@@ -39,11 +39,6 @@ class AnimationController:
         self._last_profile_time = 0
         self._profile_interval = 1.0  # Log every 1 second
         self._profile_frame_start = 0
-        
-        carb.log_info(
-            f"[AnimationController] Initialized, "
-            f"bubbles={'enabled' if bubble_manager else 'disabled'}"
-        )
     
     def set_tendroids(self, tendroids: list):
         """
@@ -53,9 +48,6 @@ class AnimationController:
             tendroids: List of Tendroid instances
         """
         self.tendroids = tendroids
-        carb.log_info(
-            f"[AnimationController] Managing {len(tendroids)} Tendroids"
-        )
     
     def set_bubble_manager(self, bubble_manager):
         """
@@ -65,7 +57,6 @@ class AnimationController:
             bubble_manager: BubbleManager instance
         """
         self.bubble_manager = bubble_manager
-        carb.log_info("[AnimationController] Bubble manager registered")
     
     def start(self, enable_profiling: bool = False):
         """
@@ -94,11 +85,6 @@ class AnimationController:
             self._profile_samples = []
             self._last_profile_time = time.perf_counter()
             self._profile_frame_start = 0
-            carb.log_info("[AnimationController] Profiling enabled (1s intervals)")
-        
-        carb.log_info(
-            f"[AnimationController] Animation started for {len(self.tendroids)} Tendroids"
-        )
     
     def stop(self):
         """Stop animating all Tendroids and bubbles."""
@@ -114,10 +100,6 @@ class AnimationController:
         # Log profiling summary if enabled
         if self._profiling_enabled and self._profile_samples:
             self._log_profile_summary()
-        
-        carb.log_info(
-            f"[AnimationController] Animation stopped after {self._frame_count} frames"
-        )
     
     def _on_update(self, event):
         """
@@ -133,13 +115,6 @@ class AnimationController:
             if self._profiling_enabled:
                 self._sample_performance()
             
-            # Log first few frames for debugging
-            if self._frame_count <= 3:
-                carb.log_info(
-                    f"[AnimationController] Frame {self._frame_count}: "
-                    f"Updating {len(self.tendroids)} Tendroids"
-                )
-            
             # Get delta time from event payload
             dt = 1.0 / 60.0  # Default fallback
             
@@ -154,22 +129,13 @@ class AnimationController:
             self._absolute_time += dt
             
             # Update all active Tendroids
-            active_count = 0
             for tendroid in self.tendroids:
                 if tendroid.is_animation_enabled():
                     tendroid.update(dt, self._absolute_time)
-                    active_count += 1
             
             # Update bubble system
             if self.bubble_manager:
                 self.bubble_manager.update(dt)
-            
-            # Log active count on first frame
-            if self._frame_count == 1:
-                carb.log_info(
-                    f"[AnimationController] {active_count}/{len(self.tendroids)} "
-                    f"Tendroids active"
-                )
         
         except Exception as e:
             carb.log_error(
@@ -201,7 +167,8 @@ class AnimationController:
             bubble_info = ""
             if self.bubble_manager:
                 bubble_count = self.bubble_manager.get_bubble_count()
-                bubble_info = f", {bubble_count} bubbles"
+                particle_count = self.bubble_manager.get_particle_count()
+                bubble_info = f", {bubble_count} bubbles, {particle_count} particles"
             
             carb.log_info(
                 f"[PROFILE] Frame {self._frame_count}: "
@@ -263,11 +230,6 @@ class AnimationController:
         """Enable or disable animation for all Tendroids."""
         for tendroid in self.tendroids:
             tendroid.set_active(active)
-        
-        status = "enabled" if active else "disabled"
-        carb.log_info(
-            f"[AnimationController] Animation {status} for all Tendroids"
-        )
     
     def is_animating(self) -> bool:
         """Check if animation is currently running."""
@@ -277,4 +239,3 @@ class AnimationController:
         """Cleanup when shutting down."""
         self.stop()
         self.tendroids.clear()
-        carb.log_info("[AnimationController] Shutdown complete")

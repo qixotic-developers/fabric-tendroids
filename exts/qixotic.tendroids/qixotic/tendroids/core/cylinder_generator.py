@@ -6,7 +6,6 @@ Creates a single unified mesh optimized for Warp-based vertex deformation.
 
 from pxr import UsdGeom, Gf, Vt, Sdf
 import math
-import carb
 from ..utils.math_helpers import calculate_flare_radius
 
 
@@ -47,11 +46,6 @@ class CylinderGenerator:
         Returns:
             Tuple of (mesh_prim, vertices, num_segments, radial_resolution, deform_start_height)
         """
-        carb.log_info(
-            f"[CylinderGenerator] Creating Tendroid cylinder at {path}: "
-            f"radius={radius}, length={length}, segments={num_segments}"
-        )
-
         # Calculate dimensions
         flare_height = length * (flare_height_percent / 100.0)
         max_radius = radius * flare_radius_multiplier
@@ -130,10 +124,5 @@ class CylinderGenerator:
             "constant"
         )
         color_primvar.Set([Gf.Vec3f(0.2, 0.5, 0.6)])
-
-        carb.log_info(
-            f"[CylinderGenerator] Created mesh: {len(vertices)} vertices, "
-            f"{len(face_vertex_counts)} faces, deform_start={deform_start_height:.2f}"
-        )
 
         return mesh.GetPrim(), vertices, num_segments, radial_resolution, deform_start_height

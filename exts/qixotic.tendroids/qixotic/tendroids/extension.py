@@ -5,6 +5,7 @@ Omniverse extension for creating and animating Tendroid creatures.
 """
 
 import carb
+import carb.settings
 import omni.ext
 import omni.usd
 import omni.kit.ui
@@ -29,9 +30,10 @@ class TendroidsExtension(omni.ext.IExt):
         Args:
             ext_id: Extension ID
         """
-        carb.log_info("[TendroidsExtension] Starting up")
-        
         try:
+            # Suppress noisy USD Runtime plugin logging
+            self._suppress_usdrt_logging()
+            
             # Create scene manager
             self._scene_manager = TendroidSceneManager()
             
@@ -49,16 +51,25 @@ class TendroidsExtension(omni.ext.IExt):
             # Filter Extensions panel to show qixotic.tendroids
             self._set_extensions_filter("qixotic tendroids")
             
-            carb.log_info("[TendroidsExtension] Startup complete")
-            carb.log_info(
-                "[TendroidsExtension] Bubble system ready! "
-                "Create tendroids and watch them emit bubbles."
-            )
-            
         except Exception as e:
             carb.log_error(f"[TendroidsExtension] Startup failed: {e}")
             import traceback
             traceback.print_exc()
+    
+    def _suppress_usdrt_logging(self):
+        """
+        Suppress noisy USDRT plugin info messages.
+        
+        Sets log level to 'warn' for usdrt.population.plugin to hide
+        repetitive FabricPopulation and primvar messages during animation.
+        """
+        try:
+            settings = carb.settings.get_settings()
+            # Suppress usdrt.population.plugin info messages
+            settings.set("/log/channels/usdrt.population.plugin/level", "warn")
+        except Exception as e:
+            # Not critical if this fails
+            pass
     
     def _on_ui_update(self, event):
         """
@@ -85,19 +96,12 @@ class TendroidsExtension(omni.ext.IExt):
             ext_window = omni.kit.window.extensions.get_window()
             if ext_window and hasattr(ext_window, 'set_search_text'):
                 ext_window.set_search_text(filter_text)
-                carb.log_info(
-                    f"[TendroidsExtension] Extensions filter set to: '{filter_text}'"
-                )
-        except Exception as e:
+        except Exception:
             # Extensions window API may vary by Kit version - not critical
-            carb.log_info(
-                f"[TendroidsExtension] Extensions filter not available in this Kit version"
-            )
+            pass
             
     def on_shutdown(self):
         """Called when extension is unloaded."""
-        carb.log_info("[TendroidsExtension] Shutting down")
-        
         try:
             # Unsubscribe from updates
             if hasattr(self, '_ui_update_subscription'):
@@ -115,8 +119,6 @@ class TendroidsExtension(omni.ext.IExt):
             if hasattr(self, '_control_panel'):
                 self._control_panel.destroy()
                 self._control_panel = None
-            
-            carb.log_info("[TendroidsExtension] Shutdown complete")
             
         except Exception as e:
             carb.log_error(f"[TendroidsExtension] Shutdown error: {e}")

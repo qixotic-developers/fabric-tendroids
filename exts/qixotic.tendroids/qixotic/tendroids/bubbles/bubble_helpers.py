@@ -53,7 +53,7 @@ def create_bubble_sphere(
     if config.debug_logging:
       carb.log_info(
         f"[BubbleHelpers] Created sphere at '{prim_path}', "
-        f"radius={radius:.2f}"
+        f"diameter={diameter:.2f}"
       )
     
     return True

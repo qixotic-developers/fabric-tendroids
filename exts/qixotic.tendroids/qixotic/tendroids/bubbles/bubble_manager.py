@@ -38,6 +38,7 @@ class BubbleManager:
     self.bubbles = {}  # {tendroid_name: [Bubble, ...]}
     self.wave_trackers = {}  # {tendroid_name: DeformationWaveTracker}
     self.bubble_spawned_this_cycle = {}  # {tendroid_name: bool}
+    self.tendroid_positions = {}  # {tendroid_name: (x, y, z)}
     
     self.bubble_counter = 0
     
@@ -60,7 +61,8 @@ class BubbleManager:
     self,
     tendroid_name: str,
     cylinder_length: float,
-    deform_start_height: float
+    deform_start_height: float,
+    position: tuple = (0, 0, 0)
   ):
     """
     Register tendroid for bubble tracking.
@@ -69,6 +71,7 @@ class BubbleManager:
         tendroid_name: Unique tendroid identifier
         cylinder_length: Total cylinder length
         deform_start_height: Y position where deformation begins
+        position: (x, y, z) world position of tendroid base
     """
     if tendroid_name not in self.wave_trackers:
       self.wave_trackers[tendroid_name] = DeformationWaveTracker(
@@ -77,11 +80,12 @@ class BubbleManager:
       )
       self.bubbles[tendroid_name] = []
       self.bubble_spawned_this_cycle[tendroid_name] = False
+      self.tendroid_positions[tendroid_name] = position
       
       if self.config.debug_logging:
         carb.log_info(
           f"[BubbleManager] Registered '{tendroid_name}' "
-          f"(length={cylinder_length:.1f})"
+          f"(length={cylinder_length:.1f}, pos={position})"
         )
   
   def update_tendroid_wave(
@@ -129,7 +133,7 @@ class BubbleManager:
       self.bubble_spawned_this_cycle[tendroid_name] = False
     
     # Update locked bubbles
-    self._update_locked_bubbles(tendroid_name, tracker)
+    self._update_locked_bubbles(tendroid_name, tracker, base_radius)
   
   def _spawn_bubble(
     self,
@@ -154,8 +158,9 @@ class BubbleManager:
     if active_count >= self.config.max_bubbles_per_tendroid:
       return
     
-    # Get tendroid's x, z position (assume centered at origin for now)
-    spawn_position = (0.0, spawn_y, 0.0)
+    # Get tendroid's actual position
+    tendroid_pos = self.tendroid_positions.get(tendroid_name, (0.0, 0.0, 0.0))
+    spawn_position = (tendroid_pos[0], spawn_y, tendroid_pos[2])
     
     # Create bubble instance
     self.bubble_counter += 1
@@ -189,32 +194,42 @@ class BubbleManager:
       
       if self.config.debug_logging:
         carb.log_info(
-          f"[BubbleManager] Spawned '{bubble_id}' at y={spawn_y:.1f}, "
+          f"[BubbleManager] Spawned '{bubble_id}' at {spawn_position}, "
           f"initial_diameter={initial_diameter:.1f}"
         )
   
-  def _update_locked_bubbles(self, tendroid_name: str, tracker: DeformationWaveTracker):
+  def _update_locked_bubbles(self, tendroid_name: str, tracker: DeformationWaveTracker, base_radius: float):
     """
     Update bubbles in locked phase.
     
     Args:
         tendroid_name: Tendroid identifier
         tracker: DeformationWaveTracker for this tendroid
+        base_radius: Cylinder base radius
     """
     for bubble in self.bubbles[tendroid_name]:
       if bubble.is_locked():
-        # Calculate bubble bottom position (accounting for elongation)
+        # Calculate diameter at bubble's BOTTOM position to prevent wall clipping
         bubble_center_y = bubble.physics.position[1]
         bubble_radius = bubble.physics.diameter / 2.0
         vertical_stretch = bubble.physics.vertical_stretch
         bubble_bottom_y = bubble_center_y - (bubble_radius * vertical_stretch)
         
-        # Get target diameter at bubble BOTTOM position
-        # This ensures bottom half doesn't stick through cylinder wall
-        target_diameter = tracker.get_bubble_diameter_at_position(bubble_bottom_y)
+        # Get target diameter at bubble BOTTOM
+        target_diameter = tracker.get_deformation_at_height(bubble_bottom_y, base_radius) * 2.0
         
         # Apply diameter multiplier from config
         target_diameter *= self.config.diameter_multiplier
+        
+        if self.config.debug_logging:
+          carb.log_info(
+            f"[BubbleManager] {bubble.bubble_id}: "
+            f"bottom_y={bubble_bottom_y:.1f}, "
+            f"deform_radius={tracker.get_deformation_at_height(bubble_bottom_y, base_radius):.2f}, "
+            f"base_diameter={tracker.get_deformation_at_height(bubble_bottom_y, base_radius) * 2.0:.2f}, "
+            f"multiplier={self.config.diameter_multiplier}, "
+            f"final_diameter={target_diameter:.2f}"
+          )
         
         # Update bubble with deformation center and target diameter
         bubble.update_locked(
@@ -227,22 +242,6 @@ class BubbleManager:
         bubble_radius = bubble.physics.get_radius()
         if tracker.should_release_bubble(bubble.physics.position[1], bubble_radius):
           bubble.release()
-  
-  def _check_bubble_release(self, tendroid_name: str, tracker: DeformationWaveTracker):
-    """
-    Check if locked bubbles should be released.
-    
-    Args:
-        tendroid_name: Tendroid identifier
-        tracker: DeformationWaveTracker for this tendroid
-    """
-    if not tracker.is_wave_contracting():
-      return
-    
-    # Release all locked bubbles when wave contracts
-    for bubble in self.bubbles[tendroid_name]:
-      if bubble.is_locked():
-        bubble.release()
   
   def update(self, dt: float):
     """
@@ -284,6 +283,9 @@ class BubbleManager:
       
       if tendroid_name in self.bubble_spawned_this_cycle:
         del self.bubble_spawned_this_cycle[tendroid_name]
+      
+      if tendroid_name in self.wave_trackers:
+        del self.tendroid_positions[tendroid_name]
       
       if self.config.debug_logging:
         carb.log_info(

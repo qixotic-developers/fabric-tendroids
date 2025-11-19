@@ -53,6 +53,16 @@ class TendroidBuilder:
         Success status
     """
     try:
+      # CRITICAL DEBUG: Check if bubble manager was passed
+      if tendroid.bubble_manager:
+        carb.log_info(
+          f"[TendroidBuilder] ✓ '{tendroid.name}' HAS bubble_manager"
+        )
+      else:
+        carb.log_warn(
+          f"[TendroidBuilder] ✗ '{tendroid.name}' NO bubble_manager - bubbles disabled"
+        )
+      
       # Store stage ID for vertex deform mode
       if tendroid.animation_mode == AnimationMode.VERTEX_DEFORM:
         TendroidBuilder._ensure_fast_mesh_updater(stage)
@@ -85,7 +95,11 @@ class TendroidBuilder:
         tendroid.bubble_manager.register_tendroid(
           tendroid_name=tendroid.name,
           cylinder_length=tendroid.length,
-          deform_start_height=tendroid.deform_start_height
+          deform_start_height=tendroid.deform_start_height,
+          position=tendroid.position
+        )
+        carb.log_info(
+          f"[TendroidBuilder] ✓ '{tendroid.name}' registered with BubbleManager at {tendroid.position}"
         )
       
       # Log creation status

@@ -95,6 +95,16 @@ class TendroidControlPanel:
     """Handle spawn count changes from settings UI."""
     self.status_display.update_status(f"Spawn count: {value}")
   
+  def update(self, dt: float):
+    """
+    Update control panel per frame.
+    
+    Args:
+        dt: Delta time in seconds
+    """
+    # Forward update to action buttons (for stress test controller)
+    self.action_buttons.update(dt)
+  
   def destroy(self):
     """Destroy the window."""
     if self.window:

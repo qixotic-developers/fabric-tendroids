@@ -84,9 +84,9 @@
     "opacity": 0.4,
     "metallic": 0.0,
     "roughness": 0.2,
-    "max_lifetime": 10.0,
-    "despawn_height": 200.0,
+    "max_lifetime": 30.0,
+    "despawn_height": 300.0,
     "max_bubbles_per_tendroid": 5,
-    "debug_logging": false
+    "debug_logging": true
   }
 }

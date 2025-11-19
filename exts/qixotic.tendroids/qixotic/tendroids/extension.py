@@ -8,6 +8,7 @@ import carb
 import omni.ext
 import omni.usd
 import omni.kit.ui
+import omni.kit.app
 import omni.kit.window.extensions
 from .scene.manager import TendroidSceneManager
 from .ui.control_panel import TendroidControlPanel
@@ -38,6 +39,13 @@ class TendroidsExtension(omni.ext.IExt):
             self._control_panel = TendroidControlPanel(self._scene_manager)
             self._control_panel.create_window()
             
+            # Subscribe to update events for UI (stress test controller)
+            update_stream = omni.kit.app.get_app().get_update_event_stream()
+            self._ui_update_subscription = update_stream.create_subscription_to_pop(
+                self._on_ui_update,
+                name="TendroidsExtension.UIUpdate"
+            )
+            
             # Filter Extensions panel to show qixotic.tendroids
             self._set_extensions_filter("qixotic tendroids")
             
@@ -51,6 +59,19 @@ class TendroidsExtension(omni.ext.IExt):
             carb.log_error(f"[TendroidsExtension] Startup failed: {e}")
             import traceback
             traceback.print_exc()
+    
+    def _on_ui_update(self, event):
+        """
+        Update handler for UI components (stress test controller).
+        
+        Args:
+            event: Update event
+        """
+        try:
+            dt = event.payload.get("dt", 0.0)
+            self._control_panel.update(dt)
+        except Exception as e:
+            carb.log_error(f"[TendroidsExtension] UI update error: {e}")
 
     def _set_extensions_filter(self, filter_text: str):
         """
@@ -78,6 +99,10 @@ class TendroidsExtension(omni.ext.IExt):
         carb.log_info("[TendroidsExtension] Shutting down")
         
         try:
+            # Unsubscribe from updates
+            if hasattr(self, '_ui_update_subscription'):
+                self._ui_update_subscription = None
+            
             # Clear Extensions panel filter
             self._set_extensions_filter("")
             

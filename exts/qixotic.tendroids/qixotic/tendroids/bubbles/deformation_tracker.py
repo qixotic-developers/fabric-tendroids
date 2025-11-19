@@ -104,15 +104,16 @@ class DeformationWaveTracker:
   
   def get_bubble_diameter_at_position(self, bubble_center_y: float) -> float:
     """
-    Calculate what the bubble diameter should be at given Y position.
+    Calculate conservative bubble diameter that fits inside cylinder at given Y position.
     
-    Bubble diameter matches deformation diameter at its center.
+    Returns a base diameter (slightly smaller than cylinder interior).
+    Caller applies diameter_multiplier for final sizing.
     
     Args:
         bubble_center_y: Y position of bubble center
     
     Returns:
-        Target bubble diameter
+        Conservative base bubble diameter before multiplier
     """
     if not self.wave_is_active:
       return self.base_radius * 2.0
@@ -120,8 +121,11 @@ class DeformationWaveTracker:
     # Get deformation radius at bubble center
     deform_radius = self.get_deformation_at_height(bubble_center_y, self.base_radius)
     
-    # Bubble diameter matches deformation diameter
-    return deform_radius * 2.0
+    # Return conservative diameter (80% of deformation diameter)
+    # This leaves room for diameter_multiplier to tune up to ~1.25x
+    # Base: 0.8 * deform_diameter = safe
+    # With multiplier 1.25: 0.8 * 1.25 = 1.0 (perfect fit)
+    return deform_radius * 2.0 * 0.8
   
   def should_release_bubble(self, bubble_center_y: float, bubble_radius: float) -> bool:
     """

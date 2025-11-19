@@ -6,7 +6,6 @@ Uses simple sine waves for organic appearance.
 """
 
 import math
-import carb
 
 
 class IdleMotionAnimator:
@@ -40,11 +39,6 @@ class IdleMotionAnimator:
         
         self.time = 0.0
         self.enabled = True
-        
-        carb.log_info(
-            f"[IdleMotionAnimator] Initialized: "
-            f"sway_freq={sway_frequency}Hz, rot_freq={rotation_frequency}Hz"
-        )
 
     def update(self, dt: float) -> dict:
         """

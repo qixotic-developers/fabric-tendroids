@@ -6,7 +6,6 @@ Uses GPU-accelerated Warp kernels with single traveling bulge and fade-in effect
 """
 
 import warp as wp
-import carb
 from pxr import Vt
 
 
@@ -109,11 +108,6 @@ class WarpDeformer:
     vertices_data = [(v[0], v[1], v[2]) for v in original_vertices]
     self.original_positions = wp.array(vertices_data, dtype=wp.vec3, device="cuda")
     self.deformed_positions = wp.array(vertices_data, dtype=wp.vec3, device="cuda")
-
-    carb.log_info(
-      f"[WarpDeformer] Initialized with {self.num_vertices} vertices, "
-      f"deform_start={deform_start_height:.2f}"
-    )
 
   def update(
     self,

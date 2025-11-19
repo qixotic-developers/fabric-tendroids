@@ -53,6 +53,12 @@ class TendroidBuilder:
         Success status
     """
     try:
+      # Warn if bubble manager is missing
+      if not tendroid.bubble_manager:
+        carb.log_warn(
+          f"[TendroidBuilder] '{tendroid.name}' has no bubble_manager - bubbles disabled"
+        )
+      
       # Store stage ID for vertex deform mode
       if tendroid.animation_mode == AnimationMode.VERTEX_DEFORM:
         TendroidBuilder._ensure_fast_mesh_updater(stage)
@@ -80,6 +86,15 @@ class TendroidBuilder:
       if not TendroidBuilder._initialize_components(tendroid, stage):
         return False
       
+      # Register with bubble manager if available
+      if tendroid.bubble_manager:
+        tendroid.bubble_manager.register_tendroid(
+          tendroid_name=tendroid.name,
+          cylinder_length=tendroid.length,
+          deform_start_height=tendroid.deform_start_height,
+          position=tendroid.position
+        )
+      
       # Log creation status
       TendroidBuilder._log_creation_status(tendroid)
       
@@ -106,15 +121,11 @@ class TendroidBuilder:
         
         # Store stage object (not stage_id)
         TendroidBuilder._stage = stage
-        
-        carb.log_info(
-          f"[TendroidBuilder] ✅ Initialized FastMeshUpdater"
-        )
       
       except Exception as e:
         carb.log_warn(
-          f"[TendroidBuilder] ⚠️ FastMeshUpdater not available: {e}\n"
-          f"Falling back to Python MeshVertexUpdater (slower but functional)"
+          f"[TendroidBuilder] FastMeshUpdater not available: {e}\n"
+          f"Falling back to Python MeshVertexUpdater"
         )
         # Set to 'unavailable' marker so we don't keep trying
         TendroidBuilder._fast_mesh_updater = 'unavailable'
@@ -267,15 +278,9 @@ class TendroidBuilder:
           TendroidBuilder._fast_mesh_updater
         ):
           use_cpp = True
-          carb.log_info(
-            f"[TendroidBuilder] '{tendroid.name}' using C++ FastMeshUpdater acceleration"
-          )
       
       # Fall back to Python if C++ not available or failed to initialize
       if not use_cpp:
-        carb.log_info(
-          f"[TendroidBuilder] '{tendroid.name}' using Python MeshVertexUpdater fallback"
-        )
         tendroid.mesh_updater = MeshVertexUpdater(tendroid.mesh_prim)
         if not tendroid.mesh_updater.is_valid():
           carb.log_error("[TendroidBuilder] Mesh updater initialization failed")
@@ -313,14 +318,8 @@ class TendroidBuilder:
   @staticmethod
   def _log_creation_status(tendroid):
     """Log creation status based on material safety and animation mode."""
-    mode_str = tendroid.get_animation_mode_name()
-    
     if not tendroid.material_safety.is_safe_for_animation():
       carb.log_error(
-        f"[TendroidBuilder] ❌ '{tendroid.name}' ({mode_str}) has GLASS material - "
+        f"[TendroidBuilder] '{tendroid.name}' has GLASS material - "
         f"animation will be blocked"
-      )
-    else:
-      carb.log_info(
-        f"[TendroidBuilder] ✅ '{tendroid.name}' created ({mode_str} mode)"
       )

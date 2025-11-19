@@ -61,6 +61,11 @@ class TendroidLifecycle:
         tendroid: Tendroid instance
         stage: USD stage
     """
+    # Unregister from bubble manager
+    if tendroid.bubble_manager:
+      tendroid.bubble_manager.clear_tendroid_bubbles(tendroid.name)
+    
+    # Remove USD prim
     if tendroid.base_path:
       try:
         stage.RemovePrim(tendroid.base_path)
@@ -68,6 +73,7 @@ class TendroidLifecycle:
       except Exception as e:
         carb.log_error(f"[TendroidLifecycle] Destroy failed: {e}")
     
+    # Cleanup deformer
     if tendroid.warp_deformer:
       tendroid.warp_deformer.cleanup()
     

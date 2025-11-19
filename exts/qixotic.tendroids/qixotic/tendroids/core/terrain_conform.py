@@ -4,7 +4,6 @@ Terrain conforming helper for Tendroid base vertices
 Adjusts base flare vertices to follow terrain contours.
 """
 
-import carb
 import math
 from pxr import Gf
 from ..sea_floor import get_height_at
@@ -34,15 +33,8 @@ def conform_base_to_terrain(
     segment_height = vertices[radial_resolution][1] - vertices[0][1]
     flare_segments = int(math.ceil(flare_height / segment_height))
     
-    carb.log_info(
-        f"[TerrainConform] Conforming {flare_segments} base segments "
-        f"to terrain at ({base_position[0]:.1f}, {base_position[2]:.1f})"
-    )
-    
     # Convert to mutable list
     modified_vertices = [Gf.Vec3f(v) for v in vertices]
-    
-    heights_sampled = []
     
     # Process each ring in the flare zone
     for seg_idx in range(flare_segments + 1):
@@ -74,17 +66,5 @@ def conform_base_to_terrain(
                 final_y,
                 local_vert[2]
             )
-            
-            if i == 0:  # Track one sample per ring for logging
-                heights_sampled.append(terrain_height)
-    
-    # Log height range for verification
-    if heights_sampled:
-        min_h = min(heights_sampled)
-        max_h = max(heights_sampled)
-        carb.log_info(
-            f"[TerrainConform] Base height range: "
-            f"[{min_h:.2f}, {max_h:.2f}]"
-        )
     
     return modified_vertices

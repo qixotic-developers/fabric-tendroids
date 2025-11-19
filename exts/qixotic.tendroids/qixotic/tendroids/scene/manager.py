@@ -28,8 +28,6 @@ class TendroidSceneManager:
         self.bubble_manager = None
         self.animation_controller = AnimationController()
         self._sea_floor_created = False
-        
-        carb.log_info("[TendroidSceneManager] Initialized with bubble support")
     
     def _ensure_sea_floor(self, stage):
         """
@@ -42,7 +40,6 @@ class TendroidSceneManager:
             try:
                 SeaFloorController.create_sea_floor(stage)
                 self._sea_floor_created = True
-                carb.log_info("[TendroidSceneManager] Sea floor created")
             except Exception as e:
                 carb.log_error(
                     f"[TendroidSceneManager] Failed to create sea floor: {e}"
@@ -64,7 +61,6 @@ class TendroidSceneManager:
         enabled = get_config_value("bubble_system", "enabled", default=True)
         
         if not enabled:
-            carb.log_info("[TendroidSceneManager] Bubble system disabled in config")
             return
         
         # Load bubble configuration from JSON
@@ -76,8 +72,6 @@ class TendroidSceneManager:
         
         # Wire up to animation controller
         self.animation_controller.set_bubble_manager(self.bubble_manager)
-        
-        carb.log_info("[TendroidSceneManager] Bubble system initialized")
     
     def create_tendroids(
         self,
@@ -132,9 +126,6 @@ class TendroidSceneManager:
             # Update animation controller
             self.animation_controller.set_tendroids(self.tendroids)
             
-            carb.log_info(
-                f"[TendroidSceneManager] Created {len(self.tendroids)} Tendroids"
-            )
             return True
         
         except Exception as e:
@@ -264,7 +255,6 @@ class TendroidSceneManager:
         
         self.tendroids.clear()
         self.animation_controller.set_tendroids([])
-        carb.log_info("[TendroidSceneManager] Cleared all Tendroids and bubbles")
     
     def get_tendroid_count(self) -> int:
         """Get the number of active Tendroids."""
@@ -280,6 +270,17 @@ class TendroidSceneManager:
         """Enable or disable animation for all Tendroids."""
         self.animation_controller.set_all_active(active)
     
+    def update_bubble_pop_timing(self, min_time: float, max_time: float):
+        """
+        Update bubble pop time range.
+        
+        Args:
+            min_time: Minimum seconds before bubble pops
+            max_time: Maximum seconds before bubble pops
+        """
+        if self.bubble_manager:
+            self.bubble_manager.set_pop_time_range(min_time, max_time)
+    
     def shutdown(self):
         """Cleanup when shutting down."""
         self.animation_controller.shutdown()
@@ -291,4 +292,3 @@ class TendroidSceneManager:
                 self.clear_tendroids(stage)
         
         self.bubble_manager = None
-        carb.log_info("[TendroidSceneManager] Shutdown complete")

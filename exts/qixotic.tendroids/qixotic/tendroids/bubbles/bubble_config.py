@@ -23,8 +23,10 @@ class BubbleConfig:
   release_threshold: float = 0.95
   
   # === Bubble Geometry ===
-  # Bubble diameter as fraction of max deformation diameter
-  diameter_multiplier: float = 1.0
+  # Bubble diameter as fraction of deformation diameter
+  # NOTE: Actual value loaded from tendroids_config.json (this is just fallback)
+  # Typical range: 0.5-1.5 depending on number of Tendroids
+  diameter_multiplier: float = 1.2
   
   # Minimum bubble diameter (world units)
   min_diameter: float = 5.0
@@ -61,9 +63,32 @@ class BubbleConfig:
   # Roughness (0.0-1.0)
   roughness: float = 0.2
   
+  # === Pop Timing ===
+  # Minimum time before bubble pops (seconds)
+  min_pop_time: float = 10.0
+  
+  # Maximum time before bubble pops (seconds)
+  max_pop_time: float = 25.0
+  
+  # === Pop Effects ===
+  # Number of spray particles per pop
+  particles_per_pop: int = 6
+  
+  # Initial speed of spray particles (units/sec)
+  particle_speed: float = 15.0
+  
+  # Particle lifetime (seconds)
+  particle_lifetime: float = 0.5
+  
+  # Spray cone angle (degrees)
+  particle_spread: float = 45.0
+  
+  # Particle size (world units)
+  particle_size: float = 0.3
+  
   # === Lifecycle ===
-  # Maximum bubble lifetime (seconds)
-  max_lifetime: float = 10.0
+  # Maximum bubble lifetime (seconds) - now used as fallback
+  max_lifetime: float = 30.0
   
   # Despawn height (world units above tendroid top)
   despawn_height: float = 200.0
@@ -71,6 +96,9 @@ class BubbleConfig:
   # === Performance ===
   # Maximum active bubbles per tendroid
   max_bubbles_per_tendroid: int = 5
+  
+  # Maximum active particles total
+  max_particles: int = 50
   
   # === Debug ===
   # Enable debug logging
@@ -90,7 +118,7 @@ class BubbleConfig:
     return BubbleConfig(
       emission_threshold=config_dict.get('emission_threshold', 0.90),
       release_threshold=config_dict.get('release_threshold', 0.95),
-      diameter_multiplier=config_dict.get('diameter_multiplier', 1.0),
+      diameter_multiplier=config_dict.get('diameter_multiplier', 1.2),
       min_diameter=config_dict.get('min_diameter', 5.0),
       max_diameter=config_dict.get('max_diameter', 20.0),
       resolution=config_dict.get('resolution', 16),
@@ -102,9 +130,17 @@ class BubbleConfig:
       opacity=config_dict.get('opacity', 0.4),
       metallic=config_dict.get('metallic', 0.0),
       roughness=config_dict.get('roughness', 0.2),
-      max_lifetime=config_dict.get('max_lifetime', 10.0),
+      min_pop_time=config_dict.get('min_pop_time', 10.0),
+      max_pop_time=config_dict.get('max_pop_time', 25.0),
+      particles_per_pop=config_dict.get('particles_per_pop', 6),
+      particle_speed=config_dict.get('particle_speed', 15.0),
+      particle_lifetime=config_dict.get('particle_lifetime', 0.5),
+      particle_spread=config_dict.get('particle_spread', 45.0),
+      particle_size=config_dict.get('particle_size', 0.3),
+      max_lifetime=config_dict.get('max_lifetime', 30.0),
       despawn_height=config_dict.get('despawn_height', 200.0),
       max_bubbles_per_tendroid=config_dict.get('max_bubbles_per_tendroid', 5),
+      max_particles=config_dict.get('max_particles', 50),
       debug_logging=config_dict.get('debug_logging', False)
     )
 

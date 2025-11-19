@@ -1,26 +1,38 @@
 """
-Individual bubble instance
+Individual bubble instance with two-phase physics
 
-Represents a single bubble with position, velocity, and lifecycle.
+Represents a single bubble that:
+1. Starts locked to deformation wave
+2. Releases when wave contracts
+3. Rises independently with squeeze-out acceleration
+4. Pops after random lifetime with particle spray
 """
 
 import carb
+import random
 from pxr import Gf
-import math
+from .bubble_physics import BubblePhysics
 
 
 class Bubble:
   """
-  Single bubble instance with physics and lifecycle.
+  Single bubble with deformation-synchronized physics and pop behavior.
   
-  Tracks position, velocity, age, and handles USD prim creation/updates.
+  Lifecycle:
+  - Spawn: Created when deformation first becomes visible
+  - Locked: Rises with deformation wave, diameter matches max deformation
+  - Released: Wave contracts, bubble accelerates and breaks free
+  - Free: Independent buoyant rise with drift/wobble
+  - Pop: Random lifetime expires, triggers particle spray
   """
   
   def __init__(
     self,
     bubble_id: str,
     initial_position: tuple,
-    diameter: float,
+    initial_diameter: float,
+    deform_wave_speed: float,
+    base_radius: float,
     config,
     stage
   ):
@@ -30,24 +42,32 @@ class Bubble:
     Args:
         bubble_id: Unique identifier
         initial_position: (x, y, z) spawn position
-        diameter: Bubble diameter
+        initial_diameter: Starting diameter (grows with deformation)
+        deform_wave_speed: Speed of deformation wave
+        base_radius: Cylinder base radius
         config: BubbleConfig instance
         stage: USD stage
     """
     self.bubble_id = bubble_id
-    self.position = list(initial_position)
-    self.diameter = diameter
     self.config = config
     self.stage = stage
     
-    # Physics state
-    self.velocity = [0.0, config.rise_speed, 0.0]
-    self.drift_phase = 0.0
-    self.wobble_phase = 0.0
+    # Physics controller - initial_diameter already includes multiplier from caller
+    self.physics = BubblePhysics(
+      initial_position=initial_position,
+      diameter=initial_diameter,
+      deform_wave_speed=deform_wave_speed,
+      base_radius=base_radius,
+      config=config
+    )
     
     # Lifecycle
-    self.age = 0.0
     self.is_alive = True
+    self.age = 0.0
+    
+    # Pop timing - random within configured range
+    self.pop_time = random.uniform(config.min_pop_time, config.max_pop_time)
+    self.has_popped = False
     
     # USD reference
     self.prim_path = None
@@ -56,62 +76,114 @@ class Bubble:
     if config.debug_logging:
       carb.log_info(
         f"[Bubble] Created '{bubble_id}' at {initial_position}, "
-        f"diameter={diameter:.1f}"
+        f"diameter={initial_diameter:.1f}, wave_speed={deform_wave_speed:.1f}, "
+        f"pop_time={self.pop_time:.1f}s"
       )
   
-  def update(self, dt: float):
+  def update_locked(self, dt: float, deform_center_y: float, deform_radius: float):
     """
-    Update bubble physics and position.
+    Update bubble in locked phase.
     
     Args:
-        dt: Delta time (seconds)
+        dt: Delta time
+        deform_center_y: Current Y position of deformation center
+        deform_radius: Target radius (deform_radius is actually target_diameter/2)
     """
     if not self.is_alive:
       return
     
     self.age += dt
     
-    # Check lifetime
-    if self.age >= self.config.max_lifetime:
+    # Check if time to pop
+    if self.age >= self.pop_time and not self.has_popped:
+      self.has_popped = True
       self.is_alive = False
       return
     
-    # Update drift phase
-    self.drift_phase += dt * self.config.wobble_frequency * 2.0 * math.pi
+    # Convert radius back to diameter (multiplier already applied by caller)
+    target_diameter = deform_radius * 2.0
+    self.physics.update_locked(dt, deform_center_y, target_diameter)
     
-    # Update wobble phase
-    self.wobble_phase += dt * self.config.wobble_frequency * 2.0 * math.pi
-    
-    # Calculate drift
-    drift_x = math.sin(self.drift_phase) * self.config.drift_speed * dt
-    drift_z = math.cos(self.drift_phase * 0.7) * self.config.drift_speed * dt
-    
-    # Calculate wobble (size variation)
-    wobble_scale = 1.0 + math.sin(self.wobble_phase) * self.config.wobble_amplitude
-    
-    # Update position
-    self.position[0] += drift_x
-    self.position[1] += self.velocity[1] * dt
-    self.position[2] += drift_z
-    
-    # Check despawn height
-    if self.position[1] >= self.config.despawn_height:
+    # Check if expired
+    if self.physics.is_expired(self.config.despawn_height):
       self.is_alive = False
       return
     
-    # Update USD prim if it exists
-    if self.prim and self.stage:
+    # Update USD prim
+    self._update_usd_transform()
+  
+  def release(self):
+    """Transition to released state."""
+    if self.physics.state == BubblePhysics.STATE_LOCKED:
+      self.physics.release()
+      
+      if self.config.debug_logging:
+        carb.log_info(
+          f"[Bubble] Released '{self.bubble_id}' at y={self.physics.position[1]:.1f}"
+        )
+  
+  def update_released(self, dt: float):
+    """
+    Update bubble in released phase.
+    
+    Args:
+        dt: Delta time
+    """
+    if not self.is_alive:
+      return
+    
+    self.age += dt
+    
+    # Check if time to pop
+    if self.age >= self.pop_time and not self.has_popped:
+      self.has_popped = True
+      self.is_alive = False
+      return
+    
+    self.physics.update_released(dt)
+    
+    # Check if expired
+    if self.physics.is_expired(self.config.despawn_height):
+      self.is_alive = False
+      return
+    
+    # Update USD prim
+    self._update_usd_transform()
+  
+  def _update_usd_transform(self):
+    """Update USD prim position and scale."""
+    if not self.prim or not self.stage:
+      return
+    
+    try:
       from pxr import UsdGeom
       
-      # Update transform
       xform = UsdGeom.Xformable(self.prim)
       xform.ClearXformOpOrder()
       
+      # Position
       translate_op = xform.AddTranslateOp()
-      translate_op.Set(Gf.Vec3d(*self.position))
+      translate_op.Set(Gf.Vec3d(*self.physics.position))
       
+      # Scale (non-uniform for elongation)
+      scale_x, scale_y, scale_z = self.physics.get_scale()
       scale_op = xform.AddScaleOp()
-      scale_op.Set(Gf.Vec3f(wobble_scale, wobble_scale, wobble_scale))
+      scale_op.Set(Gf.Vec3f(scale_x, scale_y, scale_z))
+    
+    except Exception as e:
+      carb.log_error(f"[Bubble] Failed to update transform: {e}")
+  
+  def is_locked(self) -> bool:
+    """Check if bubble is in locked phase."""
+    return self.physics.state == BubblePhysics.STATE_LOCKED
+  
+  def is_released(self) -> bool:
+    """Check if bubble is in released phase."""
+    return self.physics.state == BubblePhysics.STATE_RELEASED
+  
+  def get_pop_position(self) -> tuple:
+    """Get position where bubble popped for particle spawn."""
+    return tuple(self.physics.position)
   
   def destroy(self):
     """Remove bubble from USD stage."""

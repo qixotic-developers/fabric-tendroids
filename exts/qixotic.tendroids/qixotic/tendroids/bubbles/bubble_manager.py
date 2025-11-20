@@ -239,9 +239,10 @@ class BubbleManager:
         bubble: Bubble that just popped
     """
     pop_position = bubble.get_pop_position()
+    bubble_velocity = bubble.physics.velocity
     
-    # Create particle spray at pop location
-    self.particle_manager.create_pop_spray(pop_position)
+    # Create particle spray at pop location with bubble's velocity
+    self.particle_manager.create_pop_spray(pop_position, bubble_velocity)
   
   def update(self, dt: float):
     """

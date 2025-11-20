@@ -59,15 +59,19 @@ Controllers and main logic - keep files 100-150 lines
 == Quick Commands
 
 === Build C++ Extensions
-```bash
+
+[source,bash]
+----
 cd cpp
 .\build-omniverse.bat
-```
+----
 
 === Run Stress Test
-```bash
+
+[source,bash]
+----
 .\run_stress_test.bat
-```
+----
 
 === Load in USD Composer
 Script Editor → Import extension → Run tests

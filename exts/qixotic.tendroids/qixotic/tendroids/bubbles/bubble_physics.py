@@ -143,8 +143,9 @@ class BubblePhysics:
       self.vertical_stretch = 1.0
       self.horizontal_scale = 1.0
     
-    # Update drift phase only (no wobble)
-    self.drift_phase += dt * self.config.wobble_frequency * 2.0 * math.pi
+    # Update drift phase (constant frequency ~0.5 Hz)
+    drift_frequency = 0.5  # cycles per second
+    self.drift_phase += dt * drift_frequency * 2.0 * math.pi
     
     # Calculate drift
     drift_x = math.sin(self.drift_phase) * self.config.drift_speed * dt

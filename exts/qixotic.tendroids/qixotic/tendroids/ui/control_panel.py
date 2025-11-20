@@ -73,7 +73,7 @@ class TendroidControlPanel:
           )
         
         ui.Line()
-        ui.Spacer(height=2)
+        # ui.Spacer(height=2)
         
         # Spawn settings (compact two-column)
         self.spawn_settings.create_ui(None)

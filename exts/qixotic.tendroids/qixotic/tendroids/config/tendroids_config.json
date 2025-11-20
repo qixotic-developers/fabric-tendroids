@@ -3,92 +3,94 @@
   "title": "Tendroids Configuration",
   "description": "Override default parameters for Tendroids scene. Any values not specified will use Python defaults.",
   
-  "sea_floor": {
-    "width": 800.0,
-    "depth": 800.0,
-    "amplitude": 32.0,
-    "frequency": 0.01,
-    "octaves": 3,
-    "resolution_x": 60,
-    "resolution_y": 60,
-    "parent_path": "/Environment",
-    "mesh_name": "sea_floor"
+  "bubble_system": {
+    "color": [0.7, 0.9, 1.0],
+    "debug_logging": true,
+    "diameter_multiplier": 1.1,
+    "drift_speed": 3.0,
+    "emission_threshold": 0.90,
+    "enabled": true,
+    "max_bubbles_per_tendroid": 1,
+    "max_diameter": 20.0,
+    "max_particles": 50,
+    "max_pop_height": 250.0,
+    "metallic": 0.0,
+    "min_diameter": 5.0,
+    "min_pop_height": 150.0,
+    "opacity": 0.35,
+    "particle_lifetime": 2.0,
+    "particle_size": 2.0,
+    "particle_speed": 18.0,
+    "particles_per_pop": 7,
+    "particle_spread": 50.0,
+    "release_threshold": 0.95,
+    "resolution": 16,
+    "rise_speed": 60.0,
+    "roughness": 0.15
   },
   
   "environment": {
-    "sky": {
-      "path": "/Environment/Sky",
-      "translate_y": 325.0,
-      "rotate_y": -90.0,
-      "rotate_z": -90.0,
-      "intensity": 0.4
-    },
     "distant_light": {
+      "angle": 2.0,
+      "color": [1.0, 1.0, 1.0],
+      "exposure": 10.0,
+      "intensity": 1.0,
       "path": "/Environment/DistantLight",
-      "translate_x": -275.0,
-      "translate_y": 550.0,
       "rotate_y": -75.0,
       "rotate_z": -50.0,
-      "angle": 2.0,
-      "intensity": 1.0,
-      "exposure": 10.0,
-      "color": [1.0, 1.0, 1.0]
+      "translate_x": -275.0,
+      "translate_y": 550.0
     },
     "sea_floor_material": {
-      "path": "/World/Looks/Sand",
-      "use_existing": true,
       "diffuse_color": [0.76, 0.70, 0.50],
+      "metallic": 0.0,
+      "path": "/World/Looks/Sand",
       "roughness": 0.9,
-      "metallic": 0.0
+      "use_existing": true
+    },
+    "sky": {
+      "intensity": 0.4,
+      "path": "/Environment/Sky",
+      "rotate_y": -90.0,
+      "rotate_z": -90.0,
+      "translate_y": 325.0
     }
   },
   
-  "tendroid_geometry": {
-    "default_radius": 10.0,
-    "default_length": 100.0,
-    "default_num_segments": 16,
-    "radial_resolution": 32,
-    "flare_height_percent": 15.0,
-    "flare_radius_multiplier": 2.0
+  "sea_floor": {
+    "amplitude": 32.0,
+    "depth": 800.0,
+    "frequency": 0.01,
+    "mesh_name": "sea_floor",
+    "octaves": 3,
+    "parent_path": "/Environment",
+    "resolution_x": 60,
+    "resolution_y": 60,
+    "width": 800.0
   },
   
   "tendroid_animation": {
-    "wave_speed": 40.0,
-    "bulge_length_percent": 40.0,
     "amplitude": 0.35,
-    "cycle_delay": 2.0
+    "bulge_length_percent": 40.0,
+    "cycle_delay": 2.0,
+    "wave_speed": 40.0
+  },
+  
+  "tendroid_geometry": {
+    "default_length": 100.0,
+    "default_num_segments": 16,
+    "default_radius": 10.0,
+    "flare_height_percent": 15.0,
+    "flare_radius_multiplier": 2.0,
+    "radial_resolution": 32
   },
   
   "tendroid_spawning": {
-    "default_count": 15,
-    "spawn_area": [200.0, 200.0],
-    "radius_range": [8.0, 12.0],
     "aspect_ratio_range": [7.5, 8.5],
+    "default_count": 15,
+    "max_placement_attempts": 200,
+    "radius_range": [8.0, 12.0],
     "spacing_multiplier": 1.2,
-    "max_placement_attempts": 200
-  },
-  
-  "bubble_system": {
-    "enabled": true,
-    "emission_threshold": 0.90,
-    "release_threshold": 0.95,
-    "diameter_multiplier": 1.1,
-    "min_diameter": 5.0,
-    "max_diameter": 20.0,
-    "resolution": 16,
-    "rise_speed": 30.0,
-    "drift_speed": 2.0,
-    "wobble_frequency": 0.5,
-    "wobble_amplitude": 0.1,
-    "color": [0.7, 0.9, 1.0],
-    "opacity": 0.4,
-    "metallic": 0.0,
-    "roughness": 0.2,
-    "min_pop_time": 10.0,
-    "max_pop_time": 25.0,
-    "max_lifetime": 30.0,
-    "despawn_height": 300.0,
-    "max_bubbles_per_tendroid": 5,
-    "debug_logging": false
+    "spawn_area": [200.0, 200.0]
   }
 }

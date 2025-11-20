@@ -1,0 +1,176 @@
+= Bubble System Fixes - Session Summary
+:date: 2024-11-19
+
+== Issues Addressed
+
+=== 1. Height-Based Popping ✅ IMPLEMENTED
+
+*Before*: Time-based (10-20 seconds)
+*After*: Height-based (150-250 units above release point)
+
+*Files Modified*:
+- `config/tendroids_config.json` - Replaced `min/max_pop_time` with `min/max_pop_height`
+- `bubbles/bubble_config.py` - Updated to use height parameters
+- `bubbles/bubble.py` - Rewritten to use height-based logic
+
+*How It Works Now*:
+----
+1. Bubble spawns in locked phase
+2. Bubble releases at top of Tendroid
+3. release_height = current Y position
+4. pop_height = release_height + random(150, 250)
+5. Bubble rises at 60 units/sec
+6. When bubble.position.y >= pop_height → POP!
+----
+
+*Benefits*:
+- Consistent behavior regardless of rise speed
+- Pops happen at visually predictable heights
+- Easy to tune (just adjust min/max height range)
+
+=== 2. Alphabetized JSON Config ✅ DONE
+
+All keys in `tendroids_config.json` are now alphabetically sorted within each section.
+
+=== 3. Removed Unused Parameters ✅ CLEANED
+
+*Removed from config*:
+- `wobble_frequency` - Not used (drift is constant)
+- `wobble_amplitude` - Not used  
+- `despawn_height` - Not needed with height-based popping
+- `max_lifetime` - Not needed with height-based popping
+
+*Current bubble_system parameters* (alphabetized):
+----
+color
+debug_logging
+diameter_multiplier
+drift_speed
+emission_threshold
+enabled
+max_bubbles_per_tendroid
+max_diameter
+max_particles
+max_pop_height          ← NEW
+metallic
+min_diameter
+min_pop_height          ← NEW
+opacity
+particle_lifetime
+particle_size
+particle_speed
+particles_per_pop
+particle_spread
+release_threshold
+resolution
+rise_speed
+roughness
+----
+
+=== 4. Breathing Cycle Coordination ⏳ NOT YET IMPLEMENTED
+
+*Issue*: Deformation runs on fixed interval even when bubble still exists
+
+*Desired Behavior*:
+----
+1. Breathing cycle starts
+2. Bubble spawns and releases
+3. Breathing cycle PAUSES
+4. Bubble pops and is destroyed
+5. Breathing cycle RESUMES
+6. Repeat
+----
+
+*Implementation Needed*:
+- BubbleManager tracks bubble state per Tendroid
+- Tendroid queries: "Can I start next cycle?"
+- BubbleManager responds: "Yes" (if no active bubble) or "No" (if bubble exists)
+
+*Files to Modify* (next session):
+- `animation/breathing.py` - Add pause/resume logic
+- `bubbles/bubble_manager.py` - Add `can_start_cycle(tendroid_name)` method
+- `core/tendroid.py` - Check before starting cycle
+
+== Current State
+
+*Working*:
+✅ One bubble per Tendroid
+✅ Fast rise speed (60 units/sec)
+✅ Particles inherit bubble velocity
+✅ Particles fade one-by-one
+✅ Height-based popping
+✅ Clean, alphabetized config
+✅ No unused parameters
+
+*Not Yet Working*:
+⏳ Breathing cycle waits for bubble to pop
+
+== Testing Instructions
+
+. Reload extension
+. Start animation
+. Observe:
+   - Bubble spawns when deformation appears
+   - Bubble releases and rises at 60 units/sec
+   - Bubble pops after rising 150-250 units
+   - 7 particles spray outward + upward
+   - Particles drift and fade one-by-one
+   - Next bubble spawns (but deformation may already be running)
+
+== Configuration Reference
+
+*Bubble Pop Heights*:
+----
+min_pop_height: 150.0  // Minimum units above release point
+max_pop_height: 250.0  // Maximum units above release point
+----
+
+*Typical Scenario*:
+- Tendroid length: 100 units
+- Release height: ~95 units (95% of length)
+- Pop height range: 245-345 units absolute
+- Rise time: (150-250) / 60 = 2.5-4.2 seconds
+
+*To Adjust*:
+- Pops too soon? Increase min/max_pop_height
+- Pops too late? Decrease min/max_pop_height
+- Too predictable? Increase range (e.g., 100-300)
+
+== Next Session TODO
+
+=== Priority 1: Breathing Cycle Coordination
+
+Implement pause/resume so breathing waits for bubble to pop.
+
+=== Priority 2: Fine-Tuning
+
+- Adjust pop height range if needed
+- Tune particle appearance
+- Consider adding opacity fade to particles
+
+=== Priority 3: Polish
+
+- Remove excessive debug logging
+- Add subtle sound effects (optional)
+- Document final parameter values
+
+== Files Modified This Session
+
+1. `config/tendroids_config.json` - Cleaned & alphabetized
+2. `bubbles/bubble_config.py` - Height-based parameters
+3. `bubbles/bubble.py` - Height-based logic
+4. `bubbles/bubble_manager.py` - Particle velocity inheritance
+5. `bubbles/bubble_particle.py` - Randomized lifetimes & velocity
+
+== Summary
+
+Major improvements:
+- Height-based popping is more intuitive and predictable
+- Config is clean and well-organized
+- Unused parameters removed
+- All keys alphabetized
+
+Still needed:
+- Breathing cycle coordination (requires cross-system communication)
+
+The system is now much cleaner and more maintainable!

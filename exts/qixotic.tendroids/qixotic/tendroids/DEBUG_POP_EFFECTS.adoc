@@ -1,0 +1,126 @@
+= Debugging Bubble Pop Effects - No Visible Particles
+:date: 2024-11-19
+
+== Problem
+
+Bubbles are popping (disappearing) but no particle spray effects are visible.
+
+== Debug Steps Taken
+
+=== 1. Enabled Debug Logging
+
+Changed `config/tendroids_config.json`:
+----
+"debug_logging": true
+----
+
+=== 2. Added Explicit Debug Messages
+
+Modified `bubble_particle.py` with verbose logging at key points:
+
+==== PopParticleManager.create_pop_spray()
+* Logs when function is called
+* Logs current particle count vs max
+* Logs if particle limit reached
+* Logs number of particles being created
+
+==== PopParticleManager._create_particle()
+* Logs particle ID and position
+* Logs calculated velocity vector
+* Logs when particle added to list
+* Logs total particle count
+
+==== PopParticle._create_geometry()
+* Logs geometry creation start
+* Logs sphere radius and position
+* Logs geometry creation complete
+* Logs any errors
+
+== What to Check in Console
+
+When a bubble pops, you should see this sequence:
+
+----
+[PopParticleManager] create_pop_spray called at (x, y, z), current particles: N/50
+[PopParticleManager] Creating 7 particles
+[PopParticleManager] Creating particle 'pop_particle_00001' at (x, y, z)
+[PopParticleManager] Velocity: (vx, vy, vz)
+[PopParticle] Creating geometry at '/World/Bubbles/PopParticles/pop_particle_00001'
+[PopParticle] Sphere created with radius=0.4, position=[x, y, z]
+[PopParticle] Geometry creation complete
+[PopParticleManager] Particle created, total: 1
+... (repeat for 7 particles)
+----
+
+== Possible Issues to Diagnose
+
+=== Issue 1: create_pop_spray Never Called
+*Symptom*: No "[PopParticleManager] create_pop_spray called" messages
+*Cause*: Pop detection not working
+*Fix*: Check bubble pop timing logic in Bubble class
+
+=== Issue 2: Particle Limit Reached
+*Symptom*: "[PopParticleManager] Particle limit reached" message
+*Cause*: Old particles not cleaning up
+*Fix*: Check particle update/cleanup logic
+
+=== Issue 3: Geometry Creation Failing
+*Symptom*: Error messages in _create_geometry
+*Cause*: USD stage issues or path conflicts
+*Fix*: Check stage validity and prim paths
+
+=== Issue 4: Particles Created But Invisible
+*Symptom*: All log messages appear, but nothing visible
+*Possible causes*:
+* Particle size too small (0.4 units)
+* Particles created behind camera
+* Material transparency too high
+* Particles falling too fast (gravity)
+* Particles created at wrong location
+
+== Testing Instructions
+
+. Load Tendroids scene
+. Open console/log window
+. Wait 21+ seconds for bubbles to start popping
+. Watch console for debug messages
+. Report which messages appear and which don't
+
+== Quick Fixes to Try
+
+=== If Particles Too Small
+Edit `tendroids_config.json`:
+----
+"particle_size": 2.0,  // Make much larger temporarily
+----
+
+=== If Particles Too Transparent
+Edit `bubble_particle.py` line ~79:
+----
+shader.CreateInput("opacity", Sdf.ValueTypeNames.Float).Set(1.0)  // Fully opaque
+----
+
+=== If Particles Fall Too Fast
+Edit `bubble_particle.py` line ~46:
+----
+self.gravity = -2.0  // Much slower fall
+----
+
+=== If Wrong Position
+Check the pop_position being passed - should be bubble's current position
+
+== Next Steps Based on Logs
+
+1. *If no create_pop_spray logs*: Problem is in pop detection - bubble.has_popped not being set
+2. *If create_pop_spray called but no particles*: Problem in particle creation loop
+3. *If geometry logs but not visible*: Visual issue (size, transparency, position)
+4. *If errors in geometry creation*: USD/stage issue
+
+== Files Modified for Debug
+
+* `config/tendroids_config.json` - enabled debug_logging
+* `bubbles/bubble_particle.py` - added verbose logging
+
+After debugging, remember to:
+* Set `debug_logging: false` 
+* Remove or comment out excessive log messages

@@ -1,0 +1,155 @@
+= Bug Fix: Bubbles Reaching Despawn Height Before Pop Time
+:date: 2024-11-19
+
+== Problem Discovered
+
+Bubbles were disappearing without showing pop effects because they were hitting the `despawn_height` limit (300.0) before their `pop_time` (21-39 seconds) could elapse.
+
+== Root Cause Analysis
+
+From the log timestamps:
+----
+19:42:11 - Bubbles created with pop_times: 21.5s, 22.5s, 31.4s, 35.1s
+19:42:13 - Bubbles released at y=165-181
+19:42:19 - Bubbles destroyed (only 8 seconds after creation)
+----
+
+=== Why They Disappeared Early
+
+. Bubbles released at y=165-181
+. Rise speed: 35 units/sec
+. Distance to despawn_height (300): ~120-135 units
+. Time to reach 300: ~3.4-3.9 seconds
+. Total lifetime: locked phase (~2s) + rise phase (~4s) = ~6-8 seconds
+. Pop time: 21-39 seconds (never reached!)
+
+=== Code Flow
+
+The `is_expired()` check happens in both `update_locked()` and `update_released()`:
+
+[source,python]
+----
+# In bubble.py
+def update_released(self, dt: float):
+    self.age += dt
+    
+    # Check if time to pop
+    if self.age >= self.pop_time:
+        self.has_popped = True
+        self.is_alive = False
+        return
+    
+    self.physics.update_released(dt)
+    
+    # Check if expired BY HEIGHT
+    if self.physics.is_expired(self.config.despawn_height):
+        self.is_alive = False  # Dies HERE before pop_time!
+        return
+----
+
+The height check was killing bubbles before they could pop naturally.
+
+== Solution Applied
+
+Changed `despawn_height` from 300.0 to 2000.0:
+
+[source,json]
+----
+"bubble_system": {
+  "despawn_height": 2000.0,  // Was 300.0
+}
+----
+
+=== Calculation Verification
+
+With new despawn_height of 2000:
+- Release at y=~170
+- Distance to despawn: 2000 - 170 = 1830 units
+- Rise speed: 35 units/sec
+- Time to despawn: 1830 / 35 = 52.3 seconds
+- Pop time range: 21-39 seconds
+- ✅ Bubbles will pop naturally before reaching despawn height
+
+== Additional Debug Messages
+
+Added explicit pop logging in `bubble.py`:
+
+[source,python]
+----
+if self.age >= self.pop_time and not self.has_popped:
+    self.has_popped = True
+    self.is_alive = False
+    if self.config.debug_logging:
+        carb.log_warn(
+            f"[Bubble] POPPED '{self.bubble_id}' at age={self.age:.1f}s "
+            f"(pop_time={self.pop_time:.1f}s)"
+        )
+    return
+----
+
+Now you'll see clear "POPPED" messages when bubbles actually pop.
+
+== Expected Console Output After Fix
+
+When animation starts:
+----
+[Bubble] Created 'bubble_Tendroid_01_0001' ... pop_time=35.1s
+[BubbleHelpers] Created sphere at '/World/Bubbles/bubble_Tendroid_01_0001'
+... (wait ~2 seconds)
+[Bubble] Released 'bubble_Tendroid_01_0001' at y=165.8
+... (wait ~19 seconds)
+[Bubble] POPPED 'bubble_Tendroid_01_0001' at age=21.5s (pop_time=21.5s)
+[PopParticleManager] create_pop_spray called at (-77.9, 235.2, 44.9)
+[PopParticleManager] Creating 7 particles
+[PopParticle] Creating geometry at '/World/Bubbles/PopParticles/pop_particle_00001'
+... (7 particles created)
+[Bubble] Destroyed 'bubble_Tendroid_01_0001'
+----
+
+== Files Modified
+
+=== config/tendroids_config.json
+* Changed `despawn_height` from 300.0 to 2000.0
+
+=== bubbles/bubble.py
+* Added debug logging when bubble pops (both in locked and released phases)
+
+== Testing Instructions
+
+. Stop animation if running
+. Reload extension or restart Omniverse
+. Start animation
+. Wait 21+ seconds
+. Watch console for "POPPED" messages
+. Watch viewport for particle spray effects
+
+== Design Notes for Future
+
+The `despawn_height` serves as a safety net to prevent bubbles from rising infinitely. With the current parameters:
+
+* Rise speed: 35 units/sec
+* Max pop time: 39 seconds
+* Max rise distance: 35 × 39 = 1365 units
+* Plus release height: ~170 units
+* Total max height: ~1535 units
+
+Therefore `despawn_height: 2000` provides adequate headroom while still being a reasonable safety limit.
+
+If you later increase:
+* Rise speed
+* Max pop time
+* Cylinder height (release point)
+
+Remember to adjust `despawn_height` accordingly using this formula:
+----
+despawn_height = release_height + (rise_speed × max_pop_time) + safety_margin
+----
+
+== Status
+
+✅ Bug identified and fixed
+✅ Despawn height increased to 2000.0
+✅ Debug messages added
+✅ Ready for testing
+
+The bubble pop effects should now be visible!

@@ -5,7 +5,7 @@ Represents a single bubble that:
 1. Starts locked to deformation wave
 2. Releases when wave contracts
 3. Rises independently with squeeze-out acceleration
-4. Pops after random lifetime with particle spray
+4. Pops after reaching random height above release point
 """
 
 import carb
@@ -16,14 +16,14 @@ from .bubble_physics import BubblePhysics
 
 class Bubble:
   """
-  Single bubble with deformation-synchronized physics and pop behavior.
+  Single bubble with deformation-synchronized physics and height-based pop behavior.
   
   Lifecycle:
   - Spawn: Created when deformation first becomes visible
   - Locked: Rises with deformation wave, diameter matches max deformation
-  - Released: Wave contracts, bubble accelerates and breaks free
-  - Free: Independent buoyant rise with drift/wobble
-  - Pop: Random lifetime expires, triggers particle spray
+  - Released: Wave contracts, bubble accelerates and breaks free, pop_height set
+  - Free: Independent buoyant rise with drift
+  - Pop: Reaches pop_height, triggers particle spray
   """
   
   def __init__(
@@ -52,7 +52,7 @@ class Bubble:
     self.config = config
     self.stage = stage
     
-    # Physics controller - initial_diameter already includes multiplier from caller
+    # Physics controller
     self.physics = BubblePhysics(
       initial_position=initial_position,
       diameter=initial_diameter,
@@ -63,10 +63,10 @@ class Bubble:
     
     # Lifecycle
     self.is_alive = True
-    self.age = 0.0
     
-    # Pop timing - random within configured range
-    self.pop_time = random.uniform(config.min_pop_time, config.max_pop_time)
+    # Pop timing - height-based (set on release)
+    self.release_height = None
+    self.pop_height = None
     self.has_popped = False
     
     # USD reference
@@ -76,8 +76,7 @@ class Bubble:
     if config.debug_logging:
       carb.log_info(
         f"[Bubble] Created '{bubble_id}' at {initial_position}, "
-        f"diameter={initial_diameter:.1f}, wave_speed={deform_wave_speed:.1f}, "
-        f"pop_time={self.pop_time:.1f}s"
+        f"diameter={initial_diameter:.1f}, wave_speed={deform_wave_speed:.1f}"
       )
   
   def update_locked(self, dt: float, deform_center_y: float, deform_radius: float):
@@ -92,34 +91,30 @@ class Bubble:
     if not self.is_alive:
       return
     
-    self.age += dt
-    
-    # Check if time to pop
-    if self.age >= self.pop_time and not self.has_popped:
-      self.has_popped = True
-      self.is_alive = False
-      return
-    
-    # Convert radius back to diameter (multiplier already applied by caller)
+    # Convert radius back to diameter
     target_diameter = deform_radius * 2.0
     self.physics.update_locked(dt, deform_center_y, target_diameter)
-    
-    # Check if expired
-    if self.physics.is_expired(self.config.despawn_height):
-      self.is_alive = False
-      return
     
     # Update USD prim
     self._update_usd_transform()
   
   def release(self):
-    """Transition to released state."""
+    """Transition to released state and set pop height."""
     if self.physics.state == BubblePhysics.STATE_LOCKED:
       self.physics.release()
       
+      # Set release height and calculate random pop height
+      self.release_height = self.physics.position[1]
+      height_above_release = random.uniform(
+        self.config.min_pop_height,
+        self.config.max_pop_height
+      )
+      self.pop_height = self.release_height + height_above_release
+      
       if self.config.debug_logging:
         carb.log_info(
-          f"[Bubble] Released '{self.bubble_id}' at y={self.physics.position[1]:.1f}"
+          f"[Bubble] Released '{self.bubble_id}' at y={self.release_height:.1f}, "
+          f"pop_height={self.pop_height:.1f} (travel={height_above_release:.1f})"
         )
   
   def update_released(self, dt: float):
@@ -132,20 +127,20 @@ class Bubble:
     if not self.is_alive:
       return
     
-    self.age += dt
-    
-    # Check if time to pop
-    if self.age >= self.pop_time and not self.has_popped:
+    # Check if reached pop height
+    if (self.pop_height is not None and 
+        not self.has_popped and
+        self.physics.position[1] >= self.pop_height):
       self.has_popped = True
       self.is_alive = False
+      if self.config.debug_logging:
+        carb.log_warn(
+          f"[Bubble] POPPED '{self.bubble_id}' at height={self.physics.position[1]:.1f} "
+          f"(pop_height={self.pop_height:.1f}, traveled={self.physics.position[1] - self.release_height:.1f})"
+        )
       return
     
     self.physics.update_released(dt)
-    
-    # Check if expired
-    if self.physics.is_expired(self.config.despawn_height):
-      self.is_alive = False
-      return
     
     # Update USD prim
     self._update_usd_transform()

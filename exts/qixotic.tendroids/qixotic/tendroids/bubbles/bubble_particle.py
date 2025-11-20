@@ -25,6 +25,7 @@ class PopParticle:
     particle_id: str,
     pop_position: tuple,
     velocity: tuple,
+    lifetime: float,
     config,
     stage,
     prim_path: str
@@ -36,6 +37,7 @@ class PopParticle:
         particle_id: Unique identifier
         pop_position: (x, y, z) where bubble popped
         velocity: (vx, vy, vz) initial velocity
+        lifetime: Seconds before particle fades
         config: BubbleConfig instance
         stage: USD stage
         prim_path: USD path for this particle
@@ -48,10 +50,11 @@ class PopParticle:
     # Physics
     self.position = list(pop_position)
     self.velocity = list(velocity)
-    self.gravity = -20.0  # units/sec^2
+    self.gravity = -5.0  # units/sec^2 (reduced for visibility)
     
-    # Lifecycle
+    # Lifecycle with randomized lifetime
     self.age = 0.0
+    self.lifetime = lifetime
     self.is_alive = True
     
     # USD prim
@@ -63,16 +66,24 @@ class PopParticle:
   def _create_geometry(self):
     """Create small sphere for droplet."""
     try:
+      carb.log_warn(f"[PopParticle] Creating geometry at '{self.prim_path}'")
+      
       sphere = UsdGeom.Sphere.Define(self.stage, self.prim_path)
       sphere.GetRadiusAttr().Set(self.config.particle_size)
       
       # Set initial position
       sphere.AddTranslateOp().Set(Gf.Vec3d(*self.position))
       
+      carb.log_warn(
+        f"[PopParticle] Sphere created with radius={self.config.particle_size}, "
+        f"position={self.position}"
+      )
+      
       # Apply water material (slightly opaque)
       self._apply_water_material(sphere.GetPrim())
       
       self.prim = sphere.GetPrim()
+      carb.log_warn(f"[PopParticle] Geometry creation complete")
       
     except Exception as e:
       carb.log_error(f"[PopParticle] Failed to create geometry: {e}")
@@ -120,8 +131,8 @@ class PopParticle:
     
     self.age += dt
     
-    # Check lifetime
-    if self.age >= self.config.particle_lifetime:
+    # Check individual lifetime (randomized per particle)
+    if self.age >= self.lifetime:
       self.is_alive = False
       return
     
@@ -188,15 +199,25 @@ class PopParticleManager:
     if not self.stage.GetPrimAtPath(self.parent_path):
       UsdGeom.Scope.Define(self.stage, self.parent_path)
   
-  def create_pop_spray(self, pop_position: tuple):
+  def create_pop_spray(self, pop_position: tuple, bubble_velocity: list = None):
     """
     Create spray of particles at pop location.
     
     Args:
         pop_position: (x, y, z) where bubble popped
+        bubble_velocity: [vx, vy, vz] bubble's velocity at pop (optional)
     """
+    if bubble_velocity is None:
+      bubble_velocity = [0.0, 0.0, 0.0]
+    
+    carb.log_warn(
+      f"[PopParticleManager] create_pop_spray called at {pop_position}, "
+      f"bubble_velocity={bubble_velocity}, current particles: {len(self.particles)}/{self.config.max_particles}"
+    )
+    
     # Check particle limit
     if len(self.particles) >= self.config.max_particles:
+      carb.log_warn("[PopParticleManager] Particle limit reached, skipping spray")
       return
     
     num_particles = min(
@@ -204,14 +225,18 @@ class PopParticleManager:
       self.config.max_particles - len(self.particles)
     )
     
+    carb.log_warn(f"[PopParticleManager] Creating {num_particles} particles")
+    
     for i in range(num_particles):
-      self._create_particle(pop_position)
+      self._create_particle(pop_position, bubble_velocity)
   
-  def _create_particle(self, pop_position: tuple):
+  def _create_particle(self, pop_position: tuple, bubble_velocity: list):
     """Create single spray particle."""
     self.particle_counter += 1
     particle_id = f"pop_particle_{self.particle_counter:05d}"
     prim_path = f"{self.parent_path}/{particle_id}"
+    
+    carb.log_warn(f"[PopParticleManager] Creating particle '{particle_id}' at {pop_position}")
     
     # Random radial velocity with upward bias
     angle = random.uniform(0, 2 * math.pi)
@@ -220,22 +245,37 @@ class PopParticleManager:
       self.config.particle_spread
     )
     
-    # Convert to velocity vector
-    speed = self.config.particle_speed
-    vx = speed * math.cos(angle) * math.cos(math.radians(elevation))
-    vy = speed * math.sin(math.radians(elevation))
-    vz = speed * math.sin(angle) * math.cos(math.radians(elevation))
+    # Convert to spray velocity vector
+    spray_speed = self.config.particle_speed
+    spray_vx = spray_speed * math.cos(angle) * math.cos(math.radians(elevation))
+    spray_vy = spray_speed * math.sin(math.radians(elevation))
+    spray_vz = spray_speed * math.sin(angle) * math.cos(math.radians(elevation))
+    
+    # Add bubble's velocity to spray velocity (inherit upward motion)
+    vx = bubble_velocity[0] + spray_vx
+    vy = bubble_velocity[1] + spray_vy
+    vz = bubble_velocity[2] + spray_vz
+    
+    # Randomize lifetime for staggered fade (70% to 130% of base)
+    lifetime = self.config.particle_lifetime * random.uniform(0.7, 1.3)
+    
+    carb.log_warn(
+      f"[PopParticleManager] Velocity: ({vx:.2f}, {vy:.2f}, {vz:.2f}), "
+      f"lifetime: {lifetime:.2f}s"
+    )
     
     particle = PopParticle(
       particle_id=particle_id,
       pop_position=pop_position,
       velocity=(vx, vy, vz),
+      lifetime=lifetime,
       config=self.config,
       stage=self.stage,
       prim_path=prim_path
     )
     
     self.particles.append(particle)
+    carb.log_warn(f"[PopParticleManager] Particle created, total: {len(self.particles)}")
   
   def update(self, dt: float):
     """Update all particles and remove dead ones."""

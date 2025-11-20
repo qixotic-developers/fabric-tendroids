@@ -5,7 +5,7 @@
   
   "bubble_system": {
     "color": [0.7, 0.9, 1.0],
-    "debug_logging": true,
+    "debug_logging": false,
     "diameter_multiplier": 1.1,
     "drift_speed": 3.0,
     "emission_threshold": 0.90,

@@ -189,21 +189,3 @@ class BubblePhysics:
       base_scale * self.vertical_stretch,
       base_scale * self.horizontal_scale
     )
-  
-  def is_expired(self, despawn_height: float) -> bool:
-    """
-    Check if bubble should be destroyed.
-    
-    Args:
-        despawn_height: Maximum Y position
-    
-    Returns:
-        True if bubble is expired
-    """
-    if self.age >= self.config.max_lifetime:
-      return True
-    
-    if self.position[1] >= despawn_height:
-      return True
-    
-    return False

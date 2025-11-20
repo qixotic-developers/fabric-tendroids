@@ -60,13 +60,15 @@ class TendroidsExtension(omni.ext.IExt):
         """
         Suppress noisy USDRT plugin info messages.
         
-        Sets log level to 'warn' for usdrt.population.plugin to hide
+        Sets log level to WARN (2) for usdrt.population.plugin to hide
         repetitive FabricPopulation and primvar messages during animation.
+        
+        Log levels: 0=VERBOSE, 1=INFO, 2=WARN, 3=ERROR, 4=FATAL
         """
         try:
             settings = carb.settings.get_settings()
-            # Suppress usdrt.population.plugin info messages
-            settings.set("/log/channels/usdrt.population.plugin/level", "warn")
+            # Suppress usdrt.population.plugin info messages (use integer 2 for WARN)
+            settings.set("/log/channels/usdrt.population.plugin/level", 2)
         except Exception as e:
             # Not critical if this fails
             pass

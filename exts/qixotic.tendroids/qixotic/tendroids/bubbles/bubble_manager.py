@@ -101,9 +101,6 @@ class BubbleManager:
         wave_speed: Deformation wave speed
     """
     if tendroid_name not in self.wave_trackers:
-      carb.log_warn(
-        f"[BubbleManager] Tendroid '{tendroid_name}' not registered"
-      )
       return
     
     tracker = self.wave_trackers[tendroid_name]
@@ -333,14 +330,3 @@ class BubbleManager:
   def get_particle_count(self) -> int:
     """Get count of active pop particles."""
     return len(self.particle_manager.particles)
-  
-  def set_pop_time_range(self, min_time: float, max_time: float):
-    """
-    Update pop time range configuration.
-    
-    Args:
-        min_time: Minimum seconds before pop
-        max_time: Maximum seconds before pop
-    """
-    self.config.min_pop_time = min_time
-    self.config.max_pop_time = max_time

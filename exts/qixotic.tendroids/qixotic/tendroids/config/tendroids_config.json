@@ -12,21 +12,22 @@
     "enabled": true,
     "max_bubbles_per_tendroid": 1,
     "max_diameter": 20.0,
-    "max_particles": 50,
+    "max_particles": 100,
     "max_pop_height": 250.0,
     "metallic": 0.0,
     "min_diameter": 5.0,
     "min_pop_height": 150.0,
     "opacity": 0.35,
     "particle_lifetime": 2.0,
-    "particle_size": 2.0,
+    "particle_size": 3.0,
     "particle_speed": 18.0,
-    "particles_per_pop": 7,
+    "particles_per_pop": 10,
     "particle_spread": 50.0,
     "release_threshold": 0.95,
     "resolution": 16,
     "rise_speed": 60.0,
-    "roughness": 0.15
+    "roughness": 0.15,
+    "use_warp_particles": true
   },
   
   "environment": {

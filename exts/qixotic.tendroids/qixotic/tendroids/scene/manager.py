@@ -20,13 +20,13 @@ class TendroidSceneManager:
     Now supports optional Warp GPU particle system for improved performance.
     """
     
-    def __init__(self, use_warp_particles: bool = None):
+    def __init__(self, use_warp_particles: bool = True):
         """
         Initialize scene manager with bubble support.
         
         Args:
-            use_warp_particles: Use Warp GPU particles if True, spheres if False,
-                              auto-detect if None (tries Warp, falls back to spheres)
+            use_warp_particles: Use Warp GPU particles if True, spheres if False.
+                              Default is True for better performance.
         """
         self.tendroids = []
         self.bubble_manager = None
@@ -74,9 +74,9 @@ class TendroidSceneManager:
         bubble_config_dict = get_config_value("bubble_system", default={})
         self.bubble_config = BubbleConfig.from_json(bubble_config_dict)
         
-        # Check if Warp particles are requested in config (override init param)
+        # Check if Warp particles are requested in config (only if not explicitly set)
         if self.use_warp_particles is None:
-            self.use_warp_particles = bubble_config_dict.get("use_warp_particles", False)
+            self.use_warp_particles = bubble_config_dict.get("use_warp_particles", True)
         
         # Create appropriate bubble manager
         if self.use_warp_particles:

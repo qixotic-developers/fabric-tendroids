@@ -62,26 +62,26 @@ class BubbleConfig:
   
   # === Pop Effects ===
   # Number of spray particles per pop
-  particles_per_pop: int = 7
+  particles_per_pop: int = 15
   
   # Initial speed of spray particles (units/sec)
-  particle_speed: float = 18.0
+  particle_speed: float = 25.0
   
   # Particle lifetime (seconds)
-  particle_lifetime: float = 2.0
+  particle_lifetime: float = 1.5
   
   # Spray cone angle (degrees)
   particle_spread: float = 50.0
   
   # Particle size (world units)
-  particle_size: float = 2.0
+  particle_size: float = 1.5
   
   # === Performance ===
   # Maximum active bubbles per tendroid
   max_bubbles_per_tendroid: int = 1
   
   # Maximum active particles total
-  max_particles: int = 50
+  max_particles: int = 100
   
   # === Debug ===
   # Enable debug logging
@@ -124,15 +124,15 @@ class BubbleConfig:
       max_pop_height=config_dict.get('max_pop_height', 250.0),
       
       # Pop Effects
-      particles_per_pop=config_dict.get('particles_per_pop', 7),
+      particles_per_pop=config_dict.get('particles_per_pop', 10),
       particle_speed=config_dict.get('particle_speed', 18.0),
       particle_lifetime=config_dict.get('particle_lifetime', 2.0),
       particle_spread=config_dict.get('particle_spread', 50.0),
-      particle_size=config_dict.get('particle_size', 2.0),
+      particle_size=config_dict.get('particle_size', 3.0),
       
       # Performance
       max_bubbles_per_tendroid=config_dict.get('max_bubbles_per_tendroid', 1),
-      max_particles=config_dict.get('max_particles', 50),
+      max_particles=config_dict.get('max_particles', 100),
       
       # Debug
       debug_logging=config_dict.get('debug_logging', False)

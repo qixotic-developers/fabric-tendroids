@@ -159,9 +159,17 @@ class WarpPopParticleManager:
             # Make the point cloud visible
             self.points_prim.GetVisibilityAttr().Set("inherited")
             
-            # Set particle size from config
-            initial_size = self.config.particle_size
+            # Set render purpose to "default" for proper rendering
+            self.points_prim.GetPurposeAttr().Set("default")
+            
+            # Set particle size from config with scale factor
+            # Points often render smaller than expected, so we apply a moderate scale factor
+            # Scale factor of 1.5 provides good visibility without being oversized
+            scale_factor = 1.5
+            initial_size = self.config.particle_size * scale_factor
             self.points_prim.GetWidthsAttr().Set([initial_size])
+            
+            carb.log_info(f"[WarpParticles] Initial particle size: {initial_size} (base: {self.config.particle_size}, scale: {scale_factor})")
             
             # Create primvar for particle colors/opacity
             primvars = UsdGeom.PrimvarsAPI(self.points_prim)
@@ -182,6 +190,14 @@ class WarpPopParticleManager:
                 UsdGeom.Tokens.vertex
             )
             opacity_primvar.Set([1.0])
+            
+            # Add point width primvar for additional size control
+            width_primvar = primvars.CreatePrimvar(
+                "widths",
+                Sdf.ValueTypeNames.FloatArray,
+                UsdGeom.Tokens.vertex  
+            )
+            width_primvar.Set([initial_size])
             
             carb.log_info(f"[WarpParticles] Created point cloud at {self.point_cloud_path}")
             
@@ -348,7 +364,9 @@ class WarpPopParticleManager:
                     
                     # Calculate size (shrink over time)
                     age_ratio = ages_cpu[i] / lifetimes_cpu[i] if lifetimes_cpu[i] > 0 else 1.0
-                    size = self.config.particle_size * (1.0 - age_ratio * 0.5)
+                    # Scale factor for better visibility (points render smaller than expected)
+                    scale_factor = 1.5  # Moderate amplification for balanced visibility
+                    size = self.config.particle_size * scale_factor * (1.0 - age_ratio * 0.5)
                     active_sizes.append(size)
                     
                     # Color changes over lifetime (white -> cyan -> blue)
@@ -368,6 +386,13 @@ class WarpPopParticleManager:
             if active_positions:
                 self.points_prim.GetPointsAttr().Set(active_positions)
                 self.points_prim.GetWidthsAttr().Set(active_sizes)
+                
+                # Debug logging for particle sizes
+                if self.config.debug_logging and active_sizes:
+                    min_size = min(active_sizes)
+                    max_size = max(active_sizes)
+                    avg_size = sum(active_sizes) / len(active_sizes)
+                    carb.log_info(f"[WarpParticles] Particle sizes - Min: {min_size:.2f}, Max: {max_size:.2f}, Avg: {avg_size:.2f}, Count: {len(active_sizes)}")
                 
                 # Update colors
                 primvars = UsdGeom.PrimvarsAPI(self.points_prim)

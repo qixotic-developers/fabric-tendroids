@@ -97,7 +97,8 @@ class BubbleManagerEnhanced:
         tendroid_name: str,
         wave_params: dict,
         base_radius: float,
-        wave_speed: float
+        wave_speed: float,
+        top_position: tuple = None
     ):
         """
         Update deformation wave state for tendroid.
@@ -109,9 +110,19 @@ class BubbleManagerEnhanced:
             wave_params: Dict from BreathingAnimator.update()
             base_radius: Cylinder base radius
             wave_speed: Deformation wave speed
+            top_position: Optional (x, y, z) of tendroid top including wave displacement
         """
         if tendroid_name not in self.wave_trackers:
             return
+        
+        # Update tendroid position if provided
+        if top_position:
+            # Store the top position for bubble spawning
+            self.tendroid_positions[tendroid_name] = (
+                top_position[0],
+                top_position[1] - self.wave_trackers[tendroid_name].cylinder_length,  # Convert to base position
+                top_position[2]
+            )
         
         tracker = self.wave_trackers[tendroid_name]
         tracker.update(wave_params, base_radius)
@@ -133,8 +144,8 @@ class BubbleManagerEnhanced:
         if not wave_params['active']:
             self.bubble_spawned_this_cycle[tendroid_name] = False
         
-        # Update locked bubbles
-        self._update_locked_bubbles(tendroid_name, tracker, base_radius)
+        # Update locked bubbles with current mouth position
+        self._update_locked_bubbles(tendroid_name, tracker, base_radius, top_position)
     
     def _spawn_bubble(
         self,
@@ -184,7 +195,7 @@ class BubbleManagerEnhanced:
             bubble.prim = self.stage.GetPrimAtPath(prim_path)
             self.bubbles[tendroid_name].append(bubble)
     
-    def _update_locked_bubbles(self, tendroid_name: str, tracker, base_radius: float):
+    def _update_locked_bubbles(self, tendroid_name: str, tracker, base_radius: float, top_position: tuple = None):
         """Update bubbles in locked phase and detect pops."""
         popped_bubbles = []
         
@@ -202,11 +213,12 @@ class BubbleManagerEnhanced:
                 # Apply diameter multiplier
                 target_diameter *= self.config.diameter_multiplier
                 
-                # Update bubble with deformation center and target diameter
+                # Update bubble with deformation center, target diameter, and mouth position
                 bubble.update_locked(
                     dt=1.0/60.0,
                     deform_center_y=tracker.wave_center,
-                    deform_radius=target_diameter / 2.0
+                    deform_radius=target_diameter / 2.0,
+                    mouth_position=top_position  # Pass current mouth position
                 )
                 
                 # Check if bubble popped during update
@@ -230,17 +242,24 @@ class BubbleManagerEnhanced:
         # Create particle spray at pop location
         self.particle_manager.create_pop_spray(pop_position, bubble_velocity)
     
-    def update(self, dt: float):
-        """Update all bubbles and particles."""
+    def update(self, dt: float, wave_controller=None):
+        """
+        Update all bubbles and particles.
+        
+        Args:
+            dt: Delta time (seconds)
+            wave_controller: Optional wave controller for synchronized drift
+        """
         popped_bubbles = []
         
         for tendroid_name in list(self.bubbles.keys()):
             bubbles = self.bubbles[tendroid_name]
             
-            # Update released bubbles
-            for bubble in bubbles:
+            # Update released bubbles with wave effects
+            for i, bubble in enumerate(bubbles):
                 if bubble.is_released():
-                    bubble.update_released(dt)
+                    # Pass wave controller and unique ID for phase variation
+                    bubble.update_released(dt, wave_controller, bubble_id=i)
                     
                     # Check if bubble popped
                     if bubble.has_popped:

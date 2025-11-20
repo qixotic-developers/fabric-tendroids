@@ -1,0 +1,46 @@
+= Wave Motion System Documentation
+:author: qixotic
+:date: November 2024
+:toc:
+
+== Overview
+
+The wave motion system simulates gentle ocean currents affecting Tendroids and bubbles, creating a realistic underwater environment with synchronized swaying motion.
+
+== Architecture
+
+=== Components
+
+* **WaveController**: Global wave state manager
+* **WaveConfig**: Configuration parameters  
+* **AnimationController**: Integrates wave updates with animation loop
+* **Tendroid**: Applies graduated displacement from base to tip
+
+=== Motion Characteristics
+
+* **Base behavior**: Anchored with zero movement
+* **Tip behavior**: Maximum displacement following wave pattern
+* **Body segments**: Smooth cubic interpolation from base to tip
+* **Phase offset**: Slight variation between individual Tendroids
+
+== Testing
+
+Run test script to observe wave motion:
+
+[source,bash]
+----
+cd C:\Dev\Omniverse\fabric-tendroids\exts\qixotic.tendroids\qixotic\tendroids
+python test_wave_motion.py
+----
+
+Expected behavior:
+1. Single tendroid spawns
+2. Base remains completely stationary  
+3. Tip sways in figure-8 pattern
+4. Smooth bending along entire body
+
+== Future Phases
+
+* Phase 2: Bubble drift synchronization
+* Phase 3: Caustic lighting effects
+* Phase 4: Environmental props (kelp, debris)

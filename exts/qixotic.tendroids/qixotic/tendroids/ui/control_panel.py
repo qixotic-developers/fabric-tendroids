@@ -1,7 +1,7 @@
 """
 UI control panel for Tendroid management
 
-Coordinates spawn settings, action buttons, bubble controls, and status display.
+Coordinates spawn settings, action buttons, wave controls, bubble controls, and status display.
 """
 
 import carb
@@ -11,6 +11,7 @@ from .spawn_settings_ui import SpawnSettingsUI
 from .action_buttons import ActionButtons
 from .status_display import StatusDisplay
 from .bubble_controls import BubbleControlsBuilder
+from .wave_controls import WaveControlsBuilder
 
 
 class TendroidControlPanel:
@@ -39,6 +40,7 @@ class TendroidControlPanel:
     self.action_buttons = ActionButtons(scene_manager)
     self.status_display = StatusDisplay()
     self.bubble_controls = None  # Created after bubble_manager exists
+    self.wave_controls = None    # Created after animation_controller exists
     
     # Wire up component references
     self.action_buttons.set_spawn_settings(self.spawn_settings)
@@ -88,6 +90,19 @@ class TendroidControlPanel:
         ui.Spacer(height=5)
         ui.Line()
         ui.Spacer(height=5)
+        
+        # Wave controls (if animation controller exists)
+        if self.scene_manager.animation_controller:
+          if self.scene_manager.animation_controller.wave_controller:
+            if not self.wave_controls:
+              self.wave_controls = WaveControlsBuilder(
+                self.scene_manager.animation_controller.wave_controller
+              )
+            self.wave_controls.build()
+            
+            ui.Spacer(height=5)
+            ui.Line()
+            ui.Spacer(height=5)
         
         # Bubble controls (if bubble manager exists)
         if self.scene_manager.bubble_manager:

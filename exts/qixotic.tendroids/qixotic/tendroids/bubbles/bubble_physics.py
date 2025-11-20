@@ -60,21 +60,28 @@ class BubblePhysics:
     self.shape_transition_time = 0.3  # Time to transition to sphere
     self.final_diameter = diameter  # Lock diameter at release
   
-  def update_locked(self, dt: float, deform_center_y: float, target_diameter: float):
+  def update_locked(self, dt: float, deform_center_y: float, target_diameter: float, mouth_position: tuple = None):
     """
     Update bubble in locked phase.
     
-    Bubble rises with deformation wave and diameter grows.
+    Bubble rises with deformation wave, follows mouth position, and diameter grows.
     
     Args:
         dt: Delta time
         deform_center_y: Current Y position of deformation center
         target_diameter: Target diameter from deformation tracker
+        mouth_position: Current (x, y, z) position of tendroid mouth including wave displacement
     """
     self.age += dt
     
-    # Update Y position to track deformation center
-    self.position[1] = deform_center_y
+    # Update position to track mouth if provided
+    if mouth_position:
+      self.position[0] = mouth_position[0]  # Follow X sway
+      self.position[1] = deform_center_y    # Track deformation center Y
+      self.position[2] = mouth_position[2]  # Follow Z sway
+    else:
+      # Fallback: just update Y
+      self.position[1] = deform_center_y
     
     # Grow diameter smoothly toward target
     # Use smooth interpolation to avoid sudden jumps
@@ -101,15 +108,17 @@ class BubblePhysics:
       # Initial velocity from deformation wave speed
       self.velocity = [0.0, self.deform_wave_speed, 0.0]
   
-  def update_released(self, dt: float):
+  def update_released(self, dt: float, wave_controller=None, bubble_id=0):
     """
     Update bubble in released phase.
     
     Applies squeeze-out acceleration, shape transition to sphere,
-    then standard buoyant rise with drift.
+    then standard buoyant rise with wave-synchronized drift.
     
     Args:
         dt: Delta time
+        wave_controller: Optional wave controller for current effects
+        bubble_id: Unique bubble identifier for phase offset
     """
     self.age += dt
     
@@ -143,13 +152,24 @@ class BubblePhysics:
       self.vertical_stretch = 1.0
       self.horizontal_scale = 1.0
     
-    # Update drift phase (constant frequency ~0.5 Hz)
-    drift_frequency = 0.5  # cycles per second
-    self.drift_phase += dt * drift_frequency * 2.0 * math.pi
-    
-    # Calculate drift
-    drift_x = math.sin(self.drift_phase) * self.config.drift_speed * dt
-    drift_z = math.cos(self.drift_phase * 0.7) * self.config.drift_speed * dt
+    # Calculate drift - either from wave controller or default pattern
+    if wave_controller:
+      # Use wave controller for synchronized drift
+      wave_disp = wave_controller.get_displacement(self.position, bubble_id)
+      # Released bubbles drift with current but at reduced intensity
+      # They're lighter and more influenced by their own buoyancy
+      drift_factor = 0.2  # Only 20% of wave motion after release (was 30%)
+      drift_x = wave_disp[0] * drift_factor * dt
+      drift_z = wave_disp[2] * drift_factor * dt
+    else:
+      # Fallback to original drift pattern
+      # Update drift phase (constant frequency ~0.5 Hz)
+      drift_frequency = 0.5  # cycles per second
+      self.drift_phase += dt * drift_frequency * 2.0 * math.pi
+      
+      # Calculate drift
+      drift_x = math.sin(self.drift_phase) * self.config.drift_speed * dt
+      drift_z = math.cos(self.drift_phase * 0.7) * self.config.drift_speed * dt
     
     # Update position
     self.position[0] += drift_x

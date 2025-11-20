@@ -1,0 +1,101 @@
+= Test Files Cleanup Complete
+:toc: auto
+:experimental:
+
+== Summary
+
+Successfully cleaned up 15 outdated test and utility files from the Tendroids project, reducing clutter and improving maintainability.
+
+== Files Removed (15 total)
+
+=== Test Files (9)
+* `test_direct_wave.py` - Early wave testing prototype
+* `test_bubble_mouth_tracking.py` - Specific bubble tracking verification
+* `test_ui_bubbles.py` - Old UI bubble integration test
+* `test_mesh_modify.py` - Mesh modification experiments
+* `test_wave_calc.py` - Wave calculation validation
+* `test_wave_bubbles.py` - Redundant wave/bubble test
+* `debug_wave_check.py` - Debug utility for wave checking
+* `script_editor_wave_test.py` - Simple wave test script
+* `spawn_and_verify.py` - Old spawn verification utility
+
+=== Batch Files (3)
+* `run_phase1_test.bat` - Outdated Phase 1 test runner
+* `run_ui_bubble_test.bat` - Old UI bubble test runner
+* `run_stress_test.bat` - Kept (still useful for stress testing)
+
+=== Utility Scripts (3)
+* `find_all_prims.py` - Debug utility for prim discovery
+* `find_mesh_path.py` - Debug utility for mesh path finding
+* `emergency_stop.py` - Emergency stop script (functionality in UI)
+
+== Files Retained (5)
+
+=== Essential Test Files
+* `test_ui_wave_integration.py` - Comprehensive UI + wave integration test
+* `test_stress_phase2.py` - Critical performance stress testing
+* `test_phase2_bubble_drift.py` - Phase 2 bubble drift validation
+* `test_wave_motion.py` - Core wave motion verification
+* `script_editor_ui_wave_test.py` - Quick UI launch test
+
+=== Stress Test Infrastructure
+* `stress_test_controller.py` - Main stress test controller
+* `run_stress_test.bat` - Batch runner for stress tests
+* `stress_test_results/` - Directory with test logs
+
+== Benefits
+
+1. **Reduced Clutter**: 15 files removed, ~75% reduction in test files
+2. **Clearer Purpose**: Remaining tests have specific, non-overlapping purposes
+3. **Better Maintenance**: Easier to identify which test to run for specific features
+4. **Cleaner Structure**: Project directory more organized and professional
+
+== Quick Test Guide
+
+For different testing needs:
+
+.Testing Matrix
+[cols="1,2,3"]
+|===
+| Test Type | File | Purpose
+
+| UI Integration
+| `test_ui_wave_integration.py`
+| Full UI + wave motion verification
+
+| Performance
+| `test_stress_phase2.py`
+| Stress test with FPS monitoring
+
+| Wave Motion
+| `test_wave_motion.py`
+| Core wave algorithm validation
+
+| Bubble Drift
+| `test_phase2_bubble_drift.py`
+| Phase 2 bubble synchronization
+
+| Quick UI Test
+| `script_editor_ui_wave_test.py`
+| Fast UI launch verification
+|===
+
+== Directory Structure (Clean)
+
+[source]
+----
+qixotic/tendroids/
+├── animation/          # Animation controllers
+├── bubbles/           # Bubble system
+├── config/            # Configuration files
+├── core/              # Core Tendroid logic
+├── cpp/               # C++ extensions
+├── scene/             # Scene management
+├── sea_floor/         # Environment
+├── ui/                # User interface
+├── utils/             # Utilities
+├── stress_test_results/  # Test logs
+├── extension.py       # Main extension
+├── stress_test_controller.py
+└── test_*.py          # 5 essential test files
+----

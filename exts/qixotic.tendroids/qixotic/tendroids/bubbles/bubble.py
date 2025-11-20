@@ -79,7 +79,7 @@ class Bubble:
         f"diameter={initial_diameter:.1f}, wave_speed={deform_wave_speed:.1f}"
       )
   
-  def update_locked(self, dt: float, deform_center_y: float, deform_radius: float):
+  def update_locked(self, dt: float, deform_center_y: float, deform_radius: float, mouth_position: tuple = None):
     """
     Update bubble in locked phase.
     
@@ -87,13 +87,14 @@ class Bubble:
         dt: Delta time
         deform_center_y: Current Y position of deformation center
         deform_radius: Target radius (deform_radius is actually target_diameter/2)
+        mouth_position: Current (x, y, z) position of tendroid mouth including wave
     """
     if not self.is_alive:
       return
     
     # Convert radius back to diameter
     target_diameter = deform_radius * 2.0
-    self.physics.update_locked(dt, deform_center_y, target_diameter)
+    self.physics.update_locked(dt, deform_center_y, target_diameter, mouth_position)
     
     # Update USD prim
     self._update_usd_transform()
@@ -117,12 +118,14 @@ class Bubble:
           f"pop_height={self.pop_height:.1f} (travel={height_above_release:.1f})"
         )
   
-  def update_released(self, dt: float):
+  def update_released(self, dt: float, wave_controller=None, bubble_id=0):
     """
     Update bubble in released phase.
     
     Args:
         dt: Delta time
+        wave_controller: Optional wave controller for synchronized drift
+        bubble_id: Unique identifier for phase offset
     """
     if not self.is_alive:
       return
@@ -140,7 +143,7 @@ class Bubble:
         )
       return
     
-    self.physics.update_released(dt)
+    self.physics.update_released(dt, wave_controller, bubble_id)
     
     # Update USD prim
     self._update_usd_transform()

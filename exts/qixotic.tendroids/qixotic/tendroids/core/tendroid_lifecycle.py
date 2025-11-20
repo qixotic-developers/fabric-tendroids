@@ -82,19 +82,25 @@ class TendroidLifecycle:
   @staticmethod
   def get_top_position(tendroid) -> tuple:
     """
-    Get world position of top for bubble emission.
+    Get world position of top for bubble emission, including wave displacement.
     
     Args:
         tendroid: Tendroid instance
     
     Returns:
-        (x, y, z) position tuple
+        (x, y, z) position tuple with wave offset applied
     """
-    return (
-      tendroid.position[0],
-      tendroid.position[1] + tendroid.length,
-      tendroid.position[2]
-    )
+    # Get base top position
+    base_x = tendroid.position[0]
+    base_y = tendroid.position[1] + tendroid.length
+    base_z = tendroid.position[2]
+    
+    # Add wave displacement if available
+    if hasattr(tendroid, '_current_wave_displacement'):
+      wave_x, wave_y, wave_z = tendroid._current_wave_displacement
+      return (base_x + wave_x, base_y + wave_y, base_z + wave_z)
+    
+    return (base_x, base_y, base_z)
   
   @staticmethod
   def is_animation_enabled(tendroid) -> bool:

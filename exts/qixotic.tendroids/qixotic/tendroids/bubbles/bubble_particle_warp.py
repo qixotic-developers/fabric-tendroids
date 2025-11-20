@@ -1,8 +1,8 @@
 """
-Warp-based GPU particle system for bubble pop effects - FIXED VERSION
+Warp-based GPU particle system for bubble pop effects
 
 High-performance particle system using Warp kernels for GPU acceleration.
-Replaces sphere-based particles with point cloud rendering.
+Replaces sphere-based particles with point cloud rendering for improved performance.
 """
 
 import carb
@@ -88,7 +88,6 @@ class WarpPopParticleManager:
         
         self.stage = stage
         self.config = config
-        self.debug = True  # Enable debug logging
         
         # Particle pool size (pre-allocate for performance)
         self.pool_size = config.max_particles * 2  # Extra headroom
@@ -160,38 +159,31 @@ class WarpPopParticleManager:
             # Make the point cloud visible
             self.points_prim.GetVisibilityAttr().Set("inherited")
             
-            # Set larger particle size for visibility
-            initial_size = self.config.particle_size * 3.0  # Make bigger for testing
+            # Set particle size from config
+            initial_size = self.config.particle_size
             self.points_prim.GetWidthsAttr().Set([initial_size])
             
             # Create primvar for particle colors/opacity
             primvars = UsdGeom.PrimvarsAPI(self.points_prim)
             
-            # Add display color - bright white for maximum visibility
+            # Add display color - water-like color
             color_primvar = primvars.CreatePrimvar(
                 "displayColor",
                 Sdf.ValueTypeNames.Color3fArray,
                 UsdGeom.Tokens.vertex
             )
-            # Bright white color for maximum visibility
-            water_color = Gf.Vec3f(1.0, 1.0, 1.0)
+            water_color = Gf.Vec3f(0.7, 0.85, 1.0)
             color_primvar.Set([water_color])
             
-            # Add opacity - fully opaque
+            # Add opacity
             opacity_primvar = primvars.CreatePrimvar(
                 "displayOpacity",
                 Sdf.ValueTypeNames.FloatArray,
                 UsdGeom.Tokens.vertex
             )
-            opacity_primvar.Set([1.0])  # Fully opaque
+            opacity_primvar.Set([1.0])
             
             carb.log_info(f"[WarpParticles] Created point cloud at {self.point_cloud_path}")
-            
-            # Verify the prim was created
-            if self.stage.GetPrimAtPath(self.point_cloud_path):
-                carb.log_info("[WarpParticles] Point cloud prim verified in stage")
-            else:
-                carb.log_error("[WarpParticles] Point cloud prim NOT found in stage!")
             
         except Exception as e:
             carb.log_error(f"[WarpParticles] Failed to create point cloud: {e}")
@@ -204,15 +196,11 @@ class WarpPopParticleManager:
             pop_position: (x, y, z) where bubble popped
             bubble_velocity: [vx, vy, vz] bubble's velocity at pop
         """
-        if self.debug:
-            carb.log_warn(f"[WarpParticles] create_pop_spray called at position {pop_position}")
-        
         if bubble_velocity is None:
             bubble_velocity = [0.0, 0.0, 0.0]
         
         # Check if we have room
         if self.active_count >= self.config.max_particles:
-            carb.log_warn(f"[WarpParticles] Max particles reached: {self.active_count}/{self.config.max_particles}")
             return
         
         num_particles = min(
@@ -220,19 +208,15 @@ class WarpPopParticleManager:
             self.config.max_particles - self.active_count
         )
         
-        if self.debug:
-            carb.log_warn(f"[WarpParticles] Creating {num_particles} particles")
-        
         # Generate particles on CPU and collect for batch upload
         new_particles = []
         for i in range(num_particles):
             # Find free slot
             slot = self._find_free_slot()
             if slot < 0:
-                carb.log_warn("[WarpParticles] No free slots available")
                 break
             
-            # Random radial velocity with more upward bias
+            # Random radial velocity with upward bias
             angle = random.uniform(0, 2 * math.pi)
             elevation = random.uniform(0, 45)  # Upward spray
             
@@ -261,11 +245,6 @@ class WarpPopParticleManager:
         # Upload to GPU if we created particles
         if new_particles:
             self._upload_new_particles(new_particles)
-            if self.debug:
-                carb.log_warn(f"[WarpParticles] Created {len(new_particles)} particles, active: {self.active_count}")
-                carb.log_info(f"[WarpParticles] Lifetimes set to ~{self.config.particle_lifetime} seconds")
-        else:
-            carb.log_error("[WarpParticles] No particles were created!")
     
     def _find_free_slot(self):
         """Find next available particle slot."""
@@ -305,13 +284,6 @@ class WarpPopParticleManager:
             
             # Synchronize to ensure upload completes
             wp.synchronize()
-            
-            if self.debug:
-                carb.log_info(f"[WarpParticles] Uploaded {len(slots)} new particles to GPU")
-                # Verify the upload by checking one particle
-                if slots:
-                    test_slot = slots[0]
-                    carb.log_info(f"[WarpParticles] Slot {test_slot}: lifetime={self.cpu_lifetimes[test_slot]:.2f}s")
                 
         except Exception as e:
             carb.log_error(f"[WarpParticles] Failed to upload particles: {e}")
@@ -376,7 +348,7 @@ class WarpPopParticleManager:
                     
                     # Calculate size (shrink over time)
                     age_ratio = ages_cpu[i] / lifetimes_cpu[i] if lifetimes_cpu[i] > 0 else 1.0
-                    size = self.config.particle_size * 3.0 * (1.0 - age_ratio * 0.5)
+                    size = self.config.particle_size * (1.0 - age_ratio * 0.5)
                     active_sizes.append(size)
                     
                     # Color changes over lifetime (white -> cyan -> blue)
@@ -410,14 +382,9 @@ class WarpPopParticleManager:
                 
                 # Make sure it's visible
                 self.points_prim.GetVisibilityAttr().Set("inherited")
-                
-                if self.debug and random.random() < 0.05:  # Log 5% of the time
-                    carb.log_info(f"[WarpParticles] Rendering {len(active_positions)} particles")
             else:
                 # Clear display if no particles
                 self.points_prim.GetPointsAttr().Set([])
-                if self.debug and self.total_created > 0:
-                    carb.log_info("[WarpParticles] No active particles to render")
                 
         except Exception as e:
             carb.log_error(f"[WarpParticles] Failed to update point cloud: {e}")
@@ -426,11 +393,7 @@ class WarpPopParticleManager:
         """Update active particle count."""
         try:
             alive_cpu = self.alive_flags.numpy()
-            old_count = self.active_count
             self.active_count = int(np.sum(alive_cpu))
-            
-            if self.debug and old_count != self.active_count:
-                carb.log_info(f"[WarpParticles] Active particle count: {self.active_count}")
             
             # Also update CPU cache for free slot finding
             self.cpu_alive[:] = alive_cpu
@@ -453,8 +416,7 @@ class WarpPopParticleManager:
             # Clear USD display
             self.points_prim.GetPointsAttr().Set([])
             
-            if self.debug:
-                carb.log_info("[WarpParticles] Cleared all particles")
+            carb.log_info("[WarpParticles] Cleared all particles")
             
         except Exception as e:
             carb.log_error(f"[WarpParticles] Failed to clear particles: {e}")

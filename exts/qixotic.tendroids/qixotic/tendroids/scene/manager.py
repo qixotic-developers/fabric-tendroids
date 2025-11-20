@@ -305,6 +305,24 @@ class TendroidSceneManager:
             return self.bubble_manager.get_particle_system_type()
         return "Sphere-based"
     
+    def update_bubble_pop_timing(self, min_pop_time: float, max_pop_time: float):
+        """
+        Update bubble pop timing settings.
+        
+        Args:
+            min_pop_time: Minimum time before bubble pops (seconds)
+            max_pop_time: Maximum time before bubble pops (seconds)
+        """
+        if self.bubble_config:
+            self.bubble_config.min_lifetime = min_pop_time
+            self.bubble_config.max_lifetime = max_pop_time
+            carb.log_info(f"[TendroidSceneManager] Updated pop timing: {min_pop_time:.1f}s - {max_pop_time:.1f}s")
+        
+        # Update bubble manager if it exists
+        if self.bubble_manager:
+            self.bubble_manager.config.min_lifetime = min_pop_time
+            self.bubble_manager.config.max_lifetime = max_pop_time
+    
     def set_all_active(self, active: bool):
         """Enable or disable animation for all Tendroids."""
         self.animation_controller.set_all_active(active)

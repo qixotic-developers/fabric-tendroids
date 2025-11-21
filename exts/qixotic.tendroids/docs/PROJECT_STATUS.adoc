@@ -1,0 +1,92 @@
+= Tendroids Project Status
+:author: qixotic
+:date: November 2025
+:revision: 3.0
+
+== Current State (Phase 2D Complete)
+
+=== What's Working
+* Transform-based animation achieving 49fps with 30 Tendroids
+* Synchronized wave motion affecting all tendroids together
+* Bubble emission system with realistic physics
+* Adaptive bubble sizing based on cylinder tilt
+* Performance monitoring and stress testing infrastructure
+
+=== Known Issues
+* Bubbles clip through heavily tilted cylinders during spawn
+* Root cause: Trying to fit bubbles INTO deformed shape rather than having bubbles CAUSE deformation
+
+== Architecture Overview
+
+=== Module Structure
+[source]
+----
+qixotic.tendroids/
+├── animation/          # Breathing, wave, and idle motion controllers
+├── bubbles/           # Bubble system with physics and deformation tracking
+├── config/            # Configuration management
+├── core/              # Tendroid entities and lifecycle
+├── scene/             # Scene management and factory
+├── sea_floor/         # Terrain generation
+├── ui/                # Control panel and settings
+├── utils/             # Math helpers and profiling
+└── tests/             # Integration and stress tests
+----
+
+=== Performance Metrics
+* 15 Tendroids: 50fps (production baseline)
+* 30 Tendroids: 49fps (stress tested)
+* Mode: Transform-based (SetLocalScale)
+* Vertex deformation: 17fps (archived)
+
+== Next Steps
+
+=== Immediate (Bubble Clipping Fix)
+1. Implement "hide until clear" approach
+   - Make bubbles invisible during spawn
+   - Reveal once they clear the cylinder mouth
+   - Zero performance impact
+
+2. Alternative: Simplified bubble influence
+   - Only affect top 20% of vertices
+   - Single bubble per tendroid
+   - Precomputed influence weights
+
+=== Future Enhancements
+* Wave Action Phase 1: Tendroid sway
+* Wave Action Phase 2: Bubble drift synchronization
+* Wave Action Phase 3: Caustic lighting effects
+* Wave Action Phase 4: Environmental props (kelp, debris)
+
+== Configuration
+
+=== Key Settings (tendroids_config.json)
+[source,json]
+----
+{
+  "bubble_config": {
+    "spawn_size_factor": 0.10-0.15,  // Adaptive based on tilt
+    "growth_rate": 150.0,
+    "initial_boost_multiplier": 5.0,
+    "initial_boost_duration": 0.3
+  }
+}
+----
+
+== Development Guidelines
+
+=== File Size Limits
+* Target: 100-150 lines per file
+* Controllers in main class files
+* Frequently changing methods in helper files
+* Initialization in __init__.py files
+
+=== Documentation
+* All docs in AsciiDoc format (.adoc)
+* Location: docs/ directory
+* Archive old iterations in docs/archive/
+
+=== Performance Targets
+* Minimum: 40fps for production scenes
+* Testing: 30fps acceptable for stress tests
+* Always maintain performance headroom for effects

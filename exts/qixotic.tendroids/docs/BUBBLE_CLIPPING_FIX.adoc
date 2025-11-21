@@ -1,0 +1,132 @@
+= Bubble Clipping Fix Implementation Guide
+:author: qixotic
+:date: November 2025
+:revision: 1.0
+
+== Problem Statement
+
+Bubbles clip through tilted cylinders because we're trying to fit them INTO an already-deformed shape rather than having bubbles CAUSE the deformation.
+
+[source]
+----
+Current: Wave → Cylinder Deformation → Try to fit bubble inside → CLIPPING
+Ideal:   Wave + Bubble Physics → Combined Deformation → Natural fit
+----
+
+== Proposed Solutions
+
+=== Solution 1: Hide Until Clear (Recommended)
+
+==== Approach
+Make bubbles invisible during spawn, reveal once they clear the cylinder.
+
+==== Implementation
+[source,python]
+----
+# In bubble_manager.py or bubble_helpers.py
+def update_bubble_visibility(bubble, cylinder_transform):
+    """Hide bubble until it clears the cylinder mouth"""
+    if bubble.phase == "locked":
+        # Calculate distance from cylinder mouth
+        mouth_pos = get_cylinder_mouth_position(cylinder_transform)
+        distance = (bubble.position - mouth_pos).length()
+        
+        # Hide if still inside cylinder
+        if distance < cylinder_radius * 1.5:
+            bubble.set_visibility(False)
+        else:
+            bubble.set_visibility(True)
+    else:
+        # Always visible once released
+        bubble.set_visibility(True)
+----
+
+==== Benefits
+* Zero performance impact
+* Simple to implement
+* No architectural changes needed
+
+==== Drawbacks
+* Bubbles "pop into existence"
+* Less realistic emergence
+
+=== Solution 2: Spawn Outside
+
+==== Approach
+Start bubbles just outside the cylinder mouth, already released.
+
+==== Implementation
+[source,python]
+----
+# In bubble_config.py
+SPAWN_OFFSET = 0.2  # Start 20% outside cylinder
+
+# In deformation_tracker.py
+def get_spawn_position(self):
+    """Spawn bubble outside the cylinder mouth"""
+    mouth_pos = self.get_mouth_position()
+    mouth_normal = self.get_mouth_normal()
+    
+    # Offset along normal direction
+    spawn_pos = mouth_pos + mouth_normal * (radius * SPAWN_OFFSET)
+    return spawn_pos
+----
+
+==== Benefits
+* No clipping possible
+* Simple implementation
+* Good performance
+
+==== Drawbacks
+* Less realistic - bubbles appear from nowhere
+* Loses the "emergence" effect
+
+=== Solution 3: Particle Masking
+
+==== Approach
+Use particle effects to hide the transition moment.
+
+==== Implementation
+[source,python]
+----
+# Create burst of small particles at mouth
+def emit_transition_particles(mouth_position):
+    """Emit particles to mask bubble emergence"""
+    particle_system.emit(
+        position=mouth_position,
+        count=20,
+        size=0.01,
+        lifetime=0.5,
+        velocity_variance=0.2
+    )
+----
+
+==== Benefits
+* Visually masks the problem
+* Adds visual interest
+* Maintains emergence feeling
+
+==== Drawbacks
+* Additional particle system overhead
+* More complex to tune
+
+== Implementation Priority
+
+1. Start with Solution 1 (Hide Until Clear)
+2. Test visual acceptability
+3. If needed, combine with Solution 3 (Particle Masking)
+4. Solution 2 as fallback if performance issues
+
+== Files to Modify
+
+* `bubbles/bubble.py` - Add visibility control
+* `bubbles/bubble_manager.py` - Implement visibility logic
+* `bubbles/bubble_helpers.py` - Update sphere creation
+* `bubbles/deformation_tracker.py` - Adjust spawn calculations
+
+== Testing Approach
+
+1. Enable single tendroid with maximum tilt
+2. Slow down animation speed for observation
+3. Test with various bubble sizes
+4. Verify no performance regression

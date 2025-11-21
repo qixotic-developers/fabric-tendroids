@@ -1,13 +1,15 @@
 """
-Animation controller for Tendroid and bubble updates
+Animation controller for Tendroid and bubble updates with wave effects
 
-Manages animation lifecycle and update loop subscription with bubble system.
+Manages animation lifecycle and update loop subscription with bubble system
+and wave controller for synchronized ocean current effects.
 Optional performance profiling with periodic FPS logging.
 """
 
 import carb
 import omni.kit.app
 import time
+from ..animation.wave_controller import WaveController, WaveConfig
 
 
 class AnimationController:
@@ -32,6 +34,9 @@ class AnimationController:
         self.is_running = False
         self._frame_count = 0
         self._absolute_time = 0.0
+        
+        # Wave controller for synchronized ocean current
+        self.wave_controller = WaveController(WaveConfig())
         
         # Performance profiling
         self._profiling_enabled = False
@@ -128,14 +133,20 @@ class AnimationController:
             # Update absolute time
             self._absolute_time += dt
             
-            # Update all active Tendroids
-            for tendroid in self.tendroids:
-                if tendroid.is_animation_enabled():
-                    tendroid.update(dt, self._absolute_time)
+            # Update wave controller
+            self.wave_controller.update(dt)
             
-            # Update bubble system
+            # Update all active Tendroids with wave effects
+            for i, tendroid in enumerate(self.tendroids):
+                if tendroid.is_animation_enabled():
+                    # Pass wave controller to tendroid
+                    tendroid.update(dt, self._absolute_time, 
+                                  wave_controller=self.wave_controller,
+                                  tendroid_id=i)
+            
+            # Update bubble system with wave controller for synchronized drift
             if self.bubble_manager:
-                self.bubble_manager.update(dt)
+                self.bubble_manager.update(dt, wave_controller=self.wave_controller)
         
         except Exception as e:
             carb.log_error(

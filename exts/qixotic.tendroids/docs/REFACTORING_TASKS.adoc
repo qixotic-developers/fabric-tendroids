@@ -1,0 +1,61 @@
+= Refactoring Tasks
+:date: November 2025
+:revision: 1.0
+
+== Files Needing Size Reduction
+
+Target: 100-150 lines per file
+
+=== Critical Refactoring (300+ lines)
+
+[cols="40,20,30", options="header"]
+|===
+| File | Lines | Suggested Split
+| bubbles/bubble_manager.py | 344 | Split into manager + helpers
+| bubbles/bubble_manager_enhanced.py | 423 | Archive or consolidate
+| bubbles/bubble_particle_warp.py | 444 | Split GPU/CPU code
+| core/tendroid.py | 308 | Extract methods to helpers
+| core/tendroid_builder.py | 321 | Split creation/config
+| scene/manager.py | 336 | Extract spawn/lifecycle
+|===
+
+=== Moderate Refactoring (200-300 lines)
+
+[cols="40,20,30", options="header"]
+|===
+| File | Lines | Suggested Action
+| stress_test_controller.py | 260 | Split test runners
+| bubbles/bubble.py | 204 | Extract state management
+| bubbles/bubble_particle.py | 265 | Consolidate with warp version
+| bubbles/bubble_physics.py | 253 | Extract calculations
+| bubbles/deformation_tracker.py | 205 | Keep as-is (borderline)
+| scene/animation_controller.py | 248 | Extract mode handlers
+| scene/environment_setup.py | 211 | Keep as-is (borderline)
+| scene/tendroid_factory.py | 245 | Extract creation logic
+| ui/action_buttons.py | 298 | Split button groups
+| ui/spawn_settings_ui.py | 201 | Keep as-is (borderline)
+| tests/test_stress_phase2.py | 208 | Keep as-is (test file)
+|===
+
+== Refactoring Priority
+
+=== Phase 1: Core Files
+1. core/tendroid.py - Extract helper methods
+2. core/tendroid_builder.py - Separate concerns
+
+=== Phase 2: Bubble System
+1. Consolidate bubble_particle.py and bubble_particle_warp.py
+2. Split bubble_manager.py into manager + helpers
+3. Archive bubble_manager_enhanced.py if redundant
+
+=== Phase 3: Scene Management
+1. scene/manager.py - Extract spawn/lifecycle
+2. scene/animation_controller.py - Modularize handlers
+
+== Guidelines
+
+* Controllers stay in main class files
+* Frequently changing methods go to helpers
+* Use __init__.py for module globals
+* Maintain clear imports between split files
+* Document the split in file headers

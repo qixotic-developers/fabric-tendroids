@@ -1,0 +1,54 @@
+= Test Scripts Directory
+:date: November 2025
+
+== Main Test Scripts
+
+=== test_final.py
+Complete test with Hide Until Clear demonstration
+[source,bash]
+----
+exec(open(r"C:\Dev\Omniverse\fabric-tendroids\exts\qixotic.tendroids\qixotic\tendroids\tests\test_final.py").read())
+----
+
+=== test_minimal.py  
+Simplest test - just creates 2 tendroids with bubbles
+[source,bash]
+----
+exec(open(r"C:\Dev\Omniverse\fabric-tendroids\exts\qixotic.tendroids\qixotic\tendroids\tests\test_minimal.py").read())
+----
+
+== Control Scripts
+
+=== stop_animation.py
+Stops all animation
+[source,bash]
+----
+exec(open(r"C:\Dev\Omniverse\fabric-tendroids\exts\qixotic.tendroids\qixotic\tendroids\tests\stop_animation.py").read())
+----
+
+=== clear_scene.py
+Removes all tendroids and bubbles
+[source,bash]
+----
+exec(open(r"C:\Dev\Omniverse\fabric-tendroids\exts\qixotic.tendroids\qixotic\tendroids\tests\clear_scene.py").read())
+----
+
+=== one_liners.py
+Quick copy-paste commands for common operations
+
+== Other Test Scripts
+
+* test_phase2_bubble_drift.py - Bubble drift testing
+* test_stress_phase2.py - Stress testing framework
+* test_ui_wave_integration.py - Wave UI integration
+* test_wave_motion.py - Wave motion testing
+* script_editor_ui_wave_test.py - UI wave controls
+
+== Using the UI Instead
+
+The Hide Until Clear feature is now integrated into the Tendroids Controls UI:
+1. Open the Tendroids Controls panel
+2. Expand "Bubble Controls" section
+3. Check/uncheck "Hide Until Clear" checkbox
+
+This is the recommended way to control the feature.

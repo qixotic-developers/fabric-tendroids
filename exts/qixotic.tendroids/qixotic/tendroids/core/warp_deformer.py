@@ -155,6 +155,17 @@ class WarpDeformer:
     
     # Convert directly to Vt.Vec3fArray (zero-copy via buffer protocol)
     return Vt.Vec3fArray.FromBuffer(deformed_data)
+  
+  def get_rest_vertices(self) -> Vt.Vec3fArray:
+    """
+    Get the original undeformed vertices.
+    
+    Returns:
+        Vt.Vec3fArray of original vertices (rest pose)
+    """
+    # Return original positions without any deformation
+    original_data = self.original_positions.numpy()
+    return Vt.Vec3fArray.FromBuffer(original_data)
 
   def cleanup(self):
     """Release Warp resources."""

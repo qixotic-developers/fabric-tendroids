@@ -1,7 +1,7 @@
 """
-Scene manager for multiple Tendroids with bubble system
+Enhanced scene manager with optional Warp GPU particle system
 
-Coordinates creation, placement, and lifecycle of all Tendroids and bubbles.
+Extends the standard manager to support switching between particle systems.
 """
 
 import carb
@@ -9,7 +9,7 @@ import omni.usd
 from .tendroid_factory import TendroidFactory
 from .animation_controller import AnimationController
 from ..sea_floor.sea_floor_controller import SeaFloorController
-from ..bubbles import BubbleManager, BubbleConfig
+from ..bubbles import BubbleManager, BubbleManagerEnhanced, BubbleConfig
 from ..config import get_config_value
 
 
@@ -17,15 +17,21 @@ class TendroidSceneManager:
     """
     High-level scene coordinator for Tendroids and bubbles.
     
-    Delegates creation to TendroidFactory and animation to AnimationController,
-    focusing on scene-level concerns like cleanup and Tendroid collection management.
-    Manages bubble system integration.
+    Now supports optional Warp GPU particle system for improved performance.
     """
     
-    def __init__(self):
-        """Initialize scene manager with bubble support."""
+    def __init__(self, use_warp_particles: bool = True):
+        """
+        Initialize scene manager with bubble support.
+        
+        Args:
+            use_warp_particles: Use Warp GPU particles if True, spheres if False.
+                              Default is True for better performance.
+        """
         self.tendroids = []
         self.bubble_manager = None
+        self.bubble_config = None
+        self.use_warp_particles = use_warp_particles
         self.animation_controller = AnimationController()
         self._sea_floor_created = False
     
@@ -61,14 +67,35 @@ class TendroidSceneManager:
         enabled = get_config_value("bubble_system", "enabled", default=True)
         
         if not enabled:
+            carb.log_info("[TendroidSceneManager] Bubble system disabled in config")
             return
         
         # Load bubble configuration from JSON
         bubble_config_dict = get_config_value("bubble_system", default={})
-        bubble_config = BubbleConfig.from_json(bubble_config_dict)
+        self.bubble_config = BubbleConfig.from_json(bubble_config_dict)
         
-        # Create bubble manager
-        self.bubble_manager = BubbleManager(stage, bubble_config)
+        # Check if Warp particles are requested in config (only if not explicitly set)
+        if self.use_warp_particles is None:
+            self.use_warp_particles = bubble_config_dict.get("use_warp_particles", True)
+        
+        # Create appropriate bubble manager
+        if self.use_warp_particles:
+            try:
+                self.bubble_manager = BubbleManagerEnhanced(
+                    stage, 
+                    self.bubble_config,
+                    use_warp_particles=True
+                )
+                carb.log_info("[TendroidSceneManager] Using Warp GPU particle system")
+            except Exception as e:
+                carb.log_error(f"[TendroidSceneManager] Failed to init Warp particles: {e}")
+                carb.log_warn("[TendroidSceneManager] Falling back to sphere particles")
+                self.bubble_manager = BubbleManager(stage, self.bubble_config)
+                self.use_warp_particles = False
+        else:
+            # Use original sphere-based manager for compatibility
+            self.bubble_manager = BubbleManager(stage, self.bubble_config)
+            carb.log_info("[TendroidSceneManager] Using sphere-based particle system")
         
         # Wire up to animation controller
         self.animation_controller.set_bubble_manager(self.bubble_manager)
@@ -266,20 +293,39 @@ class TendroidSceneManager:
             return self.bubble_manager.get_bubble_count()
         return 0
     
+    def get_particle_count(self) -> int:
+        """Get the number of active pop particles."""
+        if self.bubble_manager and hasattr(self.bubble_manager, 'get_particle_count'):
+            return self.bubble_manager.get_particle_count()
+        return 0
+    
+    def get_particle_system_type(self) -> str:
+        """Get which particle system is being used."""
+        if self.bubble_manager and hasattr(self.bubble_manager, 'get_particle_system_type'):
+            return self.bubble_manager.get_particle_system_type()
+        return "Sphere-based"
+    
+    def update_bubble_pop_timing(self, min_pop_time: float, max_pop_time: float):
+        """
+        Update bubble pop timing settings.
+        
+        Args:
+            min_pop_time: Minimum time before bubble pops (seconds)
+            max_pop_time: Maximum time before bubble pops (seconds)
+        """
+        if self.bubble_config:
+            self.bubble_config.min_lifetime = min_pop_time
+            self.bubble_config.max_lifetime = max_pop_time
+            carb.log_info(f"[TendroidSceneManager] Updated pop timing: {min_pop_time:.1f}s - {max_pop_time:.1f}s")
+        
+        # Update bubble manager if it exists
+        if self.bubble_manager:
+            self.bubble_manager.config.min_lifetime = min_pop_time
+            self.bubble_manager.config.max_lifetime = max_pop_time
+    
     def set_all_active(self, active: bool):
         """Enable or disable animation for all Tendroids."""
         self.animation_controller.set_all_active(active)
-    
-    def update_bubble_pop_timing(self, min_time: float, max_time: float):
-        """
-        Update bubble pop time range.
-        
-        Args:
-            min_time: Minimum seconds before bubble pops
-            max_time: Maximum seconds before bubble pops
-        """
-        if self.bubble_manager:
-            self.bubble_manager.set_pop_time_range(min_time, max_time)
     
     def shutdown(self):
         """Cleanup when shutting down."""

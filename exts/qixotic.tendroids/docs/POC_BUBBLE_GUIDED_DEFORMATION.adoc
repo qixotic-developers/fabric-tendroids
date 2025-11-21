@@ -1,0 +1,182 @@
+= POC Bubble-Guided Deformation: Session Summary
+:toc:
+:toclevels: 2
+
+== Overview
+
+This session developed a proof-of-concept demonstrating a fundamentally different approach to bubble-cylinder interaction. Instead of trying to fit bubbles inside a pre-deformed cylinder shape (the old approach), the **bubble drives the deformation**.
+
+== The Core Insight
+
+=== Old Architecture (Problematic)
+[source]
+----
+Cylinder deforms (breathing + wave motion)
+    ↓
+Bubble spawns, tries to fit inside deformed shape
+    ↓
+Complex calculations to match deformation
+    ↓
+Still clips because timing/position mismatches
+    ↓
+"Hide until clear" hack to mask the problem
+----
+
+=== New Architecture (POC)
+[source]
+----
+Bubble exists at position inside cylinder
+    ↓
+Cylinder vertices deform based on bubble position
+    ↓
+Natural bulge forms where bubble is
+    ↓
+No clipping possible - geometry adapts to content
+----
+
+== POC Implementation
+
+=== Files Created
+
+All POC files are in: `qixotic/tendroids/poc/`
+
+[cols="1,3"]
+|===
+|File |Purpose
+
+|`__init__.py` |Package exports
+|`poc_bubble.py` |Rising bubble with Y position tracking
+|`poc_deformer.py` |Gaussian displacement calculation
+|`poc_tendroid.py` |Cylinder mesh creation and per-vertex deformation
+|`poc_controller.py` |Orchestrates demo, creates environment
+|===
+
+Test script: `qixotic/tendroids/tests/test_poc_bubble_deform.py`
+
+=== Key Parameters (Final Working Values)
+
+[source,python]
+----
+# Controller settings
+cylinder_radius = 10.0
+cylinder_length = 200.0
+bubble_radius = 8.0 (logic)
+bubble_rise_speed = 15.0
+
+# Visual bubble
+visual_radius = 15.3 (calculated: cylinder_radius * 1.8 * 0.85)
+
+# Deformer settings
+max_bulge_amplitude = 0.8 (80% expansion)
+bulge_width = 2.0 (Gaussian sigma = bubble_radius * 2.0 = 16 units)
+
+# Mesh
+radial_segments = 24
+height_segments = 48
+----
+
+=== Deformation Algorithm
+
+The deformer uses a simple Gaussian bell curve:
+
+[source,python]
+----
+sigma = bubble_radius * bulge_width
+dist = vertex_y - bubble_y
+gaussian = exp(-(dist²) / (2 * sigma²))
+displacement = max_amplitude * gaussian
+----
+
+Vertex displacement is applied as radial scaling:
+[source,python]
+----
+scale = 1.0 + displacement
+new_x = base_x * scale
+new_z = base_z * scale
+# Y (height) unchanged
+----
+
+== What Works
+
+1. **Smooth Gaussian bulge** follows the bubble as it rises
+2. **Visual bubble size** matches the deformation envelope
+3. **Y-axis orientation** correct (height along Y)
+4. **Material applied** (uses Carpaint_02 or fallback)
+5. **Sea floor and lighting** created via existing infrastructure
+6. **Stop/clear controls** work properly
+7. **Mouth closes symmetrically** as bubble exits (inverse of entry)
+
+== Known Limitations
+
+1. **Mouth closes slowly** after bubble exits - the Gaussian falloff is gradual. Tighter widths lose the smooth transition. This may just be "how tendroids work."
+
+2. **Single bubble only** - POC doesn't handle multiple bubbles
+
+3. **No breathing animation** - POC is bubble-only, no independent cylinder animation
+
+4. **Python loops** - Per-vertex calculation in Python. Production would need Warp kernels.
+
+== Attempts That Failed
+
+1. **Asymmetric Gaussian** (tight above, wide below) - Created unnatural pinching
+2. **Amplitude fade on exit** - Made mouth close independently of bubble
+3. **Extended mesh above mouth** - Looked unnatural
+4. **Tight bulge_width (1.0, 1.5)** - Lost smooth transition
+
+== Next Steps for Production
+
+=== Phase 1: Validate Visual Quality
+- [x] Smooth bulge follows bubble ✓
+- [x] Bubble appears contained in bulge ✓
+- [x] Natural-looking deformation ✓
+- [ ] Acceptable mouth closing behavior (compromise accepted)
+
+=== Phase 2: Performance Optimization
+- [ ] Convert per-vertex loop to Warp kernel
+- [ ] Use Fabric arrays for zero-copy mesh updates
+- [ ] Benchmark single tendroid FPS
+- [ ] Test with multiple tendroids
+
+=== Phase 3: Integration
+- [ ] Merge bubble-guided deformation with existing breathing animation
+- [ ] Handle multiple bubbles per tendroid
+- [ ] Integrate with wave motion system
+- [ ] Re-enable bubble popping
+
+=== Phase 4: Multi-Bubble Support
+- [ ] Each tendroid tracks its own bubbles
+- [ ] Multiple bulges can coexist (sum displacements)
+- [ ] Bubble spawn timing integration
+
+== Running the POC
+
+[source,python]
+----
+from qixotic.tendroids.poc import POCController
+
+poc = POCController()
+poc.start()
+
+# Controls:
+poc.stop()         # Pause animation
+poc.reset_bubble() # Reset bubble to base
+poc.clear()        # Remove everything
+----
+
+== Key Learnings
+
+1. **Bubble should drive deformation, not fit into it** - This eliminates clipping entirely
+
+2. **Gaussian curves provide natural falloff** - Simple math, visually pleasing
+
+3. **Visual bubble size must match deformation** - Otherwise looks disconnected
+
+4. **Symmetric entry/exit is natural** - The Gaussian handles this automatically
+
+5. **Trade-off: smoothness vs. speed** - Can't have both with single Gaussian; accepted slower closing for smoother appearance
+
+== File Locations
+
+- POC Code: `C:\Dev\Omniverse\fabric-tendroids\exts\qixotic.tendroids\qixotic\tendroids\poc\`
+- Documentation: `C:\Dev\Omniverse\fabric-tendroids\exts\qixotic.tendroids\docs\`
+- Test Script: `C:\Dev\Omniverse\fabric-tendroids\exts\qixotic.tendroids\qixotic\tendroids\tests\test_poc_bubble_deform.py`

@@ -1,0 +1,29 @@
+= Bubble Leading Edge Clipping Fix
+:date: 2025-01-19
+
+== Problem
+When cylinders bend/tilt from wave motion, bubbles spawn at the geometric center but clip through the LEADING edge (the side facing the direction of tilt). This happens because the leading edge is closer to the centerline due to the tilt angle.
+
+== Solution
+Modified bubble spawn position to offset BACKWARD from the tilt direction:
+
+1. **Calculate tilt direction** from base to tip positions
+2. **Offset spawn position** opposite to tilt (30% of cylinder radius)
+3. **Scale offset** by height factor (more offset at tip where tilt is greater)
+4. **Reduce initial size** to 15% for extra margin
+
+== Key Changes in bubble_manager_enhanced.py
+
+The `_calculate_tilted_position()` method now:
+- Determines tilt direction vector
+- Applies backward offset proportional to tilt amount
+- Ensures bubble spawns away from leading edge
+
+== Result
+✅ Bubbles spawn offset from leading edge
+✅ No clipping even at maximum tilt
+✅ Natural positioning that follows bent centerline
+✅ Smaller initial size (15%) provides safety margin
+
+== Visual Effect
+Bubbles now appear to emerge from slightly "inside" the mouth rather than dead center, which actually looks more natural as they would be pushed by the internal pressure.

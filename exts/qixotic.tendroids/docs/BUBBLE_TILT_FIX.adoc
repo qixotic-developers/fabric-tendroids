@@ -1,0 +1,35 @@
+= Bubble Tilt Alignment Fix
+:date: 2025-01-19
+
+== Problem Identified
+Bubbles were spawning along the VERTICAL centerline of the cylinder, but when tendroids sway with wave motion, the cylinder tilts. This caused bubbles to appear outside the tilted cylinder walls even though they were technically "centered" vertically.
+
+== Root Cause
+The bubble spawn position was calculated as:
+- X: Base position X (no tilt consideration)
+- Y: Spawn height
+- Z: Base position Z (no tilt consideration)
+
+When the cylinder tilts, its centerline is no longer vertical, but bubbles were still spawning vertically aligned.
+
+== Solution
+Modified `bubble_manager_enhanced.py` to:
+
+1. **Track both base AND top positions** of each tendroid
+2. **Calculate spawn position along TILTED centerline** using interpolation
+3. **Use cubic curve for realistic bending** (matches wave controller bending)
+
+Key changes:
+- Added `_calculate_tilted_position()` method
+- Stores both base and top positions separately
+- Interpolates spawn position based on height ratio with cubic curve
+- Bubbles now follow the bent/tilted centerline of the cylinder
+
+== Performance Note
+Also fixed expensive `ClearXformOpOrder()` calls in `bubble.py` by caching transform ops. This should help with the FPS drop.
+
+== Result
+✅ Bubbles spawn along tilted/bent centerline
+✅ No more clipping through cylinder walls when swaying
+✅ Natural alignment with deformed cylinder shape
+✅ Better performance from transform op caching

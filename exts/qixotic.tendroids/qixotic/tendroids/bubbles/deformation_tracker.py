@@ -79,12 +79,15 @@ class DeformationWaveTracker:
     progress = self.distance_traveled / self.wave_growth_distance
     return progress ** 0.5  # Square root for gradual start
   
-  def should_spawn_bubble(self) -> tuple:
+  def should_spawn_bubble(self, tilt_factor: float = 0.0) -> tuple:
     """
     Check if bubble should spawn at current wave position.
     
     Spawns when wave is in upper portion of cylinder.
-    Bubble starts small (cylinder diameter) and will grow.
+    Bubble size adapts to tilt - smaller when heavily tilted.
+    
+    Args:
+        tilt_factor: Amount of tilt (0.0 = no tilt, 1.0 = maximum tilt)
     
     Returns:
         (should_spawn, spawn_y_position, initial_diameter)
@@ -96,9 +99,15 @@ class DeformationWaveTracker:
     spawn_threshold = self.cylinder_length * 0.80
     
     if self.wave_center >= spawn_threshold:
-      # Start with cylinder diameter - bubble will grow
-      initial_diameter = self.base_radius * 2.0
-      return (True, self.wave_center, initial_diameter)
+      # Base size is 15% of cylinder diameter
+      # Reduce size further when tilted (down to 10% at max tilt)
+      size_factor = 0.15 - (0.05 * tilt_factor)
+      initial_diameter = self.base_radius * 2.0 * size_factor
+      
+      # Spawn below wave center to keep bubble interior
+      spawn_y = self.wave_center - (self.bulge_length * 0.1)
+      
+      return (True, spawn_y, initial_diameter)
     
     return (False, 0.0, 0.0)
   
@@ -131,19 +140,20 @@ class DeformationWaveTracker:
     """
     Check if bubble should be released (convert to sphere).
     
-    Release when TOP of bubble clears cylinder top.
+    Release when bubble CENTER reaches 95% of cylinder height.
+    This ensures bubble is mostly emerged before release.
     
     Args:
         bubble_center_y: Y position of bubble center
         bubble_radius: Current bubble radius
     
     Returns:
-        True if bubble top is above cylinder top
+        True if bubble should be released
     """
-    bubble_top = bubble_center_y + bubble_radius
     cylinder_top = self.deform_start_height + self.cylinder_length
+    release_height = cylinder_top * 0.95  # Release at 95% of cylinder height
     
-    return bubble_top >= cylinder_top
+    return bubble_center_y >= release_height
   
   def is_wave_contracting(self) -> bool:
     """

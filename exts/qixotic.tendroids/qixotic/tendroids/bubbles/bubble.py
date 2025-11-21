@@ -99,10 +99,16 @@ class Bubble:
     # Update USD prim
     self._update_usd_transform()
   
-  def release(self):
-    """Transition to released state and set pop height."""
+  def release(self, wave_controller=None, bubble_id=0):
+    """
+    Transition to released state and set pop height.
+    
+    Args:
+        wave_controller: Optional wave controller for initial throw momentum
+        bubble_id: Unique bubble identifier for phase offset
+    """
     if self.physics.state == BubblePhysics.STATE_LOCKED:
-      self.physics.release()
+      self.physics.release(wave_controller, bubble_id)
       
       # Set release height and calculate random pop height
       self.release_height = self.physics.position[1]
@@ -157,16 +163,20 @@ class Bubble:
       from pxr import UsdGeom
       
       xform = UsdGeom.Xformable(self.prim)
-      xform.ClearXformOpOrder()
       
-      # Position
-      translate_op = xform.AddTranslateOp()
-      translate_op.Set(Gf.Vec3d(*self.physics.position))
+      # Only clear and recreate ops if not yet created
+      if not hasattr(self, '_xform_ops_created'):
+        xform.ClearXformOpOrder()
+        self._translate_op = xform.AddTranslateOp()
+        self._scale_op = xform.AddScaleOp()
+        self._xform_ops_created = True
+      
+      # Update existing ops (much faster than recreating)
+      self._translate_op.Set(Gf.Vec3d(*self.physics.position))
       
       # Scale (non-uniform for elongation)
       scale_x, scale_y, scale_z = self.physics.get_scale()
-      scale_op = xform.AddScaleOp()
-      scale_op.Set(Gf.Vec3f(scale_x, scale_y, scale_z))
+      self._scale_op.Set(Gf.Vec3f(scale_x, scale_y, scale_z))
     
     except Exception as e:
       carb.log_error(f"[Bubble] Failed to update transform: {e}")

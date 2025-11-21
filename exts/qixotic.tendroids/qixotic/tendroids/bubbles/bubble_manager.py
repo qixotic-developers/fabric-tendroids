@@ -235,7 +235,9 @@ class BubbleManager:
         # Check if bubble should be released (top clears cylinder)
         bubble_radius = bubble.physics.get_radius()
         if tracker.should_release_bubble(bubble.physics.position[1], bubble_radius):
-          bubble.release()
+          # Pass wave controller and bubble ID for initial throw momentum
+          bubble.release(wave_controller=wave_controller, 
+                        bubble_id=id(bubble) % 100)
     
     # Handle popped bubbles
     for bubble in popped_bubbles:

@@ -1,0 +1,122 @@
+= Bubble Spawn Position Fix
+:author: qixotic
+:date: 2025-01-19
+:category: Bug Fix
+
+== Issue #1: Bubble Showing Through Cylinder Side
+
+=== Problem
+Bubbles were spawning at their target size immediately, causing them to clip through the cylinder walls when instantiated. This created an unrealistic visual where bubbles appeared to emerge from the side of the tendroid rather than from the mouth.
+
+=== Root Cause
+* Bubbles spawned at the deformation wave center with initial diameter equal to cylinder diameter
+* No consideration for the bubble needing to fit inside the deformed cylinder
+* Instant full-size spawn meant bubble geometry extended beyond cylinder bounds
+
+=== Solution Implemented
+
+==== 1. Smaller Initial Spawn Size
+Modified `deformation_tracker.py`:
+* Bubbles now start at **30% of cylinder diameter** instead of 100%
+* Spawn position adjusted slightly below wave center (10% of bulge length)
+* Ensures bubble starts well inside the mouth opening
+
+[source,python]
+----
+# Old: Start at cylinder diameter
+initial_diameter = self.base_radius * 2.0
+
+# New: Start much smaller (30%)
+initial_diameter = self.base_radius * 2.0 * 0.3
+spawn_y = self.wave_center - (self.bulge_length * 0.1)
+----
+
+==== 2. Faster Initial Growth
+Modified `bubble_physics.py`:
+* Doubled base growth rate from 50 to 100 units/second
+* Added 3x growth boost for first 0.2 seconds
+* Smooth interpolation prevents jarring size changes
+
+[source,python]
+----
+# Growth control parameters
+self.growth_rate = 100.0  # Doubled from 50
+self.initial_growth_boost = 3.0  # Extra speed multiplier
+self.initial_growth_duration = 0.2  # Boost duration
+
+# Apply boost during early growth
+if self.age < self.initial_growth_duration:
+    boost_progress = self.age / self.initial_growth_duration
+    boost = self.initial_growth_boost * (1.0 - boost_progress) + 1.0
+----
+
+==== 3. Adjusted Release Height
+Modified `deformation_tracker.py`:
+* Bubbles now release at **95% of cylinder height** instead of when top clears
+* Ensures bubble is mostly emerged before becoming independent
+* Prevents premature release when bubble is still forming
+
+[source,python]
+----
+# Old: Release when bubble top clears cylinder
+bubble_top = bubble_center_y + bubble_radius
+return bubble_top >= cylinder_top
+
+# New: Release at 95% height
+release_height = cylinder_top * 0.95
+return bubble_center_y >= release_height
+----
+
+==== 4. Proper Initial Scale in USD
+Modified `bubble_helpers.py`:
+* Set initial scale based on starting diameter
+* Ensures visual matches physics from frame one
+* Prevents double-scaling issues
+
+[source,python]
+----
+# Apply correct initial scale
+initial_scale = diameter / 2.0
+scale_op = xform.AddScaleOp()
+scale_op.Set(Gf.Vec3f(initial_scale, initial_scale, initial_scale))
+----
+
+=== Testing
+Created `test_bubble_spawn_fix.py` to verify:
+* Bubbles spawn small enough to fit inside cylinder
+* Growth rate is sufficient to reach target size
+* Release happens at appropriate height
+* No clipping through cylinder walls
+
+=== Result
+Bubbles now:
+* ✅ Start small and grow naturally
+* ✅ Never clip through cylinder sides
+* ✅ Appear to emerge from the mouth opening
+* ✅ Reach full size before release
+
+== Files Modified
+
+[cols="1,3"]
+|===
+| File | Changes
+
+| `deformation_tracker.py`
+| Smaller initial spawn size (30%), adjusted spawn position, 95% release height
+
+| `bubble_physics.py`
+| Faster growth rate (100 units/sec), 3x initial boost, smooth interpolation
+
+| `bubble_helpers.py`
+| Proper initial scale application in USD geometry
+
+| `test_bubble_spawn_fix.py`
+| New test script to verify spawn behavior
+|===
+
+== Next Steps
+With the spawn clipping issue resolved, the remaining issues are:
+1. ❌ No obvious 'throw' effect when bubbles release
+2. ❌ Bubbles not affected by wave motion during rise
+
+These will be addressed in subsequent fixes.

@@ -23,7 +23,7 @@ def create_bubble_sphere(
       stage: USD stage
       prim_path: Path for new sphere
       position: (x, y, z) initial position
-      diameter: Sphere diameter (used by physics, not for initial scale)
+      diameter: Initial sphere diameter
       resolution: Sphere subdivision
       config: BubbleConfig instance
   
@@ -34,7 +34,7 @@ def create_bubble_sphere(
     # Create sphere with unit radius
     sphere = UsdGeom.Sphere.Define(stage, prim_path)
     
-    # Set unit radius - actual size comes from scale in physics updates
+    # Set unit radius - actual size comes from scale
     sphere.GetRadiusAttr().Set(1.0)
     
     # Set position via transform
@@ -42,17 +42,19 @@ def create_bubble_sphere(
     translate_op = xform.AddTranslateOp()
     translate_op.Set(Gf.Vec3d(*position))
     
-    # NO initial scale - let physics handle all scaling
-    # This prevents double-scaling bug
+    # Set initial scale based on diameter
+    # This ensures bubble starts at the correct size
+    initial_scale = diameter / 2.0  # Convert diameter to radius scale
     scale_op = xform.AddScaleOp()
-    scale_op.Set(Gf.Vec3f(1.0, 1.0, 1.0))
+    scale_op.Set(Gf.Vec3f(initial_scale, initial_scale, initial_scale))
     
     # Apply material
     _apply_bubble_material(stage, sphere.GetPrim(), config)
     
     if config.debug_logging:
       carb.log_info(
-        f"[BubbleHelpers] Created sphere at '{prim_path}' with unit scale"
+        f"[BubbleHelpers] Created sphere at '{prim_path}' "
+        f"with initial scale {initial_scale:.2f} (diameter={diameter:.2f})"
       )
     
     return True

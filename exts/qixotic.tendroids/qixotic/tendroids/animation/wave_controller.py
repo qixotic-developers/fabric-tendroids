@@ -86,12 +86,12 @@ class WaveController:
         # Spatial phase (creates wave traveling through field)
         spatial_phase = x * 0.005 + z * 0.003
         
-        # Temporal phase with per-tendroid offset
+        # Temporal phase (NO per-tendroid offset for synchronized movement)
         temporal_phase = self.wave_time * self.config.frequency * 2 * math.pi
-        tendroid_phase = tendroid_id * self.config.phase_offset_per_tendroid
+        # tendroid_phase = tendroid_id * self.config.phase_offset_per_tendroid  # DISABLED for sync
         
-        # Combined phase
-        phase = spatial_phase + temporal_phase + tendroid_phase
+        # Combined phase (without tendroid offset)
+        phase = spatial_phase + temporal_phase  # No tendroid_phase added
         
         # Calculate displacement (sine wave)
         wave_value = math.sin(phase)

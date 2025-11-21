@@ -83,6 +83,10 @@ class BubbleConfig:
   # Maximum active particles total
   max_particles: int = 100
   
+  # === Visibility ===
+  # Hide bubble until it clears the cylinder mouth (prevents clipping)
+  hide_until_clear: bool = True
+  
   # === Debug ===
   # Enable debug logging
   debug_logging: bool = False

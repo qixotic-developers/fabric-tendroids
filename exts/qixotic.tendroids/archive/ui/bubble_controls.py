@@ -29,9 +29,44 @@ class BubbleControlsBuilder:
         """Build bubble controls UI section."""
         with ui.CollapsableFrame("Bubble Controls", height=0, collapsed=False):
             with ui.VStack(spacing=5):
+                self._build_visibility_controls()  # Add visibility controls first
                 self._build_geometry_controls()
                 self._build_timing_controls()
                 self._build_physics_controls()
+    
+    def _build_visibility_controls(self):
+        """Build bubble visibility controls including Hide Until Clear toggle."""
+        with ui.VStack(spacing=3):
+            ui.Label("Visibility", height=20, style={"font_size": 14})
+            
+            # Hide Until Clear checkbox
+            with ui.HStack(height=25):
+                ui.Label("Hide Until Clear:", width=100)
+                
+                # Get current setting, default to True
+                current_value = getattr(self.config, 'hide_until_clear', True)
+                
+                checkbox = ui.CheckBox(default=current_value)
+                checkbox.model.add_value_changed_fn(
+                    lambda model: self._on_hide_until_clear_changed(model.as_bool)
+                )
+                
+                ui.Label("(Prevents clipping)", width=100, style={"color": 0xFF888888})
+            
+            # Add a separator
+            ui.Spacer(height=3)
+    
+    def _on_hide_until_clear_changed(self, value: bool):
+        """Handle Hide Until Clear checkbox change."""
+        if hasattr(self.config, 'hide_until_clear'):
+            self.config.hide_until_clear = value
+        else:
+            # Add the attribute if it doesn't exist
+            setattr(self.config, 'hide_until_clear', value)
+        
+        status = "ENABLED" if value else "DISABLED"
+        carb.log_info(f"[BubbleControls] Hide Until Clear: {status}")
+        carb.log_warn(f"Bubble visibility fix: {status}")
     
     def _build_geometry_controls(self):
         """Build bubble geometry controls."""

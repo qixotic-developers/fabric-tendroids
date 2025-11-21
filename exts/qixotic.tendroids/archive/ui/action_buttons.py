@@ -30,6 +30,7 @@ class ActionButtons:
     # References to external components
     self.spawn_settings = None
     self.status_display = None
+    self.on_spawn_callback = None  # Called after tendroids spawned
 
     # Single tendroid test state
     self._single_test_active = False
@@ -46,6 +47,10 @@ class ActionButtons:
   def set_status_display(self, status_display):
     """Set reference to status display."""
     self.status_display = status_display
+
+  def set_on_spawn_callback(self, callback):
+    """Set callback to invoke after tendroids are spawned."""
+    self.on_spawn_callback = callback
 
   def create_ui(self, parent_stack: ui.VStack):
     """
@@ -152,6 +157,9 @@ class ActionButtons:
         f"Amp={settings.amplitude:.2f}"
       )
       self.status_display.update_count(1)
+      # Notify control panel to rebuild dynamic controls
+      if self.on_spawn_callback:
+        self.on_spawn_callback()
     else:
       self.status_display.update_status("Failed to spawn tendroid")
 
@@ -175,6 +183,9 @@ class ActionButtons:
       actual_count = self.scene_manager.get_tendroid_count()
       self.status_display.update_status(f"Spawned {actual_count} tendroids")
       self.status_display.update_count(actual_count)
+      # Notify control panel to rebuild dynamic controls
+      if self.on_spawn_callback:
+        self.on_spawn_callback()
     else:
       self.status_display.update_status("Failed to spawn tendroids")
   
@@ -275,6 +286,9 @@ class ActionButtons:
           )
           self.status_display.update_count(1)
           self.status_display.update_animation_status("Running")
+          # Notify control panel to rebuild dynamic controls
+          if self.on_spawn_callback:
+            self.on_spawn_callback()
         else:
           self.status_display.update_status("Failed to create test tendroid")
 

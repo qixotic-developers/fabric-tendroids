@@ -1,0 +1,56 @@
+= Tendroids System Documentation Index
+:author: qixotic
+:date: November 2025
+:revision: 3.0
+
+== Current Documentation
+
+=== Project Status
+* link:PROJECT_STATUS.adoc[Project Status] - Current state and next steps
+* link:BUBBLE_CLIPPING_FIX.adoc[Bubble Clipping Fix] - Implementation guide for current issue
+* link:REFACTORING_TASKS.adoc[Refactoring Tasks] - Files needing size reduction
+
+=== System Documentation
+* link:tendroids-system-manual.adoc[System Manual] - Complete reference
+* link:production-ready.adoc[Production Ready] - Deployment guide
+* link:current-project-state.adoc[Current Project State] - Detailed status
+
+=== Feature Documentation
+* link:wave_motion_system.adoc[Wave Motion System] - Wave controller documentation
+* link:PHASE2D_BUBBLE_SYSTEM.adoc[Phase 2D Bubble System] - Bubble implementation
+* link:BUBBLE_TUNING_GUIDE.adoc[Bubble Tuning Guide] - Configuration reference
+* link:BUBBLE_POP_IMPLEMENTATION.adoc[Bubble Pop Implementation] - Pop effects
+* link:BUBBLE_CONTROLS_UI.adoc[Bubble Controls UI] - UI documentation
+
+=== Configuration & Setup
+* link:composer-configuration.adoc[Composer Configuration] - Omniverse settings
+* link:PHASE2D_QUICK_START.adoc[Phase 2D Quick Start] - Getting started guide
+* link:stress-test-guide.adoc[Stress Test Guide] - Performance testing
+
+=== Technical Details
+* link:configuration-system.adocinc[Configuration System] - Config management
+* link:architecture-design.adocinc[Architecture Design] - System architecture
+* link:animation-optimization.adocinc[Animation Optimization] - Performance details
+* link:swept-torus-geometry.adocinc[Swept Torus Geometry] - Mathematical foundations
+
+=== Development Planning
+* link:phase2-development-plan.adoc[Phase 2 Development Plan] - Roadmap
+* link:performance-analysis-phase2.adoc[Performance Analysis] - Benchmarks
+* link:performance-results.adoc[Performance Results] - Test results
+
+=== Integration Documentation
+* link:wave-ui-integration.adoc[Wave UI Integration] - UI controls
+* link:bubble-wave-drift.adoc[Bubble Wave Drift] - Environmental effects
+
+=== PlantUML Diagrams
+* link:plantUml/[PlantUML Diagrams] - System diagrams directory
+
+== Archived Documentation
+
+Historical documentation and old fixes have been moved to link:/archive/[/archive].
+
+== Quick Links
+
+* C++ Build Guide: `cpp/BUILD_TEST_GUIDE.adoc`
+* Stress Test Results: `stress_test_results/`
+* Test Scripts: `tests/`

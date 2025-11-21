@@ -1,0 +1,130 @@
+= Hide Until Clear - Bubble Visibility Implementation
+:author: qixotic
+:date: November 2025
+:revision: 1.0
+
+== Overview
+
+The "Hide Until Clear" implementation solves the bubble clipping issue where bubbles were visible through tilted cylinder walls during spawn and rise phases.
+
+== Problem Solved
+
+* **Before**: Bubbles spawned inside cylinders were immediately visible, causing them to clip through tilted walls
+* **After**: Bubbles remain invisible until they clear the cylinder mouth, eliminating all clipping artifacts
+
+== Implementation Details
+
+=== Core Components
+
+1. **Visibility Control** (`bubble.py`)
+   - Added `set_visibility()` method using USD Imageable API
+   - Controls bubble visibility via UsdGeom.Tokens.invisible/inherited
+
+2. **Distance Checking** (`bubble_manager.py`)
+   - Calculates distance from bubble to cylinder mouth
+   - Uses 1.2x cylinder radius as clearance threshold
+   - Updates visibility each frame based on position
+
+3. **Configuration** (`bubble_config.py`, `tendroids_config.json`)
+   - Added `hide_until_clear` boolean flag (default: true)
+   - Allows toggling the feature on/off for comparison
+
+=== Logic Flow
+
+[source,python]
+----
+1. Bubble spawns → set_visibility(False)
+2. Each frame while locked:
+   - Calculate: distance = bubble_y - mouth_y
+   - If distance > clearance_threshold:
+     → set_visibility(True)
+3. Once released → always visible
+----
+
+== Configuration
+
+=== Enable/Disable Feature
+
+[source,json]
+----
+{
+  "bubble_system": {
+    "hide_until_clear": true  // Set to false to disable
+  }
+}
+----
+
+=== Runtime Toggle
+
+[source,python]
+----
+config = ConfigLoader()
+config.set_value("bubble_config.hide_until_clear", False)  # Disable
+config.set_value("bubble_config.hide_until_clear", True)   # Re-enable
+----
+
+== Testing
+
+=== Quick Test
+Run from Script Editor:
+[source,bash]
+----
+exec(open(r"C:\Dev\Omniverse\fabric-tendroids\exts\qixotic.tendroids\qixotic\tendroids\tests\test_visibility_quick.py").read())
+----
+
+=== Comprehensive Test
+[source,bash]
+----
+exec(open(r"C:\Dev\Omniverse\fabric-tendroids\exts\qixotic.tendroids\qixotic\tendroids\tests\test_hide_until_clear.py").read())
+----
+
+== Performance Impact
+
+* **Zero performance cost** - Only adds visibility attribute updates
+* No additional geometry or calculations
+* Simple boolean flag checks
+
+== Visual Results
+
+=== With Hide Until Clear (Enabled)
+* Bubbles "pop into existence" at cylinder mouth
+* No clipping artifacts
+* Clean, professional appearance
+* Slightly less realistic emergence
+
+=== Without Hide Until Clear (Disabled)
+* Bubbles visible immediately when spawned
+* Severe clipping through tilted walls
+* Unprofessional appearance
+* More realistic emergence (if no tilt)
+
+== Tuning Parameters
+
+* **Clearance Threshold**: Currently 1.2x cylinder radius
+  - Increase for later reveal (more margin)
+  - Decrease for earlier reveal (tighter fit)
+
+* **Visibility Transition**: Currently instant on/off
+  - Could add fade-in for smoother appearance
+  - Would require opacity animation
+
+== Future Enhancements
+
+1. **Gradual Fade-In**
+   - Animate opacity from 0 to target over 0.2 seconds
+   - Smoother visual transition
+
+2. **Particle Masking**
+   - Add small particle burst at emergence point
+   - Disguises the "pop into existence" effect
+
+3. **Adaptive Threshold**
+   - Vary clearance based on tilt angle
+   - Tighter threshold for vertical cylinders
+   - Larger threshold for heavily tilted ones
+
+== Summary
+
+The Hide Until Clear implementation successfully eliminates bubble clipping through cylinder walls with zero performance impact. While the "pop into existence" effect is less realistic than gradual emergence, it provides a clean, professional appearance that's far superior to visible clipping artifacts.
+
+The feature can be toggled on/off via configuration, allowing easy comparison and user preference.

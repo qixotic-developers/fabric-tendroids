@@ -175,29 +175,26 @@ class WarpPopParticleManager:
             primvars = UsdGeom.PrimvarsAPI(self.points_prim)
             
             # Add display color - water-like color
+            # Use constant interpolation since we start with single value
             color_primvar = primvars.CreatePrimvar(
                 "displayColor",
                 Sdf.ValueTypeNames.Color3fArray,
-                UsdGeom.Tokens.vertex
+                UsdGeom.Tokens.constant  # Start with constant, will change to vertex when updating
             )
             water_color = Gf.Vec3f(0.7, 0.85, 1.0)
             color_primvar.Set([water_color])
             
-            # Add opacity
+            # Add opacity  
+            # Use constant interpolation since we start with single value
             opacity_primvar = primvars.CreatePrimvar(
                 "displayOpacity",
                 Sdf.ValueTypeNames.FloatArray,
-                UsdGeom.Tokens.vertex
+                UsdGeom.Tokens.constant  # Start with constant, will change to vertex when updating
             )
             opacity_primvar.Set([1.0])
             
-            # Add point width primvar for additional size control
-            width_primvar = primvars.CreatePrimvar(
-                "widths",
-                Sdf.ValueTypeNames.FloatArray,
-                UsdGeom.Tokens.vertex  
-            )
-            width_primvar.Set([initial_size])
+            # Note: Widths is already set via GetWidthsAttr() above
+            # No need for additional widths primvar
             
             carb.log_info(f"[WarpParticles] Created point cloud at {self.point_cloud_path}")
             
@@ -394,15 +391,19 @@ class WarpPopParticleManager:
                     avg_size = sum(active_sizes) / len(active_sizes)
                     carb.log_info(f"[WarpParticles] Particle sizes - Min: {min_size:.2f}, Max: {max_size:.2f}, Avg: {avg_size:.2f}, Count: {len(active_sizes)}")
                 
-                # Update colors
+                # Update colors with proper interpolation
                 primvars = UsdGeom.PrimvarsAPI(self.points_prim)
                 color_primvar = primvars.GetPrimvar("displayColor")
                 if color_primvar:
+                    # Set interpolation to vertex since we have per-point colors
+                    color_primvar.SetInterpolation(UsdGeom.Tokens.vertex)
                     color_primvar.Set(active_colors)
                 
-                # Update opacity
+                # Update opacity with proper interpolation
                 opacity_primvar = primvars.GetPrimvar("displayOpacity")
                 if opacity_primvar:
+                    # Set interpolation to vertex since we have per-point opacity
+                    opacity_primvar.SetInterpolation(UsdGeom.Tokens.vertex)
                     opacity_primvar.Set(active_opacities)
                 
                 # Make sure it's visible

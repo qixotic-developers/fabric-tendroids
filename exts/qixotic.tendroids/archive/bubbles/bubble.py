@@ -193,6 +193,27 @@ class Bubble:
     """Get position where bubble popped for particle spawn."""
     return tuple(self.physics.position)
   
+  def set_visibility(self, visible: bool):
+    """Control bubble visibility for hide-until-clear implementation.
+    
+    Args:
+        visible: True to show, False to hide
+    """
+    if self.prim and self.stage:
+      try:
+        # Use imageable API for visibility control
+        from pxr import UsdGeom
+        imageable = UsdGeom.Imageable(self.prim)
+        if imageable:
+          if visible:
+            # Make visible by clearing visibility or setting to 'inherited'
+            imageable.GetVisibilityAttr().Set(UsdGeom.Tokens.inherited)
+          else:
+            # Hide the bubble
+            imageable.GetVisibilityAttr().Set(UsdGeom.Tokens.invisible)
+      except Exception as e:
+        carb.log_error(f"[Bubble] Failed to set visibility: {e}")
+  
   def destroy(self):
     """Remove bubble from USD stage."""
     if self.prim and self.stage:

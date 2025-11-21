@@ -10,6 +10,7 @@
     "drift_speed": 3.0,
     "emission_threshold": 0.90,
     "enabled": true,
+    "hide_until_clear": true,
     "max_bubbles_per_tendroid": 1,
     "max_diameter": 20.0,
     "max_particles": 100,

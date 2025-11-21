@@ -193,6 +193,10 @@ class BubbleManager:
       bubble.prim_path = prim_path
       bubble.prim = self.stage.GetPrimAtPath(prim_path)
       self.bubbles[tendroid_name].append(bubble)
+      
+      # Start bubble invisible if hide_until_clear is enabled
+      if getattr(self.config, 'hide_until_clear', True):
+        bubble.set_visibility(False)
   
   def _update_locked_bubbles(self, tendroid_name: str, tracker: DeformationWaveTracker, base_radius: float, top_position: tuple = None):
     """
@@ -227,6 +231,23 @@ class BubbleManager:
           deform_radius=target_diameter / 2.0,  # Pass as radius for Bubble wrapper
           mouth_position=top_position  # Pass current mouth position
         )
+        
+        # VISIBILITY CHECK: Hide bubble until it clears the cylinder (if enabled)
+        if getattr(self.config, 'hide_until_clear', True) and top_position:
+          # Calculate distance from cylinder mouth
+          bubble_pos = bubble.physics.position
+          mouth_y = top_position[1]
+          
+          # Check if bubble center has cleared the mouth with some margin
+          # Use 1.2x radius as clearance threshold to ensure no clipping
+          clearance_threshold = base_radius * 1.2
+          distance_from_mouth = bubble_pos[1] - mouth_y
+          
+          # Show bubble only if it's above the mouth by clearance threshold
+          bubble.set_visibility(distance_from_mouth > clearance_threshold)
+        elif not getattr(self.config, 'hide_until_clear', True):
+          # If hide_until_clear is disabled, always show bubble
+          bubble.set_visibility(True)
         
         # Check if bubble popped during update
         if bubble.has_popped:
@@ -274,6 +295,9 @@ class BubbleManager:
       # Update released bubbles with wave effects
       for i, bubble in enumerate(bubbles):
         if bubble.is_released():
+          # Ensure released bubbles are visible
+          bubble.set_visibility(True)
+          
           # Pass wave controller and unique ID for phase variation
           bubble.update_released(dt, wave_controller, bubble_id=i)
           

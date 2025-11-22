@@ -1,118 +1,99 @@
 = Tendroids Project Status
 :author: qixotic
 :date: November 2025
-:revision: 4.0
+:revision: 5.0
 
-== Current State (POC Bubble-Guided Deformation Complete)
+== Current State (V2 Production System)
 
-=== Major Breakthrough
-**Bubbles now DRIVE cylinder deformation** rather than trying to fit inside pre-deformed shapes. This eliminates clipping entirely.
+=== Architecture
+The **v2 module** is the canonical implementation for bubble-guided deformation.
+All code lives in `qixotic/tendroids/v2/` with GPU (Warp) as the default.
 
-=== POC Status
-* Single tendroid with rising bubble - WORKING
-* Gaussian bell curve deformation follows bubble
-* Visual bubble size matches deformation envelope
-* Smooth entry and symmetric exit behavior
-* Sea floor, lighting, materials all working
+=== Performance (RTX 4090)
+[cols="1,1,1"]
+|===
+| Tendroids | FPS | Status
 
-=== POC Location
-* Code: `qixotic/tendroids/poc/`
-* Documentation: `docs/POC_BUBBLE_GUIDED_DEFORMATION.adoc`
-* Test: `tests/test_poc_bubble_deform.py`
+| 15 | 60 | Production target ✓
+| 30 | 40 | Stress tested ✓
+|===
 
-=== POC Parameters (Final)
-[source,python]
-----
-cylinder_radius = 10.0
-cylinder_length = 200.0
-bubble_radius = 8.0 (logic), 15.3 (visual)
-max_bulge_amplitude = 0.8 (80% expansion)
-bulge_width = 2.0 (Gaussian sigma multiplier)
-----
+=== Deformation Performance
+[cols="1,1,1"]
+|===
+| Method | ms/frame | Theoretical FPS
 
-== Architecture Overview
+| Warp GPU | 0.68 | 1,480
+| NumPy | 2.55 | 392
+| Pure Python | 6.67 | 150
+|===
 
-=== Module Structure
+== Module Structure
+
 [source]
 ----
 qixotic.tendroids/
-├── poc/               # NEW: Bubble-guided deformation proof of concept
-├── animation/         # Breathing, wave, and idle motion controllers
-├── bubbles/           # Bubble system (original - to be replaced)
+├── v2/                # CANONICAL: Bubble-guided deformation system
+│   ├── v2_warp_*.py   # GPU implementations (default)
+│   ├── v2_numpy_*.py  # CPU fallback (NumPy vectorized)
+│   ├── v2_*.py        # CPU fallback (pure Python)
+│   └── __init__.py    # Exports all implementations
+│
+├── poc/               # DEPRECATED: Redirects to v2
+│   └── __init__.py    # Import aliases only
+│
+├── animation/         # Breathing, wave, idle motion
+├── bubbles/           # Production bubble system
 ├── config/            # Configuration management
-├── core/              # Tendroid entities and lifecycle
+├── core/              # Tendroid entities and mesh updater
 ├── scene/             # Scene management and factory
 ├── sea_floor/         # Terrain generation
 ├── ui/                # Control panel and settings
 ├── utils/             # Math helpers and profiling
-└── tests/             # Integration and stress tests
+└── tests/             # Test scripts and benchmarks
 ----
 
-=== Key Insight
-The old approach tried to fit bubbles INTO deformed cylinders:
-[source]
-----
-Cylinder deforms → Bubble spawns → Try to fit → Clipping
-----
+== Key Design Principle
 
-The new POC approach has bubbles CAUSE deformation:
+Bubbles **DRIVE** cylinder deformation (not the other way around):
+
 [source]
 ----
 Bubble rises → Cylinder deforms around bubble → No clipping possible
 ----
 
-== Next Steps
+This eliminates all clipping artifacts by design.
 
-=== Phase 2: Performance Optimization
-1. Convert Python per-vertex loop to Warp GPU kernel
-2. Use Fabric arrays for zero-copy mesh updates
-3. Benchmark and optimize for 60fps target
-4. Test with multiple tendroids
+== Running Tests
 
-=== Phase 3: Integration
-1. Merge bubble-guided deformation with breathing animation
-2. Handle multiple bubbles per tendroid (sum Gaussians)
-3. Re-integrate wave motion system
-4. Re-enable bubble popping effects
-
-=== Phase 4: Production
-1. Replace original bubble system with new architecture
-2. Stress test with 15-30 tendroids
-3. Tune parameters for visual quality
-4. Performance optimization pass
-
-== Known Limitations (Accepted)
-
-1. **Mouth closes slowly** after bubble exits - the Gaussian falloff is gradual. Tighter widths lose smooth transitions. This is acceptable behavior.
-
-2. **POC is Python-based** - Production needs Warp kernels for performance.
-
-== Performance Metrics (Original System)
-* 15 Tendroids: 50fps (production baseline)
-* 30 Tendroids: 49fps (stress tested)
-* Mode: Transform-based (SetLocalScale)
-
-== Development Guidelines
-
-=== File Size Limits
-* Target: 100-150 lines per file
-* Controllers in main class files
-* Frequently changing methods in helper files
-
-=== Documentation
-* All docs in AsciiDoc format (.adoc)
-* Location: docs/ directory
-* Key doc: POC_BUBBLE_GUIDED_DEFORMATION.adoc
-
-=== Running the POC
+=== V2 Warp (GPU - Recommended)
 [source,python]
 ----
-from qixotic.tendroids.poc import POCController
-poc = POCController()
-poc.start()
-
-# Controls:
-poc.stop()         # Pause
-poc.reset_bubble() # Reset to base
-poc.clear()        # Remove all
+# In Omniverse Script Editor
+exec(open("C:/Dev/Omniverse/fabric-tendroids/exts/qixotic.tendroids/qixotic/tendroids/tests/test_warp_deform.py").read())
 ----
+
+=== Stress Test (Multiple Tendroids)
+[source,python]
+----
+exec(open("C:/Dev/Omniverse/fabric-tendroids/exts/qixotic.tendroids/qixotic/tendroids/tests/test_warp_stress.py").read())
+----
+
+== Phase 2 Goals
+
+1. **Stress Testing**: Scale from 15 → 30 Tendroids, find fps ceiling
+2. **Warp Kernel Research**: Swept torus topology for transparency
+3. **Environmental**: Caustic lighting, kelp/seaweed props
+
+== Documentation
+
+=== Active Docs
+* `BUBBLE_TUNING_GUIDE.adoc` - Parameter tuning reference
+* `BUBBLE_CONTROLS_UI.adoc` - UI controls reference
+* `PERFORMANCE_LOG.adoc` - Ongoing performance tracking
+* `wave_motion_system.adoc` - Wave system documentation
+* `warp_particles.adoc` - Particle system documentation
+* `tendroids-system-manual.adoc` - Comprehensive manual
+
+=== Archived Docs
+Historical implementation notes in `docs/archive/`

@@ -1,0 +1,85 @@
+= Tendroids Performance Log
+:toc:
+:toclevels: 2
+
+== Overview
+
+This document tracks performance benchmarks as features are added to the Tendroids system.
+All tests use Warp GPU acceleration on RTX 4090 unless otherwise noted.
+
+== Test Environment
+
+[cols="1,2"]
+|===
+| Component | Specification
+
+| GPU | NVIDIA RTX 4090
+| Monitor | 60Hz (default), 240Hz (planned)
+| Omniverse | USD Composer with Fabric & USDRT 7.6.1
+| Mesh Config | 24 radial segments, 48 height segments per tendroid
+|===
+
+== Baseline Benchmarks
+
+=== V2 System (2025-01-XX)
+
+Initial V2 stress test results:
+
+[cols="1,1,1,2"]
+|===
+| Tendroids | Bubbles | FPS | Notes
+
+| 15 | 15 | 60 | Target production config
+| 30 | 30 | 40 | Performance ceiling test
+|===
+
+=== Single Tendroid Theoretical FPS
+
+Measured deformation kernel times (no rendering overhead):
+
+[cols="1,1,1"]
+|===
+| Method | ms/frame | Theoretical FPS
+
+| Warp GPU | 0.68 | 1,480
+| NumPy | 2.55 | 392
+| Pure Python | 6.67 | 150
+|===
+
+== Planned Tests
+
+=== 240Hz Monitor Testing
+
+Will test with 240Hz monitor to determine:
+
+* Maximum achievable FPS with current config
+* Whether GPU headroom allows more tendroids at high refresh
+* V-sync impact on performance scaling
+
+=== Feature Impact Tests
+
+Track FPS impact as features are added:
+
+* [ ] Wave motion system
+* [ ] Caustic lighting
+* [ ] Environmental props (kelp, debris)
+* [ ] Swept torus topology
+
+== Performance Guidelines
+
+=== Target FPS by Use Case
+
+[cols="1,1,2"]
+|===
+| Use Case | Target FPS | Max Tendroids
+
+| Demo/Presentation | 60 | 15
+| Interactive | 30 | 30
+| Stress Test | Any | 45+
+|===
+
+=== Optimization Notes
+
+* Bubble visuals use simplified spheres (no deformation)
+* Hide-until-clear eliminates clipping with zero cost
+* Wave motion uses pre-computed phase offsets

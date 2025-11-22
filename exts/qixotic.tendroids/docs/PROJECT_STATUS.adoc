@@ -1,13 +1,13 @@
 = Tendroids Project Status
 :author: qixotic
 :date: November 2025
-:revision: 5.0
+:revision: 6.0
 
 == Current State (V2 Production System)
 
 === Architecture
 The **v2 module** is the canonical implementation for bubble-guided deformation.
-All code lives in `qixotic/tendroids/v2/` with GPU (Warp) as the default.
+The **v1 module** contains deprecated legacy code (transform-based animation).
 
 === Performance (RTX 4090)
 [cols="1,1,1"]
@@ -33,24 +33,51 @@ All code lives in `qixotic/tendroids/v2/` with GPU (Warp) as the default.
 [source]
 ----
 qixotic.tendroids/
-├── v2/                # CANONICAL: Bubble-guided deformation system
+├── __init__.py        # Primary exports from v2
+├── extension.py       # Omniverse extension entry point
+├── fast_mesh_updater.pyd  # C++ acceleration (optional)
+│
+├── v2/                # CANONICAL: Bubble-guided deformation
 │   ├── v2_warp_*.py   # GPU implementations (default)
 │   ├── v2_numpy_*.py  # CPU fallback (NumPy vectorized)
 │   ├── v2_*.py        # CPU fallback (pure Python)
 │   └── __init__.py    # Exports all implementations
 │
+├── v1/                # DEPRECATED: Legacy transform-based system
+│   ├── animation/     # Breathing, wave, idle motion
+│   ├── bubbles/       # Original bubble system
+│   ├── config/        # Configuration management
+│   ├── core/          # Tendroid entities
+│   ├── scene/         # Scene management
+│   ├── sea_floor/     # Terrain generation (used by v2)
+│   ├── ui/            # Control panel
+│   ├── utils/         # Math helpers
+│   └── __init__.py    # Deprecation warning + re-exports
+│
 ├── poc/               # DEPRECATED: Redirects to v2
 │   └── __init__.py    # Import aliases only
 │
-├── animation/         # Breathing, wave, idle motion
-├── bubbles/           # Production bubble system
-├── config/            # Configuration management
-├── core/              # Tendroid entities and mesh updater
-├── scene/             # Scene management and factory
-├── sea_floor/         # Terrain generation
-├── ui/                # Control panel and settings
-├── utils/             # Math helpers and profiling
-└── tests/             # Test scripts and benchmarks
+├── tests/             # Test scripts (tests both versions)
+└── cpp/               # C++ extension source
+----
+
+== Import Patterns
+
+=== Recommended (V2)
+[source,python]
+----
+# Direct from v2
+from qixotic.tendroids.v2 import V2WarpController, V2WarpTendroid
+
+# Or from main module (exports v2)
+from qixotic.tendroids import V2WarpController, WarpController
+----
+
+=== Legacy (V1 - Deprecated)
+[source,python]
+----
+# Will show deprecation warning
+from qixotic.tendroids.v1 import scene, animation, bubbles
 ----
 
 == Key Design Principle
@@ -61,8 +88,6 @@ Bubbles **DRIVE** cylinder deformation (not the other way around):
 ----
 Bubble rises → Cylinder deforms around bubble → No clipping possible
 ----
-
-This eliminates all clipping artifacts by design.
 
 == Running Tests
 
@@ -84,6 +109,7 @@ exec(open("C:/Dev/Omniverse/fabric-tendroids/exts/qixotic.tendroids/qixotic/tend
 1. **Stress Testing**: Scale from 15 → 30 Tendroids, find fps ceiling
 2. **Warp Kernel Research**: Swept torus topology for transparency
 3. **Environmental**: Caustic lighting, kelp/seaweed props
+4. **Migrate v1 utilities**: Move reusable code (sea_floor, config) to v2
 
 == Documentation
 

@@ -58,7 +58,7 @@ class V2Controller:
     def _setup_environment(self):
         """Setup lighting, sky, and sea floor."""
         try:
-            from ..sea_floor.sea_floor_controller import SeaFloorController
+            from ..v1.sea_floor.sea_floor_controller import SeaFloorController
             SeaFloorController.create_sea_floor(self._stage)
         except Exception as e:
             carb.log_warn(f"[V2Controller] Environment setup failed: {e}")

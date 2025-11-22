@@ -47,7 +47,7 @@ class V2NumpyController:
     
     def _setup_environment(self):
         try:
-            from ..sea_floor.sea_floor_controller import SeaFloorController
+            from ..v1.sea_floor.sea_floor_controller import SeaFloorController
             SeaFloorController.create_sea_floor(self._stage)
         except Exception as e:
             carb.log_warn(f"Environment setup failed: {e}")

@@ -90,9 +90,9 @@
   "tendroid_spawning": {
     "aspect_ratio_range": [7.5, 8.5],
     "default_count": 15,
-    "max_placement_attempts": 200,
+    "max_placement_attempts": 500,
     "radius_range": [8.0, 12.0],
-    "spacing_multiplier": 1.2,
-    "spawn_area": [200.0, 200.0]
+    "spacing_multiplier": 1.5,
+    "spawn_area": [400.0, 400.0]
   }
 }

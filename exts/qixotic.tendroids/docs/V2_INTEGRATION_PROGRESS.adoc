@@ -1,0 +1,207 @@
+= V2 Integration Progress Checklist
+:date-started: 2025-11-21
+:last-updated: 2025-11-22
+
+== How To Use This File
+
+At the *start* of each chat, say: "Check the v2 integration progress"
+At the *end* of each chat, I will update completed items with [x]
+
+== Phase 1: Core Building System
+
+=== Directory Setup
+- [x] Create `v2/builders/` directory
+
+=== Files
+- [x] `v2/builders/__init__.py` (16 lines)
+- [x] `v2/builders/cylinder_generator.py` - Flared base mesh generation (170 lines)
+- [x] `v2/builders/terrain_conform.py` - Port from v1 (87 lines)
+- [x] `v2/builders/tendroid_builder.py` - V2 tendroid creation (171 lines)
+
+=== Testing
+- [x] Single V2 tendroid with flared base renders correctly
+- [x] Terrain conforming works on uneven sea floor
+
+== Phase 2: Factory & Spawning
+
+=== Directory Setup
+- [x] Create `v2/scene/` directory
+
+=== Files
+- [x] `v2/scene/__init__.py` (16 lines)
+- [x] `v2/scene/tendroid_factory.py` - Multi-spawn + interference (172 lines)
+
+=== Testing
+- [x] Spawn 15 tendroids without overlap
+- [x] Random positions within spawn area
+- [x] Aspect ratio variation works
+
+== Phase 3: Animation System
+
+=== Directory Setup
+- [x] Create `v2/animation/` directory
+
+=== Files
+- [x] `v2/animation/__init__.py` (11 lines)
+- [x] `v2/animation/wave_controller.py` - Port from v1 (107 lines)
+- [x] `v2/scene/animation_controller.py` - Update loop (194 lines)
+
+=== Testing
+- [ ] Wave displacement affects tendroid vertices
+- [ ] All tendroids sway in sync
+
+== Phase 4: Scene Management
+
+=== Files
+- [x] `v2/scene/manager.py` - V2SceneManager orchestration (298 lines)
+
+=== Testing
+- [x] `create_tendroids(count=15)` works end-to-end
+- [x] `start_animation()` and `stop_animation()` work
+- [x] `clear_tendroids()` cleans up properly
+
+== Phase 5: Bubble System
+
+=== Files
+- [ ] `v2/bubbles/bubble_config.py` - Configuration dataclass (~50 lines)
+- [ ] `v2/bubbles/bubble_physics.py` - Physics model (~100 lines)
+- [ ] `v2/bubbles/bubble_particle.py` - Pop particle manager (~120 lines)
+- [ ] `v2/bubbles/bubble_manager.py` - Full lifecycle manager (~200 lines)
+- [ ] Update `v2/bubbles/__init__.py` - Add exports
+
+=== Modifications
+- [ ] `v2/bubbles/bubble.py` - Add pop timing, velocity, state machine
+- [ ] `v2/bubbles/bubble_visual.py` - Add visibility toggle
+
+=== Testing
+- [ ] Bubbles spawn and rise
+- [ ] Bubbles drive tendroid deformation
+- [ ] Bubbles pop after lifetime expires
+- [ ] Pop particles spray on pop
+- [ ] Wave drift affects released bubbles
+
+== Phase 6: UI System
+
+=== Directory Setup
+- [ ] Create `v2/ui/` directory
+
+=== Files
+- [ ] `v2/ui/__init__.py` (~20 lines)
+- [ ] `v2/ui/status_display.py` - Status labels (~60 lines)
+- [ ] `v2/ui/wave_controls.py` - Wave parameters (~80 lines)
+- [ ] `v2/ui/bubble_controls.py` - Bubble parameters (~100 lines)
+- [ ] `v2/ui/spawn_settings_ui.py` - Spawn configuration (~150 lines)
+- [ ] `v2/ui/action_buttons.py` - Action buttons (~150 lines)
+- [ ] `v2/ui/control_panel.py` - Main panel coordinator (~120 lines)
+
+=== Testing
+- [ ] UI window opens without errors
+- [ ] Spawn count slider works
+- [ ] Spawn button creates tendroids
+- [ ] Start/Stop animation buttons work
+- [ ] Clear button removes all objects
+- [ ] Wave controls adjust wave parameters
+- [ ] Bubble controls adjust bubble parameters
+
+== Phase 7: V2WarpTendroid Extensions
+
+=== Modifications
+- [ ] Add `name` property
+- [ ] Add `position` property
+- [ ] Add `flare_height_percent` parameter
+- [ ] Add `flare_radius_multiplier` parameter
+- [ ] Integrate wave displacement in `apply_deformation()`
+
+=== Testing
+- [ ] Extended tendroid backward compatible with existing demos
+
+== Phase 8: Config & Polish
+
+=== Files
+- [x] Update `v2/config/tendroids_config.json` - Tuned spawn settings
+- [x] Update `v2/__init__.py` - Export all new modules (125 lines)
+
+=== Testing
+- [x] Config values load correctly
+- [x] All imports work from `qixotic.tendroids.v2`
+
+== Phase 9: Integration Testing
+
+- [ ] Spawn 15 tendroids via UI
+- [ ] Animation runs at 50+ fps
+- [ ] Bubbles emit and pop correctly
+- [ ] Wave effects visible on tendroids and bubbles
+- [ ] Stress test: 30 tendroids
+- [ ] Scene matches v1 visual quality
+
+== Phase 10: Cleanup
+
+- [x] Delete `SESSION_HANDOFF_V2_INTEGRATION.adoc`
+- [ ] Archive or delete intermediate test files
+- [ ] Update `PROJECT_STATUS.adoc` with v2 completion
+- [ ] Update `docs/README.adoc` if needed
+
+== Progress Summary
+
+[cols="1,1,1"]
+|===
+|Phase |Status |Completed Date
+
+|Phase 1: Building
+|COMPLETE
+|2025-11-21
+
+|Phase 2: Factory
+|COMPLETE
+|2025-11-22
+
+|Phase 3: Animation
+|FILES DONE
+|2025-11-21
+
+|Phase 4: Scene Mgmt
+|COMPLETE
+|2025-11-22
+
+|Phase 5: Bubbles
+|NOT STARTED
+|
+
+|Phase 6: UI
+|NOT STARTED
+|
+
+|Phase 7: Tendroid Ext
+|NOT STARTED
+|
+
+|Phase 8: Config
+|COMPLETE
+|2025-11-22
+
+|Phase 9: Integration
+|NOT STARTED
+|
+
+|Phase 10: Cleanup
+|IN PROGRESS
+|
+|===
+
+== Notes
+
+=== Session 2025-11-21
+Created core infrastructure for Phases 1-4:
+- Builders package with flared cylinder generation and terrain conform
+- Scene package with factory, animation controller, and manager
+- Animation package with wave controller
+- Updated v2/__init__.py with all new exports
+
+=== Session 2025-11-22
+- Fixed extension.py imports (v1.scene, v1.ui)
+- Fixed V2SceneManager to use config defaults (not hardcoded)
+- Updated material helper to always use coral/pink color
+- Tuned spawn config: 400x400 area, 1.5 spacing
+- Verified 15 tendroids spawn correctly with natural layout
+
+Next: Phase 5 (Bubble System) - integrate bubble-driven deformation

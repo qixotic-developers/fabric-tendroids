@@ -12,7 +12,7 @@ Performance (RTX 4090, 60Hz monitor):
 - Python:   6.67 ms/frame (150 theoretical fps)
 """
 
-# Controllers (scene orchestration)
+# Controllers (scene orchestration - original demos)
 from .controllers import V2Controller, V2NumpyController, V2WarpController
 
 # Core (tendroids and deformers)
@@ -39,6 +39,27 @@ from .environment import (
     SeaFloorController,
     EnvironmentConfig,
     EnvironmentSetup,
+    get_height_at,
+)
+
+# Builders (NEW - flared geometry, terrain conform)
+from .builders import (
+    CylinderGenerator,
+    conform_base_to_terrain,
+    V2TendroidBuilder,
+)
+
+# Scene (NEW - multi-spawn, animation, orchestration)
+from .scene import (
+    V2TendroidFactory,
+    V2AnimationController,
+    V2SceneManager,
+)
+
+# Animation (NEW - wave effects)
+from .animation import (
+    WaveController,
+    WaveConfig,
 )
 
 # Backwards compatibility aliases
@@ -54,7 +75,7 @@ NumpyController = V2NumpyController
 NumpyTendroid = V2NumpyTendroid
 
 __all__ = [
-    # Controllers
+    # Controllers (demos)
     "V2Controller",
     "V2NumpyController",
     "V2WarpController",
@@ -77,6 +98,18 @@ __all__ = [
     "SeaFloorController",
     "EnvironmentConfig",
     "EnvironmentSetup",
+    "get_height_at",
+    # Builders (NEW)
+    "CylinderGenerator",
+    "conform_base_to_terrain",
+    "V2TendroidBuilder",
+    # Scene (NEW)
+    "V2TendroidFactory",
+    "V2AnimationController",
+    "V2SceneManager",
+    # Animation (NEW)
+    "WaveController",
+    "WaveConfig",
     # Backwards compatibility
     "WarpController",
     "WarpTendroid",

@@ -11,8 +11,8 @@ import omni.usd
 import omni.kit.ui
 import omni.kit.app
 import omni.kit.window.extensions
-from .scene.manager import TendroidSceneManager
-from .ui.control_panel import TendroidControlPanel
+from .v1.scene.manager import TendroidSceneManager
+from .v1.ui.control_panel import TendroidControlPanel
 
 
 class TendroidsExtension(omni.ext.IExt):

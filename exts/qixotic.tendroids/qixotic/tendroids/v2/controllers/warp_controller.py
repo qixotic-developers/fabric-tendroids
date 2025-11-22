@@ -1,18 +1,19 @@
 """
-V2 NumPy Controller - Vectorized CPU deformation
+V2 Warp Controller - GPU-accelerated bubble-guided deformation demo
 """
 
 import carb
 import omni.usd
 import omni.kit.app
 
-from .v2_numpy_tendroid import V2NumpyTendroid
-from .v2_bubble import V2Bubble
-from .v2_bubble_visual import V2BubbleVisual
+from ..core import V2WarpTendroid
+from ..bubbles import V2Bubble, V2BubbleVisual
 
 
-class V2NumpyController:
-    """Vectorized NumPy deformation controller."""
+class V2WarpController:
+    """
+    GPU-accelerated V2 controller using Warp kernels.
+    """
     
     def __init__(self):
         self.tendroid = None
@@ -31,31 +32,36 @@ class V2NumpyController:
         self.bulge_width = 0.9
     
     def start(self):
+        """Start the demo."""
         ctx = omni.usd.get_context()
         if not ctx:
+            carb.log_error("[V2WarpController] No USD context")
             return False
         
         self._stage = ctx.get_stage()
         if not self._stage:
+            carb.log_error("[V2WarpController] No USD stage")
             return False
         
         self._setup_environment()
         self._create_components()
         self._start_update_loop()
-        carb.log_info("[V2NumpyController] Started")
+        carb.log_info("[V2WarpController] GPU-accelerated demo started")
         return True
     
     def _setup_environment(self):
+        """Setup lighting, sky, and sea floor."""
         try:
-            from ..v1.sea_floor.sea_floor_controller import SeaFloorController
+            from ..environment import SeaFloorController
             SeaFloorController.create_sea_floor(self._stage)
         except Exception as e:
-            carb.log_warn(f"Environment setup failed: {e}")
+            carb.log_warn(f"[V2WarpController] Environment setup failed: {e}")
     
     def _create_components(self):
+        """Create Warp tendroid and bubble."""
         amplitude = (self.max_bubble_radius - self.cylinder_radius) / self.cylinder_radius
         
-        self.tendroid = V2NumpyTendroid(
+        self.tendroid = V2WarpTendroid(
             stage=self._stage, path="/World/V2_Tendroid",
             radius=self.cylinder_radius, length=self.cylinder_length,
             radial_segments=24, height_segments=48,
@@ -76,17 +82,21 @@ class V2NumpyController:
         self._bubble_visual.create(self.cylinder_radius, start_y)
     
     def _start_update_loop(self):
+        """Start per-frame updates."""
         self._running = True
         app = omni.kit.app.get_app()
         self._update_sub = app.get_update_event_stream().create_subscription_to_pop(
-            self._on_update, name="V2NumpyController_Update"
+            self._on_update, name="V2WarpController_Update"
         )
     
     def stop(self):
+        """Stop animation."""
         self._running = False
         self._update_sub = None
+        carb.log_info("[V2WarpController] Stopped")
     
     def clear(self):
+        """Clear all objects."""
         self.stop()
         if self.tendroid:
             self.tendroid.destroy()
@@ -95,6 +105,7 @@ class V2NumpyController:
             self._bubble_visual.destroy()
             self._bubble_visual = None
         self.bubble = None
+        carb.log_info("[V2WarpController] Cleared")
     
     def cleanup(self):
         self.clear()
@@ -104,12 +115,14 @@ class V2NumpyController:
             self.bubble.reset()
     
     def _on_update(self, event):
+        """Per-frame update."""
         if not self._running or not self.bubble:
             return
         
         dt = event.payload.get("dt", 1.0 / 60.0)
         
-        if not self.bubble.update(dt):
+        still_active = self.bubble.update(dt)
+        if not still_active:
             self.bubble.reset()
         
         current_radius = self.bubble.get_current_radius()

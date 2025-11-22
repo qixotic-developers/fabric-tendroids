@@ -12,22 +12,34 @@ Performance (RTX 4090, 60Hz monitor):
 - Python:   6.67 ms/frame (150 theoretical fps)
 """
 
-# Primary exports (Warp GPU - default)
-from .v2_warp_controller import V2WarpController
-from .v2_warp_tendroid import V2WarpTendroid
-from .v2_warp_deformer import V2WarpDeformer
+# Controllers (scene orchestration)
+from .controllers import V2Controller, V2NumpyController, V2WarpController
 
-# Shared components
-from .v2_bubble import V2Bubble
-from .v2_bubble_visual import V2BubbleVisual
-from .v2_material_helper import apply_material
+# Core (tendroids and deformers)
+from .core import (
+    V2Tendroid,
+    V2NumpyTendroid,
+    V2WarpTendroid,
+    V2Deformer,
+    V2WarpDeformer,
+)
 
-# CPU fallbacks
-from .v2_controller import V2Controller
-from .v2_tendroid import V2Tendroid
-from .v2_deformer import V2Deformer
-from .v2_numpy_controller import V2NumpyController
-from .v2_numpy_tendroid import V2NumpyTendroid
+# Bubbles
+from .bubbles import V2Bubble, V2BubbleVisual
+
+# Utils
+from .utils import apply_material
+
+# Config
+from .config import ConfigLoader, get_config_value
+
+# Environment
+from .environment import (
+    SeaFloorConfig,
+    SeaFloorController,
+    EnvironmentConfig,
+    EnvironmentSetup,
+)
 
 # Backwards compatibility aliases
 WarpController = V2WarpController
@@ -42,16 +54,38 @@ NumpyController = V2NumpyController
 NumpyTendroid = V2NumpyTendroid
 
 __all__ = [
-    # GPU (default)
-    "V2WarpController", "V2WarpTendroid", "V2WarpDeformer",
-    # Shared
-    "V2Bubble", "V2BubbleVisual", "apply_material",
-    # CPU fallbacks
-    "V2Controller", "V2Tendroid", "V2Deformer",
-    "V2NumpyController", "V2NumpyTendroid",
+    # Controllers
+    "V2Controller",
+    "V2NumpyController",
+    "V2WarpController",
+    # Core
+    "V2Tendroid",
+    "V2NumpyTendroid",
+    "V2WarpTendroid",
+    "V2Deformer",
+    "V2WarpDeformer",
+    # Bubbles
+    "V2Bubble",
+    "V2BubbleVisual",
+    # Utils
+    "apply_material",
+    # Config
+    "ConfigLoader",
+    "get_config_value",
+    # Environment
+    "SeaFloorConfig",
+    "SeaFloorController",
+    "EnvironmentConfig",
+    "EnvironmentSetup",
     # Backwards compatibility
-    "WarpController", "WarpTendroid", "WarpDeformer",
-    "POCBubble", "POCBubbleVisual",
-    "POCController", "POCTendroid", "POCDeformer",
-    "NumpyController", "NumpyTendroid",
+    "WarpController",
+    "WarpTendroid",
+    "WarpDeformer",
+    "POCBubble",
+    "POCBubbleVisual",
+    "POCController",
+    "POCTendroid",
+    "POCDeformer",
+    "NumpyController",
+    "NumpyTendroid",
 ]

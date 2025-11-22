@@ -7,7 +7,7 @@ import carb
 import numpy as np
 from pxr import Gf, Usd, UsdGeom, Vt
 
-from .v2_material_helper import apply_material
+from ..utils import apply_material
 
 
 class V2NumpyTendroid:

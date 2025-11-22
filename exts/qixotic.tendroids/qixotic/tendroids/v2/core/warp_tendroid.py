@@ -7,8 +7,8 @@ import math
 import carb
 from pxr import Gf, Usd, UsdGeom, Vt
 
-from .v2_material_helper import apply_material
-from .v2_warp_deformer import V2WarpDeformer
+from ..utils import apply_material
+from .warp_deformer import V2WarpDeformer
 
 
 class V2WarpTendroid:

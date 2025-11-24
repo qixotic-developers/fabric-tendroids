@@ -25,7 +25,7 @@ from .core import (
 )
 
 # Bubbles
-from .bubbles import V2Bubble, V2BubbleVisual
+from .bubbles import V2Bubble, V2BubbleVisual, V2BubbleConfig, V2BubbleManager
 
 # Utils
 from .utils import apply_material
@@ -62,6 +62,9 @@ from .animation import (
     WaveConfig,
 )
 
+# UI (NEW - control panel)
+from .ui import V2ControlPanel
+
 # Backwards compatibility aliases
 WarpController = V2WarpController
 WarpTendroid = V2WarpTendroid
@@ -88,6 +91,8 @@ __all__ = [
     # Bubbles
     "V2Bubble",
     "V2BubbleVisual",
+    "V2BubbleConfig",
+    "V2BubbleManager",
     # Utils
     "apply_material",
     # Config
@@ -110,6 +115,8 @@ __all__ = [
     # Animation (NEW)
     "WaveController",
     "WaveConfig",
+    # UI (NEW)
+    "V2ControlPanel",
     # Backwards compatibility
     "WarpController",
     "WarpTendroid",

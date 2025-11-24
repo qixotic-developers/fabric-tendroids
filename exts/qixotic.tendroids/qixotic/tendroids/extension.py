@@ -2,6 +2,7 @@
 Tendroids Extension - Main entry point
 
 Omniverse extension for creating and animating Tendroid creatures.
+Uses V2 GPU-accelerated system with wave animation.
 """
 
 import carb
@@ -11,8 +12,8 @@ import omni.usd
 import omni.kit.ui
 import omni.kit.app
 import omni.kit.window.extensions
-from .v1.scene.manager import TendroidSceneManager
-from .v1.ui.control_panel import TendroidControlPanel
+from .v2.scene.manager import V2SceneManager
+from .v2.ui.control_panel import V2ControlPanel
 
 
 class TendroidsExtension(omni.ext.IExt):
@@ -35,10 +36,10 @@ class TendroidsExtension(omni.ext.IExt):
             self._suppress_usdrt_logging()
             
             # Create scene manager
-            self._scene_manager = TendroidSceneManager()
+            self._scene_manager = V2SceneManager()
             
             # Create UI control panel
-            self._control_panel = TendroidControlPanel(self._scene_manager)
+            self._control_panel = V2ControlPanel(self._scene_manager)
             self._control_panel.create_window()
             
             # Subscribe to update events for UI (stress test controller)
@@ -106,19 +107,20 @@ class TendroidsExtension(omni.ext.IExt):
         """Called when extension is unloaded."""
         try:
             # Unsubscribe from updates
-            if hasattr(self, '_ui_update_subscription'):
+            if hasattr(self, '_ui_update_subscription') and self._ui_update_subscription:
+                self._ui_update_subscription.unsubscribe()
                 self._ui_update_subscription = None
             
             # Clear Extensions panel filter
             self._set_extensions_filter("")
             
-            # Cleanup scene manager
-            if hasattr(self, '_scene_manager'):
+            # Cleanup scene manager (stops animation controller)
+            if hasattr(self, '_scene_manager') and self._scene_manager:
                 self._scene_manager.shutdown()
                 self._scene_manager = None
             
             # Cleanup UI
-            if hasattr(self, '_control_panel'):
+            if hasattr(self, '_control_panel') and self._control_panel:
                 self._control_panel.destroy()
                 self._control_panel = None
             

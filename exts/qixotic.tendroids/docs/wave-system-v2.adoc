@@ -1,0 +1,217 @@
+= Wave System V2: Realistic Tidal Motion
+:toc:
+:toclevels: 3
+
+== Overview
+
+Replaced simple sinusoidal wave motion with realistic three-phase tidal cycle:
+*Shore Surge* → *Rest* → *Ebb* → repeat
+
+== Phase Behavior
+
+=== Phase 1: Shore Surge (1-2 seconds)
+- **Direction**: Strong push toward shore (left/negative direction)
+- **Force**: 0.8x to 1.2x base amplitude (randomized per cycle)
+- **Duration**: 1.0 to 2.0 seconds (randomized per cycle)
+- **Motion**: Smooth acceleration/deceleration using sine curve
+- **Visual**: Quick, powerful surge motion
+
+=== Phase 2: Rest (0.5-1.5 seconds)
+- **Direction**: Return to neutral/center position
+- **Motion**: Ease-out curve for smooth deceleration
+- **Duration**: 0.5 to 1.5 seconds (randomized per cycle)
+- **Visual**: Everything drifts back to rest position
+
+=== Phase 3: Ebb (calculated duration)
+- **Direction**: Gentle push seaward (right/positive direction)
+- **Force**: 40-60% of shore surge force (randomized per cycle)
+- **Duration**: Calculated from energy conservation equation
+- **Motion**: Smooth acceleration/deceleration using sine curve
+- **Visual**: Slower, sustained seaward drift
+
+== Energy Conservation
+
+The system maintains energy balance across the cycle:
+
+[source]
+----
+shore_force × shore_duration = ebb_force × ebb_duration
+----
+
+**Example**:
+- Shore: 1.0 force × 1.5 seconds = 1.5 energy
+- Ebb: 0.5 force × 3.0 seconds = 1.5 energy ✓
+
+This creates realistic tidal behavior where strong quick surges are balanced by gentle prolonged ebbs.
+
+== Randomization
+
+Each cycle generates new random parameters:
+
+[cols="1,1,1"]
+|===
+|Parameter |Min |Max
+
+|Shore Force Multiplier
+|0.8
+|1.2
+
+|Shore Duration
+|1.0s
+|2.0s
+
+|Rest Duration
+|0.5s
+|1.5s
+
+|Ebb Force
+|40% shore
+|60% shore
+
+|Ebb Duration
+|Calculated
+|—
+|===
+
+This creates natural variation - no two cycles are identical.
+
+== Spatial Variation
+
+Wave displacement includes slight spatial variation based on position:
+
+[source,python]
+----
+spatial_factor = 1.0 + sin(x*0.003 + z*0.002) * 0.15
+----
+
+This creates ±15% variation across the field, preventing perfect synchronization and adding visual interest.
+
+== API Compatibility
+
+The new system maintains API compatibility with existing code:
+
+[source,python]
+----
+# Same interface
+wave_dx, wave_dy, wave_dz = wave_controller.get_displacement(world_pos)
+
+# Height factor calculation unchanged
+factor = wave_controller.get_segment_factor(height_ratio)
+----
+
+== Configuration
+
+Exposed in UI (via `WaveConfig`):
+- `amplitude` - Overall displacement scale (default: 8.0)
+- `frequency` - Overall cycle speed multiplier (default: 0.15)
+- `direction` - Wave direction vector (default: [1.0, 0.0, 0.3])
+
+Internal parameters (tunable in code):
+- `shore_force_min/max` - Shore surge force range
+- `shore_duration_min/max` - Shore surge time range
+- `rest_duration_min/max` - Rest phase time range
+
+== Debug Information
+
+New method for monitoring wave state:
+
+[source,python]
+----
+info = wave_controller.get_phase_info()
+# Returns:
+# {
+#   'phase': 'shore_surge' | 'rest' | 'ebb',
+#   'phase_time': 1.2,
+#   'displacement': -0.8,
+#   'shore_force': 1.1,
+#   'shore_duration': 1.7,
+#   'ebb_force': 0.55,
+#   'ebb_duration': 3.4
+# }
+----
+
+== Implementation Details
+
+=== State Machine
+
+[source]
+----
+┌─────────────┐
+│ SHORE_SURGE │ (1-2s, strong left)
+└──────┬──────┘
+       │
+       v
+┌─────────────┐
+│    REST     │ (0.5-1.5s, return to center)
+└──────┬──────┘
+       │
+       v
+┌─────────────┐
+│     EBB     │ (calculated, gentle right)
+└──────┬──────┘
+       │
+       v
+   (randomize & repeat)
+----
+
+=== Displacement Calculation
+
+**Shore Surge**:
+
+[source,python]
+----
+t = phase_time / shore_duration
+progress = sin(t * π)
+displacement = -progress * shore_force  # Negative = shore
+----
+
+**Rest**:
+
+[source,python]
+----
+t = phase_time / rest_duration
+ease_out = 1 - (1 - t)²
+displacement = start_displacement * (1 - ease_out)  # → 0
+----
+
+**Ebb**:
+
+[source,python]
+----
+t = phase_time / ebb_duration
+progress = sin(t * π)
+displacement = progress * ebb_force  # Positive = sea
+----
+
+== Migration Notes
+
+=== What Changed
+- Wave displacement now asymmetric (not simple sine wave)
+- Each cycle has different timing and forces
+- Three distinct phases instead of continuous oscillation
+
+=== What Stayed the Same
+- `get_displacement()` API unchanged
+- `get_segment_factor()` API unchanged
+- Height-based influence calculation unchanged
+- GPU kernel integration unchanged
+
+=== Expected Visual Changes
+- More dynamic, less predictable motion
+- Strong quick surges followed by gentle sustained drift
+- Natural variation between cycles
+- More realistic ocean/current behavior
+
+== Testing Checklist
+
+- [ ] Tendroids surge strongly toward shore, then gently ebb seaward
+- [ ] Rest phase visible (brief pause at center)
+- [ ] Each cycle feels different (randomization working)
+- [ ] No sudden snaps or discontinuities between phases
+- [ ] Spatial variation creates natural field effect
+- [ ] Bubbles affected by wave motion (next phase)
+
+== Files Modified
+
+1. `v2/animation/wave_controller.py` - Complete rewrite with phase system
+2. (Next) `v2/bubbles/bubble_manager.py` - Will add wave drift to bubbles

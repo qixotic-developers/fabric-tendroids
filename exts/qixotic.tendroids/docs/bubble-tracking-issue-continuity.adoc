@@ -1,0 +1,186 @@
+= Bubble Tracking Issue - Continuity Summary
+:toc:
+:toclevels: 3
+
+== Current Status
+
+**Working Features:**
+- ✅ Bubble sphere shape (not elongated) - deformation matches during rising
+- ✅ Bubble exit deformation - follows bubble center smoothly
+- ✅ Wave system Phase 1 complete - shore/rest/ebb cycle
+- ✅ Wave UI controls added with all phase parameters
+- ✅ Particle burst on pop (integrated from v1)
+- ✅ Performance: ~60 fps with 1 bubble
+
+**Broken Feature:**
+- ❌ Bubble does NOT track cylinder centerline during wave motion
+- Symptom: Bubble "tears through" the side of cylinder wall
+- Issue: Bubble lags behind or doesn't follow wave-displaced centerline
+- Occurs with: Single tendroid OR multiple tendroids
+- Works correctly: When wave motion is DISABLED
+
+== The Problem
+
+When wave motion is enabled:
+1. Cylinder mesh deforms and sways with wave
+2. Bubble visual position is calculated to match wave-displaced centerline
+3. **BUT** the bubble appears offset/misaligned from the cylinder centerline
+4. Bubble looks like it's "tearing through the wall" instead of rising smoothly up the center
+
+== What We Know
+
+**Code Flow (each frame):**
+
+[source]
+----
+1. Wave controller updates → calculates current_displacement
+2. Bubble manager updates:
+   a. Gets wave_dx, wave_dz = wave_controller.get_displacement(tendroid.position)
+   b. Calls tendroid.apply_deformation(bubble_y, effective_radius, wave_dx, wave_dz)
+   c. GPU kernel applies: deformation + wave to mesh vertices
+   d. Calls _update_world_pos_with_wave(wave_controller)
+      - Gets SAME wave_dx, wave_dz
+      - Calculates: bubble_x = tendroid_x + wave_dx * height_factor
+   e. Updates bubble visual at calculated position
+----
+
+**Theory (should work):**
+- Mesh vertices at height Y displaced by: `vertex_x + wave_dx * height_factor`
+- Bubble visual at height Y positioned at: `tendroid_x + wave_dx * height_factor`
+- These SHOULD match exactly
+
+**Reality (doesn't work):**
+- Bubble appears offset from centerline
+- "Lagging behind" or not synchronized with mesh deformation
+
+== What Didn't Fix It
+
+**Attempt 1: Removed spatial variation** ❌
+- Thought: Spatial variation causes position-dependent wave
+- Action: Removed `spatial_factor` from wave calculation
+- Result: BROKE natural field variation, didn't fix bubble tracking
+- **REVERT THIS** - spatial variation is good, not the cause
+
+**Previous attempts:**
+- Made bubble spherical (was correct)
+- Simplified exit deformation (was correct)
+- Added debug logging (didn't reveal issue)
+
+== Hypothesis: Root Cause
+
+**Possible issues:**
+
+1. **Timing mismatch**: Wave displacement queried at DIFFERENT times for mesh vs bubble?
+   - GPU kernel receives wave_dx/wave_dz
+   - Bubble visual calculates position separately
+   - Maybe not using same wave timestamp?
+
+2. **Height factor mismatch**: Calculation differs between GPU and CPU?
+   - GPU kernel: `height_ratio = pos[1] / cylinder_length`
+   - CPU bubble: `height_ratio = self.y / self.tendroid.length`
+   - Are these the SAME value?
+
+3. **Coordinate system issue**: Local vs world space confusion?
+   - Deformation applied in local space
+   - Bubble positioned in world space
+   - Conversion mismatch?
+
+4. **Wave caching**: `_get_wave_displacement()` caches values?
+   - Used for multiple purposes per frame
+   - Could be stale?
+
+5. **Scale factor**: GPU kernel uses BOTH deformation AND wave
+   - Deformation scales vertices radially
+   - Wave displaces them horizontally
+   - Order of operations issue?
+
+== Debug Strategy for Next Chat
+
+**Step 1: Add comprehensive logging**
+
+[source,python]
+----
+# In bubble_manager._update_rising():
+carb.log_info(f"Bubble y={self.y:.1f}, wave_dx={wave_dx:.2f}, wave_dz={wave_dz:.2f}")
+carb.log_info(f"Height_ratio={height_ratio:.3f}, factor={factor:.3f}")
+carb.log_info(f"Bubble world_pos=({self.world_pos[0]:.1f}, {self.world_pos[1]:.1f}, {self.world_pos[2]:.1f})")
+carb.log_info(f"Tendroid pos=({tx:.1f}, {ty:.1f}, {tz:.1f})")
+----
+
+**Step 2: Verify GPU kernel receives correct values**
+- Add print to warp_deformer.deform() showing wave_dx/wave_dz received
+- Confirm they match bubble's wave values
+
+**Step 3: Test with wave.amplitude = 0**
+- Set amplitude to 0 but keep wave enabled
+- Does bubble still mismatch? Or only when displacement > 0?
+
+**Step 4: Test with single frame step**
+- Pause animation
+- Step one frame at a time
+- Watch if bubble "jumps" to wrong position or smoothly tracks wrong position
+
+**Step 5: Visual inspection**
+- Draw debug sphere at calculated wave-displaced centerline
+- Draw debug sphere at actual mesh centerline (if possible)
+- Compare with bubble position
+
+== Files Modified (This Session)
+
+1. `v2/animation/wave_controller.py`
+   - Added phase-based tidal system
+   - **ISSUE**: Removed spatial variation (SHOULD REVERT)
+
+2. `v2/bubbles/bubble_manager.py`
+   - Made bubbles spherical (vertical_stretch = 1.0)
+   - Simplified exit deformation logic
+   - Added particle system integration
+   - Added wave drift for released bubbles
+   - **ISSUE**: Bubble tracking still broken
+
+3. `v2/bubbles/bubble_config.py`
+   - Changed defaults for visibility and growth
+
+4. `v2/ui/wave_controls.py`
+   - Added UI controls for wave phase parameters
+
+5. `v2/scene/tendroid_wrapper.py`
+   - Already exists, handles deformation with wave
+
+6. `v2/core/warp_deformer.py`
+   - Already modified to accept wave_dx/wave_dz in kernel
+
+== Next Steps
+
+1. **REVERT** spatial variation removal in wave_controller.py
+2. Add comprehensive debug logging as outlined above
+3. Systematically test hypotheses
+4. Consider: Is the GPU kernel ACTUALLY applying wave to vertices?
+   - Maybe wave parameters aren't reaching GPU?
+   - Maybe kernel has a bug?
+5. Review the ENTIRE data flow from wave update → GPU kernel → visual update
+
+== Key Insight
+
+The issue is NOT about making bubbles spherical or exit timing.
+The issue is fundamental: **bubble position calculation doesn't match mesh deformation with wave**.
+
+Need to verify:
+- Are the same wave values reaching GPU kernel and bubble position calc?
+- Is height_factor calculated the same way in GPU and CPU?
+- Is there a frame delay between mesh deformation and bubble update?
+
+== Performance Note
+
+Running at ~60 fps with 1 bubble - plenty of headroom for debugging.
+
+== Code Locations
+
+- Wave controller: `v2/animation/wave_controller.py`
+- Bubble manager: `v2/bubbles/bubble_manager.py`
+- Tendroid wrapper: `v2/scene/tendroid_wrapper.py`
+- GPU kernel: `v2/core/warp_deformer.py`
+- Animation loop: `v2/scene/animation_controller.py`
+
+Line ~257 in bubble_manager.py: Where deformation is called during rising
+Line ~430 in bubble_manager.py: Where bubble position is calculated with wave

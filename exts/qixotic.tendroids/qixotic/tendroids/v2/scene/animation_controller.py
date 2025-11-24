@@ -3,7 +3,6 @@ V2 Animation Controller - Update loop for tendroids and bubbles
 
 Manages per-frame updates with wave effects and bubble system integration.
 """
-from _typeshed import SupportsDunderGT, SupportsDunderLT
 
 import carb
 import time
@@ -85,17 +84,16 @@ class V2AnimationController:
     
     def stop(self):
         """Stop animation loop."""
-        if not self.is_running:
-            return
-        
         if self.update_subscription:
             self.update_subscription.unsubscribe()
             self.update_subscription = None
         
         self.is_running = False
+        self._profiling_enabled = False
         
-        if self._profiling_enabled and self._profile_samples:
+        if self._profile_samples:
             self._log_profile_summary()
+            self._profile_samples = []
         
         carb.log_info("[V2AnimationController] Stopped")
     
@@ -119,13 +117,19 @@ class V2AnimationController:
             # Update wave controller
             self.wave_controller.update(dt)
             
-            # Update bubble manager (drives deformation)
+            # Update bubble manager (handles both deformation AND wave displacement)
+            # Wave displacement is now composed with bubble deformation in GPU
             if self.bubble_manager:
                 self.bubble_manager.update(
                     dt, 
                     self.tendroids,
                     self.wave_controller
                 )
+            else:
+                # No bubble manager - apply wave-only to all tendroids
+                for tendroid in self.tendroids:
+                    wave_dx, _, wave_dz = self.wave_controller.get_displacement(tendroid.position)
+                    tendroid.apply_wave_only(wave_dx, wave_dz)
             
         except Exception as e:
             carb.log_error(f"[V2AnimationController] Update error: {e}")
@@ -174,8 +178,7 @@ class V2AnimationController:
         carb.log_info(f"[PROFILE] Avg: {avg_fps:.1f}, Min: {min_fps:.1f}, Max: {max_fps:.1f}")
         carb.log_info("=" * 50)
     
-    def get_profile_data(self) -> dict[str, list[Any] | float | SupportsDunderLT[Any] | SupportsDunderGT[
-      Any] | Any] | None:
+    def get_profile_data(self) -> dict | None:
         """Get profiling data."""
         if not self._profile_samples:
             return None

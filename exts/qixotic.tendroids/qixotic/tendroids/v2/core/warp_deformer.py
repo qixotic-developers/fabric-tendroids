@@ -31,9 +31,13 @@ def deform_cylinder_kernel(
     GPU kernel to deform cylinder vertices based on bubble position.
     
     Each thread processes one vertex:
-    1. Apply wave displacement based on height factor
-    2. Calculate bubble deformation (Gaussian bulge)
-    3. Output combined result
+    1. Calculate bubble deformation (Gaussian bulge) on ORIGINAL position
+    2. Apply wave displacement AFTER radial scaling
+    3. This ensures wave and deformation are independent
+    
+    CRITICAL: Wave displacement must be added AFTER radial scaling,
+    not multiplied through it. Otherwise the centerline moves when
+    the bubble passes and the visual won't match.
     """
     tid = wp.tid()
     
@@ -41,11 +45,7 @@ def deform_cylinder_kernel(
     vertex_y = pos[1]
     h_factor = height_factors[tid]
     
-    # Step 1: Apply wave displacement (horizontal sway)
-    wave_x = pos[0] + wave_dx * h_factor
-    wave_z = pos[2] + wave_dz * h_factor
-    
-    # Step 2: Calculate bubble deformation
+    # Step 1: Calculate bubble deformation on ORIGINAL position
     max_radius = cylinder_radius * (1.0 + max_amplitude)
     radius_range = max_radius - cylinder_radius
     
@@ -63,8 +63,15 @@ def deform_cylinder_kernel(
     displacement = current_amplitude * gaussian
     scale = 1.0 + displacement
     
-    # Step 3: Apply radial scaling to wave-displaced position
-    out_points[tid] = wp.vec3(wave_x * scale, vertex_y, wave_z * scale)
+    # Step 2: Apply radial scaling to ORIGINAL position
+    scaled_x = pos[0] * scale
+    scaled_z = pos[2] * scale
+    
+    # Step 3: Add wave displacement AFTER scaling (independent of bulge)
+    final_x = scaled_x + wave_dx * h_factor
+    final_z = scaled_z + wave_dz * h_factor
+    
+    out_points[tid] = wp.vec3(final_x, vertex_y, final_z)
 
 
 class V2WarpDeformer:

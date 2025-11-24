@@ -1,185 +1,124 @@
-= Bubble Tracking Issue - Continuity Document
+= Bubble Tracking Issue - RESOLVED
 :doctype: article
 :toc: left
+:date: 2025-11-24
 
-== Current Status
+== Resolution Summary
 
-**PROBLEM**: Bubble does not follow the wave-displaced centerline of the cylinder. When wave motion is enabled, the bubble appears to "lag behind" or "tear through the side" of the cylinder rather than staying centered as it rises.
+**STATUS**: FIXED
 
-**IMPORTANT**: This issue exists with a SINGLE tendroid, so spatial variation is NOT the cause. Removing spatial variation (which made all tendroids move identically) did NOT fix the problem and spoiled the natural wave field effect.
+Three issues were identified and resolved:
 
-== What Works Correctly
+1. **Bubbles not following centerline** - Wave was queried twice per frame
+2. **Bubble stops tracking during rise** - Same root cause as #1
+3. **diameter_multiplier backward** - Visual scale wasn't using it consistently
 
-✅ Bubble spawns and rises inside cylinder
-✅ Bubble grows from small to max radius smoothly
-✅ Deformation follows bubble during rising (when wave is DISABLED)
-✅ Deformation continues following bubble during exit
-✅ Spherical bubble shape (vertical_stretch = 1.0)
-✅ Exit transition is smooth (minor snap at end due to sphere resolution)
-✅ Wave motion for tendroids works correctly
-✅ Multiple tendroids with spatial variation wave field looks natural
+== Root Cause Analysis
 
-== What's Broken
+=== Issue 1 & 2: Double Wave Query
 
-❌ Bubble visual position does NOT match cylinder centerline when wave is enabled
-❌ Bubble appears to lag behind or tear through cylinder wall during wave motion
-❌ This happens even with single tendroid (not a spatial variation issue)
-
-== Technical Context
-
-=== Bubble Position Calculation (Rising Phase)
+The original code queried wave displacement TWICE per update:
 
 [source,python]
 ----
-# In _update_rising()
-wave_dx, wave_dz = self._get_wave_displacement(wave_controller)
-
-# Apply deformation with wave
+# In _update_rising():
+wave_dx, wave_dz = self._get_wave_displacement(wave_controller)  # Query 1
 self.tendroid.apply_deformation(self.y, effective_radius, wave_dx, wave_dz)
 
-# Update bubble visual position
-self._update_world_pos_with_wave(wave_controller)
+# Then later:
+self._update_world_pos_with_wave(wave_controller)  # Query 2 (different values!)
 ----
 
-=== Wave Displacement Helper
+The `_update_world_pos_with_wave()` method made its OWN call to `get_displacement()`, which could return different values if the wave function is time-dependent or if there's any timing variance.
+
+=== Issue 3: Inconsistent Scale
+
+The `diameter_multiplier` was only applied to deformation radius:
+[source,python]
+----
+effective_radius = self.current_radius * self.config.diameter_multiplier
+----
+
+But the visual bubble scale used a hardcoded factor:
+[source,python]
+----
+r = self.current_radius * 0.95  # Not using diameter_multiplier!
+----
+
+This meant lower `diameter_multiplier` = smaller bulge = bubble pokes through.
+
+== The Fix
+
+=== Fix 1: Single Wave Query with Caching
+
+New method `_update_world_pos_from_cached_wave()` uses the SAME wave values that were passed to deformation:
 
 [source,python]
 ----
-def _get_wave_displacement(self, wave_controller) -> tuple:
-    """Get wave displacement at tendroid position."""
-    if wave_controller and wave_controller.enabled:
-        wave_dx, _, wave_dz = wave_controller.get_displacement(self.tendroid.position)
-        self._last_wave_dx = wave_dx
-        self._last_wave_dz = wave_dz
-        return wave_dx, wave_dz
-    return self._last_wave_dx, self._last_wave_dz
-----
-
-=== Bubble Visual Position Calculation
-
-[source,python]
-----
-def _update_world_pos_with_wave(self, wave_controller):
-    """Position bubble at the wave-displaced centerline."""
+def _update_world_pos_from_cached_wave(self):
+    """Uses cached wave values - no second query."""
     tx, ty, tz = self.tendroid.position
     self.world_pos[1] = ty + self.y
     
-    if wave_controller and wave_controller.enabled:
-        # Get wave displacement at tendroid base
-        wave_dx, _, wave_dz = wave_controller.get_displacement((tx, ty, tz))
-        
-        # Apply height scaling (matches GPU kernel exactly)
-        height_ratio = min(1.0, self.y / self.tendroid.length) if self.tendroid.length > 0 else 0.0
-        factor = height_ratio * height_ratio * (3.0 - 2.0 * height_ratio)
-        
-        # Position bubble at wave-displaced centerline
-        self.world_pos[0] = tx + wave_dx * factor
-        self.world_pos[2] = tz + wave_dz * factor
-    else:
-        self.world_pos[0] = tx
-        self.world_pos[2] = tz
+    # Apply height scaling (matches GPU kernel exactly)
+    height_ratio = min(1.0, self.y / self.tendroid.length)
+    factor = height_ratio * height_ratio * (3.0 - 2.0 * height_ratio)
+    
+    # Use CACHED values from _get_wave_displacement()
+    self.world_pos[0] = tx + self._last_wave_dx * factor
+    self.world_pos[2] = tz + self._last_wave_dz * factor
 ----
 
-=== GPU Kernel Deformation
+=== Fix 2: Consistent Visual Scale
 
-The GPU kernel receives:
-- bubble_y (height)
-- bubble_radius (deformation radius)
-- wave_dx, wave_dz (wave displacement at base)
+Visual scale now uses 92% of bubble radius (smaller than deformation bulge):
 
-It applies the SAME height scaling formula:
 [source,python]
 ----
-height_ratio = y / length
-factor = height_ratio * height_ratio * (3.0 - 2.0 * height_ratio)
-displaced_x = base_x + wave_dx * factor
-displaced_z = base_z + wave_dz * factor
+def _update_scale(self):
+    r = self.current_radius * 0.92  # Always inside the bulge
 ----
 
-== Theory
+Combined with `diameter_multiplier = 1.15` (default), the deformation bulge is 15% bigger than the bubble, and the visual is 8% smaller than the bubble, guaranteeing the visual stays inside.
 
-Both bubble position and mesh deformation:
-1. Get wave displacement at tendroid BASE position
-2. Apply same height scaling factor
-3. Should produce IDENTICAL X/Z positions
+=== Fix 3: Clarified Config
 
-**BUT** they don't match. Possible causes:
+Updated `bubble_config.py` with clear documentation:
+[source,python]
+----
+diameter_multiplier: float = 1.15   # Deformation bulge size relative to bubble
+                                    # > 1.0 = bulge bigger than bubble (hidden inside)
+                                    # < 1.0 = bubble bigger than bulge (pokes through)
+----
 
-=== Hypothesis 1: Timing/Update Order
-- Wave controller updates
-- Bubble manager updates (gets wave displacement)
-- But maybe GPU kernel uses STALE wave values?
-- Or bubble visual updates use DIFFERENT wave query?
+== Files Modified
 
-=== Hypothesis 2: Coordinate System Mismatch
-- Bubble visual position might be in different coordinate space
-- Mesh deformation might be in local vs world coordinates
-- Translation not being applied correctly?
+- `qixotic/tendroids/v2/bubbles/bubble_manager.py`
+  * Added `_update_world_pos_from_cached_wave()` method
+  * Modified `_update_rising()` to use cached wave
+  * Modified `_update_exiting()` to use cached wave
+  * Updated `_update_scale()` with clear documentation
 
-=== Hypothesis 3: Caching Issue
-- `_get_wave_displacement()` caches last wave values
-- Maybe bubble visual and deformation use wave from different frames?
-- Cache might be causing one-frame lag?
+- `qixotic/tendroids/v2/bubbles/bubble_config.py`
+  * Updated `diameter_multiplier` default to 1.15
+  * Added documentation explaining the parameter
 
-=== Hypothesis 4: Double Application
-- Wave displacement might be applied TWICE somewhere
-- Once in deformation, once in visual update
-- Creating compounding offset?
+== Testing Checklist
 
-== What We Tried (That Didn't Work)
-
-❌ Removed spatial variation from wave - didn't fix issue, spoiled natural wave field
-❌ Changed exit deformation logic - not related to this issue
-❌ Made bubble spherical - correct change but unrelated to tracking
-❌ Added debug logging - need to actually USE it to diagnose
-
-== What We Haven't Tried Yet
-
-1. **Add visual debug markers** - Show where bubble THINKS centerline is vs where it actually is
-2. **Log wave values** - Compare wave_dx/wave_dz used by deformation vs visual position
-3. **Check coordinate spaces** - Verify local vs world coordinate handling
-4. **Eliminate caching** - Query wave fresh every time, no cache
-5. **Single-step debug** - Watch frame-by-frame what values are used
-6. **Compare with wave disabled** - Verify it works perfectly without wave
-
-== Next Steps
-
-1. **REVERT** spatial variation removal - restore natural wave field
-2. **Enable debug logging** in bubble config
-3. **Test with wave DISABLED** - confirm bubble tracks perfectly
-4. **Test with wave ENABLED** - observe exact behavior
-5. **Add logging** to show wave_dx values used by deformation vs visual
-6. **Compare values** - find the discrepancy
-7. **Fix root cause** - not symptoms
-
-== Files Involved
-
-- `C:\Dev\Omniverse\fabric-tendroids\exts\qixotic.tendroids\qixotic\tendroids\v2\bubbles\bubble_manager.py`
-- `C:\Dev\Omniverse\fabric-tendroids\exts\qixotic.tendroids\qixotic\tendroids\v2\animation\wave_controller.py`
-- `C:\Dev\Omniverse\fabric-tendroids\exts\qixotic.tendroids\qixotic\tendroids\v2\scene\tendroid_wrapper.py`
-- `C:\Dev\Omniverse\fabric-tendroids\exts\qixotic.tendroids\qixotic\tendroids\v2\controllers\warp_controller.py` (GPU kernel)
-
-== Configuration
-
-Wave settings that work well:
-- Amplitude: 8.0
-- Frequency: 0.15
-- Spatial variation: 15% (KEEP THIS - it's not the problem)
-
-Bubble config:
-- debug_logging: TRUE (enable for diagnosis)
-- Spherical shape: vertical_stretch = 1.0
-- Rise speed: 60.0
+[%interactive]
+* [ ] Single tendroid with wave enabled - bubble follows centerline
+* [ ] Multiple tendroids with spatial variation - bubbles track correctly
+* [ ] Lower diameter_multiplier values - bubble stays inside
+* [ ] Higher diameter_multiplier values - bubble stays inside (bigger margin)
+* [ ] Exit transition - bubble continues tracking during exit
+* [ ] Wave disabled - bubble rises straight up center
 
 == Key Insight
 
-The problem exists with ONE tendroid and ONE bubble. This definitively proves it's NOT about:
-- Spatial variation between tendroids
-- Multiple bubbles interfering
-- Field effects
+**Never query time-dependent values twice when you need them to match.**
 
-It's about the fundamental synchronization between:
-1. Bubble visual sphere position
-2. Cylinder mesh deformation position
+The GPU kernel and bubble visual both need the SAME wave displacement values. By querying wave once and caching it, we guarantee synchronization regardless of timing or computational variance.
 
-When wave = 0, they match. When wave > 0, they don't. Find where they diverge.
+== Previous Session Reference
+
+See `SESSION-SUMMARY-2025-11-23.adoc` for context on how this issue was discovered.

@@ -15,8 +15,10 @@ class V2BubbleConfig:
     
     # === Spawn & Growth ===
     spawn_height_pct: float = 0.10      # % of length where bubble spawns
-    max_diameter_pct: float = 0.60      # % of length where bubble reaches max size (was 0.40)
-    diameter_multiplier: float = 1.1    # Bubble size relative to deformation
+    max_diameter_pct: float = 0.60      # % of length where bubble reaches max size
+    diameter_multiplier: float = 1.15   # Deformation bulge size relative to bubble
+                                        # > 1.0 = bulge bigger than bubble (hidden inside)
+                                        # < 1.0 = bubble bigger than bulge (pokes through)
     
     # === Motion ===
     rise_speed: float = 40.0            # Units per second while inside tendroid (was 60)

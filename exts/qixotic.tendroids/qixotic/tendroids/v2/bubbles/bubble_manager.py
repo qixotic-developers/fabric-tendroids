@@ -251,25 +251,25 @@ class _BubbleState:
             t_smooth = 1.0 - (1.0 - t) * (1.0 - t)
             self.current_radius = min_radius + t_smooth * (self.max_radius - min_radius)
         
-        effective_radius = self.current_radius * self.config.diameter_multiplier
+        # Deformation radius - how big the bulge is in the mesh
+        deform_radius = self.current_radius * self.config.diameter_multiplier
         
-        # Get wave displacement and pass to deformation
+        # Get wave displacement ONCE and reuse for both deformation and position
         wave_dx, wave_dz = self._get_wave_displacement(wave_controller)
         
         # Drive deformation at bubble position WITH wave displacement
-        self.tendroid.apply_deformation(self.y, effective_radius, wave_dx, wave_dz)
+        self.tendroid.apply_deformation(self.y, deform_radius, wave_dx, wave_dz)
         
-        # Update world position with wave tracking (should match deformation)
-        self._update_world_pos_with_wave(wave_controller)
+        # Update world position using SAME wave values (no second query)
+        self._update_world_pos_from_cached_wave()
         
-        # Debug: verify bubble position matches expected wave-displaced centerline
-        if self.config.debug_logging and self.age < 0.1:  # Log once at start
+        # Debug logging
+        if self.config.debug_logging and self.age < 0.1:
             height_ratio = min(1.0, self.y / self.tendroid.length)
             factor = height_ratio * height_ratio * (3.0 - 2.0 * height_ratio)
-            expected_x = self.tendroid.position[0] + wave_dx * factor
             carb.log_info(
                 f"[Bubble Debug] y={self.y:.1f}, wave_dx={wave_dx:.2f}, factor={factor:.2f}, "
-                f"expected_x={expected_x:.1f}, actual_x={self.world_pos[0]:.1f}"
+                f"world_x={self.world_pos[0]:.1f}"
             )
         
         self._update_visual()
@@ -300,7 +300,7 @@ class _BubbleState:
         self.age += dt
         self.y += self.config.rise_speed * dt
         
-        # Get wave displacement
+        # Get wave displacement ONCE and cache it
         wave_dx, wave_dz = self._get_wave_displacement(wave_controller)
         
         # Check if bubble bottom has cleared mouth
@@ -309,20 +309,20 @@ class _BubbleState:
         
         if bubble_bottom < mouth_y:
             # Bubble still partially inside - apply deformation EXACTLY like rising phase
-            effective_radius = self.current_radius * self.config.diameter_multiplier
-            self.tendroid.apply_deformation(self.y, effective_radius, wave_dx, wave_dz)
+            deform_radius = self.current_radius * self.config.diameter_multiplier
+            self.tendroid.apply_deformation(self.y, deform_radius, wave_dx, wave_dz)
+            
+            # Position bubble using CACHED wave values (same as deformation)
+            self._update_world_pos_from_cached_wave()
+            
+            # Add throw momentum on top
+            self.world_pos[0] += self.velocity[0] * dt * 0.5
+            self.world_pos[2] += self.velocity[2] * dt * 0.5
         else:
             # Bubble fully cleared - stop deformation and release
             self.tendroid.reset_deformation(wave_dx, wave_dz)
             self._release(wave_controller)
             return
-        
-        # Update position with throw momentum
-        self.world_pos[0] += self.velocity[0] * dt * 0.5
-        self.world_pos[2] += self.velocity[2] * dt * 0.5
-        
-        tx, ty, tz = self.tendroid.position
-        self.world_pos[1] = ty + self.y
         
         # Ensure bubble is visible during exit
         if self.sphere_prim:
@@ -429,25 +429,43 @@ class _BubbleState:
         self.respawn_timer = self.config.respawn_delay
 
     
+    def _update_world_pos_from_cached_wave(self):
+        """
+        Position bubble at wave-displaced centerline using CACHED wave values.
+        
+        CRITICAL: Uses the same wave_dx/wave_dz that were passed to deformation.
+        This ensures perfect synchronization - no second wave query that could
+        return different values due to timing.
+        """
+        tx, ty, tz = self.tendroid.position
+        self.world_pos[1] = ty + self.y
+        
+        # Apply height scaling (matches GPU kernel exactly)
+        height_ratio = min(1.0, self.y / self.tendroid.length) if self.tendroid.length > 0 else 0.0
+        factor = height_ratio * height_ratio * (3.0 - 2.0 * height_ratio)
+        
+        # Position bubble at wave-displaced centerline using CACHED values
+        self.world_pos[0] = tx + self._last_wave_dx * factor
+        self.world_pos[2] = tz + self._last_wave_dz * factor
+    
     def _update_world_pos_with_wave(self, wave_controller):
         """
-        Position bubble at the wave-displaced centerline.
+        Position bubble with fresh wave query (for released phase).
         
-        The bubble follows the deformed cylinder centerline exactly.
-        Uses same wave displacement calculation as GPU kernel.
+        Only used when bubble is FREE of the cylinder and needs to
+        track wave at its current position, not the tendroid base.
         """
         tx, ty, tz = self.tendroid.position
         self.world_pos[1] = ty + self.y
         
         if wave_controller and wave_controller.enabled:
-            # Get wave displacement at tendroid base
-            wave_dx, _, wave_dz = wave_controller.get_displacement((tx, ty, tz))
+            # Get wave at bubble's current world position (not tendroid base)
+            wave_dx, _, wave_dz = wave_controller.get_displacement(tuple(self.world_pos))
             
-            # Apply height scaling (matches GPU kernel exactly)
+            # Apply height scaling
             height_ratio = min(1.0, self.y / self.tendroid.length) if self.tendroid.length > 0 else 0.0
             factor = height_ratio * height_ratio * (3.0 - 2.0 * height_ratio)
             
-            # Position bubble at wave-displaced centerline
             self.world_pos[0] = tx + wave_dx * factor
             self.world_pos[2] = tz + wave_dz * factor
         else:
@@ -455,8 +473,15 @@ class _BubbleState:
             self.world_pos[2] = tz
     
     def _update_scale(self):
+        """Update bubble visual scale to match deformation bulge."""
         if self.scale_op:
-            r = self.current_radius * 0.95
+            # Visual radius should match the deformation radius
+            # diameter_multiplier controls how much bigger the bulge is than the bubble
+            # A value > 1.0 means bulge is bigger than visual (bubble hidden inside)
+            # A value < 1.0 means visual is bigger than bulge (bubble pokes through)
+            # 
+            # We want visual to be SLIGHTLY smaller than deformation to stay inside
+            r = self.current_radius * 0.92  # 92% of bubble radius
             sx = r * self.horizontal_scale
             sy = r * self.vertical_stretch
             sz = r * self.horizontal_scale

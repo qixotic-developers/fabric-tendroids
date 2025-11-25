@@ -16,7 +16,8 @@ from .sphere_geometry_helper import (
     create_sphere_face_indices,
     create_sphere_mesh,
 )
-from .pop_particle import PopParticle, PopParticleManager
+from .pop_particle import PopParticleVisual, PopParticleManager
+from .pop_particle_gpu_manager import PopParticleGPUManager
 
 # GPU-accelerated bubble physics
 from .bubble_gpu_manager import BubbleGPUManager
@@ -31,8 +32,9 @@ __all__ = [
     "create_uv_sphere_points",
     "create_sphere_face_indices",
     "create_sphere_mesh",
-    "PopParticle",
+    "PopParticleVisual",
     "PopParticleManager",
+    "PopParticleGPUManager",
     # GPU acceleration
     "BubbleGPUManager",
     "BubblePhysicsAdapter",

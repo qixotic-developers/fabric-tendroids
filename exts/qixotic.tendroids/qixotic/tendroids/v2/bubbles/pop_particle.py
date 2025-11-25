@@ -1,252 +1,223 @@
 """
-Bubble pop particle spray system
+Bubble pop particle spray system (GPU-accelerated)
 
 Handles droplet particles created when bubbles pop.
+Physics computed on GPU via Warp kernels.
 """
 
-import math
-import random
-
 import carb
-from pxr import Gf, Sdf, UsdGeom, UsdShade
+from pxr import Gf, UsdGeom
+
+from .pop_particle_gpu_manager import PopParticleGPUManager
 
 
-class PopParticle:
-  """
-  Single water droplet particle from bubble pop.
-
-  Simple physics:
-  - Initial radial velocity from pop center
-  - Gravity (downward acceleration)
-  - Fade out over lifetime
-  """
-
-  def __init__(
-    self,
-    particle_id: str,
-    pop_position: tuple,
-    velocity: tuple,
-    lifetime: float,
-    config,
-    stage,
-    prim_path: str
-  ):
+class PopParticleVisual:
     """
-    Initialize pop particle.
-
-    Args:
-        particle_id: Unique identifier
-        pop_position: (x, y, z) where bubble popped
-        velocity: (vx, vy, vz) initial velocity
-        lifetime: Seconds before particle fades
-        config: BubbleConfig instance
-        stage: USD stage
-        prim_path: USD path for this particle
+    USD visual representation for a single particle.
+    
+    Thin wrapper - only handles prim creation and transform updates.
+    Physics handled by GPU manager.
     """
-    self.particle_id = particle_id
-    self.config = config
-    self.stage = stage
-    self.prim_path = prim_path
-
-    # Physics
-    self.position = list(pop_position)
-    self.velocity = list(velocity)
-    self.gravity = -5.0  # units/sec^2 (reduced for visibility)
-
-    # Lifecycle with randomized lifetime
-    self.age = 0.0
-    self.lifetime = lifetime
-    self.is_alive = True
-
-    # USD prim and transform op
-    self.prim = None
-    self.translate_op = None
-
-    # Create geometry
-    self._create_geometry()
-
-  def _create_geometry(self):
-    """Create small sphere for droplet."""
-    try:
-      # Check if prim exists and remove it to ensure clean slate
-      if self.stage.GetPrimAtPath(self.prim_path):
-        self.stage.RemovePrim(self.prim_path)
-
-      sphere = UsdGeom.Sphere.Define(self.stage, self.prim_path)
-      sphere.GetRadiusAttr().Set(self.config.particle_size)
-
-      # Set initial position and STORE the translate op for reuse
-      # Use GetTranslateOp if it exists, otherwise add new one
-      existing_ops = sphere.GetOrderedXformOps()
-      translate_exists = any(op.GetOpType() == UsdGeom.XformOp.TypeTranslate for op in existing_ops)
-      
-      if translate_exists:
-        self.translate_op = sphere.GetTranslateOp()
-      else:
-        self.translate_op = sphere.AddTranslateOp()
-      
-      self.translate_op.Set(Gf.Vec3d(*self.position))
-
-      # Apply simple display color (skip full material for performance)
-      sphere.CreateDisplayColorAttr([Gf.Vec3f(0.7, 0.9, 1.0)])
-      sphere.CreateDisplayOpacityAttr([0.6])
-
-      self.prim = sphere.GetPrim()
-
-    except Exception as e:
-      carb.log_error(f"[PopParticle] Failed to create geometry: {e}")
-
-  def update(self, dt: float):
-    """
-    Update particle physics and check lifetime.
-
-    Args:
-        dt: Delta time in seconds
-    """
-    if not self.is_alive:
-      return
-
-    self.age += dt
-
-    # Check individual lifetime (randomized per particle)
-    if self.age >= self.lifetime:
-      self.is_alive = False
-      return
-
-    # Apply gravity
-    self.velocity[1] += self.gravity * dt
-
-    # Update position
-    self.position[0] += self.velocity[0] * dt
-    self.position[1] += self.velocity[1] * dt
-    self.position[2] += self.velocity[2] * dt
-
-    # Update USD transform
-    self._update_transform()
-
-  def _update_transform(self):
-    """Update USD position using stored translate op."""
-    if not self.translate_op:
-      return
-
-    try:
-      self.translate_op.Set(Gf.Vec3d(*self.position))
-    except Exception as e:
-      carb.log_error(f"[PopParticle] Failed to update transform: {e}")
-
-  def destroy(self):
-    """Remove particle from stage."""
-    if self.prim and self.stage:
-      try:
-        self.stage.RemovePrim(self.prim_path)
-      except Exception as e:
-        carb.log_error(f"[PopParticle] Failed to destroy: {e}")
-
-    self.prim = None
-    self.translate_op = None
-    self.is_alive = False
+    
+    def __init__(self, stage, prim_path: str, position: tuple, radius: float):
+        """
+        Create particle visual.
+        
+        Args:
+            stage: USD stage
+            prim_path: USD path for this particle
+            position: Initial (x, y, z) position
+            radius: Sphere radius
+        """
+        self.stage = stage
+        self.prim_path = prim_path
+        self.prim = None
+        self.translate_op = None
+        
+        self._create_geometry(position, radius)
+    
+    def _create_geometry(self, position: tuple, radius: float):
+        """Create sphere geometry."""
+        try:
+            # Ensure clean slate
+            if self.stage.GetPrimAtPath(self.prim_path):
+                self.stage.RemovePrim(self.prim_path)
+            
+            sphere = UsdGeom.Sphere.Define(self.stage, self.prim_path)
+            sphere.GetRadiusAttr().Set(radius)
+            
+            # Get or create translate op
+            existing_ops = sphere.GetOrderedXformOps()
+            has_translate = any(
+                op.GetOpType() == UsdGeom.XformOp.TypeTranslate 
+                for op in existing_ops
+            )
+            
+            if has_translate:
+                self.translate_op = sphere.GetTranslateOp()
+            else:
+                self.translate_op = sphere.AddTranslateOp()
+            
+            self.translate_op.Set(Gf.Vec3d(*position))
+            
+            # Simple display appearance
+            sphere.CreateDisplayColorAttr([Gf.Vec3f(0.7, 0.9, 1.0)])
+            sphere.CreateDisplayOpacityAttr([0.6])
+            
+            self.prim = sphere.GetPrim()
+            
+        except Exception as e:
+            carb.log_error(f"[PopParticleVisual] Failed to create geometry: {e}")
+    
+    def update_position(self, position: tuple):
+        """Update USD transform."""
+        if self.translate_op:
+            try:
+                self.translate_op.Set(Gf.Vec3d(*position))
+            except Exception as e:
+                carb.log_error(f"[PopParticleVisual] Transform update failed: {e}")
+    
+    def destroy(self):
+        """Remove from stage."""
+        if self.prim and self.stage:
+            try:
+                self.stage.RemovePrim(self.prim_path)
+            except Exception as e:
+                carb.log_error(f"[PopParticleVisual] Destroy failed: {e}")
+        
+        self.prim = None
+        self.translate_op = None
 
 
 class PopParticleManager:
-  """Manages pop particle creation and lifecycle."""
-
-  def __init__(self, stage, config):
     """
-    Initialize particle manager.
-
-    Args:
-        stage: USD stage
-        config: BubbleConfig instance
+    Manages pop particle creation and lifecycle.
+    
+    Coordinates between:
+    - PopParticleGPUManager: Physics on GPU
+    - PopParticleVisual: USD prim management
     """
-    self.stage = stage
-    self.config = config
-    self.particles = []
-    self.particle_counter = 0
-
-    # Parent path
-    self.parent_path = "/World/Bubbles/PopParticles"
-    self._ensure_parent()
-
-  def _ensure_parent(self):
-    """Create parent prim if needed."""
-    if not self.stage.GetPrimAtPath(self.parent_path):
-      UsdGeom.Scope.Define(self.stage, self.parent_path)
-
-  def create_pop_spray(self, pop_position: tuple, bubble_velocity: list = None):
-    """
-    Create spray of particles at pop location.
-
-    Args:
-        pop_position: (x, y, z) where bubble popped
-        bubble_velocity: [vx, vy, vz] bubble's velocity at pop (optional)
-    """
-    if bubble_velocity is None:
-      bubble_velocity = [0.0, 0.0, 0.0]
-
-    # Check particle limit
-    if len(self.particles) >= self.config.max_particles:
-      return
-
-    num_particles = min(
-      self.config.particles_per_pop,
-      self.config.max_particles - len(self.particles)
-    )
-
-    for i in range(num_particles):
-      self._create_particle(pop_position, bubble_velocity)
-
-  def _create_particle(self, pop_position: tuple, bubble_velocity: list):
-    """Create single spray particle."""
-    self.particle_counter += 1
-    particle_id = f"pop_particle_{self.particle_counter:05d}"
-    prim_path = f"{self.parent_path}/{particle_id}"
-
-    # Random radial velocity with upward bias
-    angle = random.uniform(0, 2 * math.pi)
-    elevation = random.uniform(
-      -self.config.particle_spread / 2,
-      self.config.particle_spread
-    )
-
-    # Convert to spray velocity vector
-    spray_speed = self.config.particle_speed
-    spray_vx = spray_speed * math.cos(angle) * math.cos(math.radians(elevation))
-    spray_vy = spray_speed * math.sin(math.radians(elevation))
-    spray_vz = spray_speed * math.sin(angle) * math.cos(math.radians(elevation))
-
-    # Add bubble's velocity to spray velocity (inherit upward motion)
-    vx = bubble_velocity[0] + spray_vx
-    vy = bubble_velocity[1] + spray_vy
-    vz = bubble_velocity[2] + spray_vz
-
-    # Randomize lifetime for staggered fade (70% to 130% of base)
-    lifetime = self.config.particle_lifetime * random.uniform(0.7, 1.3)
-
-    particle = PopParticle(
-      particle_id=particle_id,
-      pop_position=pop_position,
-      velocity=(vx, vy, vz),
-      lifetime=lifetime,
-      config=self.config,
-      stage=self.stage,
-      prim_path=prim_path
-    )
-
-    self.particles.append(particle)
-
-  def update(self, dt: float):
-    """Update all particles and remove dead ones."""
-    for particle in self.particles:
-      particle.update(dt)
-
-    # Remove dead particles
-    dead = [p for p in self.particles if not p.is_alive]
-    for particle in dead:
-      particle.destroy()
-      self.particles.remove(particle)
-
-  def clear_all(self):
-    """Remove all particles."""
-    for particle in self.particles:
-      particle.destroy()
-    self.particles.clear()
+    
+    def __init__(self, stage, config):
+        """
+        Initialize particle manager.
+        
+        Args:
+            stage: USD stage
+            config: BubbleConfig instance
+        """
+        self.stage = stage
+        self.config = config
+        
+        # GPU physics manager
+        self.gpu_manager = PopParticleGPUManager(
+            max_particles=config.max_particles,
+            device="cuda:0"
+        )
+        
+        # USD visuals indexed by slot
+        self.visuals = {}  # slot_index -> PopParticleVisual
+        
+        # Parent path for organization
+        self.parent_path = "/World/Bubbles/PopParticles"
+        self._ensure_parent()
+    
+    def _ensure_parent(self):
+        """Create parent prim if needed."""
+        if not self.stage.GetPrimAtPath(self.parent_path):
+            UsdGeom.Scope.Define(self.stage, self.parent_path)
+    
+    def create_pop_spray(self, pop_position: tuple, bubble_velocity: list = None):
+        """
+        Create spray of particles at pop location.
+        
+        Args:
+            pop_position: (x, y, z) where bubble popped
+            bubble_velocity: [vx, vy, vz] bubble's velocity at pop
+        """
+        if bubble_velocity is None:
+            bubble_velocity = [0.0, 0.0, 0.0]
+        
+        # Check capacity
+        if not self.gpu_manager.has_capacity(1):
+            return
+        
+        num_particles = min(
+            self.config.particles_per_pop,
+            len(self.gpu_manager.free_slots)
+        )
+        
+        if num_particles == 0:
+            return
+        
+        # Spawn on GPU and get assigned slots
+        spawned_slots = self.gpu_manager.spawn_spray(
+            pop_position=pop_position,
+            bubble_velocity=bubble_velocity,
+            num_particles=num_particles,
+            particle_speed=self.config.particle_speed,
+            particle_spread=self.config.particle_spread,
+            base_lifetime=self.config.particle_lifetime
+        )
+        
+        # Create USD visuals for spawned particles
+        for slot_idx in spawned_slots:
+            prim_path = f"{self.parent_path}/particle_{slot_idx:04d}"
+            visual = PopParticleVisual(
+                stage=self.stage,
+                prim_path=prim_path,
+                position=pop_position,
+                radius=self.config.particle_size
+            )
+            self.visuals[slot_idx] = visual
+    
+    def update(self, dt: float):
+        """
+        Update all particles.
+        
+        1. Run GPU physics kernel
+        2. Update USD transforms from GPU positions
+        3. Clean up dead particles
+        """
+        if not self.visuals:
+            return
+        
+        # Update physics on GPU, get dead particle slots
+        dead_slots = self.gpu_manager.update(dt)
+        
+        # Remove dead visuals
+        for slot_idx in dead_slots:
+            if slot_idx in self.visuals:
+                self.visuals[slot_idx].destroy()
+                del self.visuals[slot_idx]
+        
+        # Batch update USD transforms from GPU positions
+        if self.visuals:
+            positions = self.gpu_manager.get_active_positions()
+            for slot_idx, pos in positions.items():
+                if slot_idx in self.visuals:
+                    self.visuals[slot_idx].update_position(pos)
+    
+    def clear_all(self):
+        """Remove all particles."""
+        # Clear GPU state
+        self.gpu_manager.clear_all()
+        
+        # Destroy all visuals
+        for visual in self.visuals.values():
+            visual.destroy()
+        self.visuals.clear()
+    
+    def destroy(self):
+        """Full cleanup."""
+        self.clear_all()
+        self.gpu_manager.destroy()
+    
+    @property
+    def particles(self):
+        """
+        Compatibility property for code expecting particle list.
+        
+        Returns list of slot indices (not actual particle objects).
+        """
+        return list(self.visuals.keys())

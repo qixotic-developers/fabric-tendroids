@@ -1,0 +1,331 @@
+= Session Summary: Bubble Geometry Fix + Major Cleanup + UI Refinements
+:date: 2025-11-25
+:toc:
+
+== Session Overview
+
+This session focused on three major areas:
+1. **Fixing bubble exit "snap" artifact** using vertex-down sphere mesh geometry
+2. **Major repository cleanup** removing deprecated v1/poc systems
+3. **UI refinements** with dark theme and tab integration
+
+== Current Project State
+
+=== Architecture Status
+
+**Production System:** V2 GPU-accelerated with Warp kernels
+- Location: `qixotic/tendroids/v2/`
+- Performance: 50fps @ 15 tendroids (RTX 4090)
+- Deformation: Warp GPU kernels (1480 theoretical fps)
+- Bubble system: Mesh-based with vertex-down geometry
+- Wave motion: Three-phase tidal system
+- All systems integrated in UI
+
+**Deprecated Systems:** DELETED
+- v1/ folder (transform-based system)
+- poc/ folder (backwards-compat shim)
+- All __pycache__ directories
+
+=== File Structure
+
+[source]
+----
+qixotic/tendroids/
+├── cpp/                    # C++ fast mesh updater
+├── docs/                   # Documentation (cleaned)
+├── tests/
+│   ├── test_warp_stress.py # ONLY remaining test
+│   └── __init__.py
+├── v2/                     # CANONICAL IMPLEMENTATION
+│   ├── animation/          # Wave controller
+│   ├── bubbles/            # Bubble system + mesh geometry
+│   │   ├── bubble_manager.py
+│   │   ├── sphere_geometry_helper.py (NEW)
+│   │   ├── pop_particle.py (migrated from v1)
+│   │   └── ...
+│   ├── builders/           # Tendroid creation
+│   ├── config/             # JSON configuration
+│   ├── controllers/        # Scene controllers
+│   ├── core/               # Tendroid + deformer classes
+│   ├── environment/        # Sea floor + terrain
+│   ├── scene/              # Manager + factory
+│   ├── ui/                 # Control panel (dark theme)
+│   └── utils/              # Materials + helpers
+├── extension.py
+├── fast_mesh_updater.pyd
+└── __init__.py
+----
+
+== Work Completed This Session
+
+=== 1. Bubble Geometry Fix
+
+**Problem:** Bubble showed flat-bottomed "snap" when exiting cylinder at slow speeds
+
+**Root Cause:** UV sphere pole topology (degenerate triangles at top/bottom) appears as flat polygon when viewed from below
+
+**Solution:** 90° X-axis rotation during mesh generation
+- Moves poles from Y-axis to Z-axis
+- Places smooth equator quad geometry at bottom
+- Industry-standard approach (Houdini, Maya, etc.)
+
+**Files Added:**
+- `v2/bubbles/sphere_geometry_helper.py` (~115 lines)
+  * `create_uv_sphere_points()` - Generates vertices with rotation
+  * `create_sphere_face_indices()` - Triangle topology
+  * `create_sphere_mesh()` - Complete USD mesh creation
+
+**Files Modified:**
+- `v2/bubbles/bubble_manager.py` - Use mesh sphere instead of UsdGeom.Sphere
+- `v2/bubbles/bubble_visual.py` - Updated for legacy controllers
+- `v2/bubbles/__init__.py` - Export sphere geometry functions
+- `v2/__init__.py` - Export create_sphere_mesh
+
+**Technical Details:**
+- Rotation: `new_y = y*cos(90°) - z*sin(90°)`, `new_z = y*sin(90°) + z*cos(90°)`
+- Default: 16 horizontal × 10 vertical segments = 160 vertices, 320 triangles
+- Rotation happens once at mesh creation (cached, zero runtime cost)
+- Dynamic scaling via transform ops
+
+**Verification:** Bubble appears as Mesh prim in USD hierarchy (expandable), not Sphere prim
+
+=== 2. Major Repository Cleanup
+
+**Deleted Entire Folders:**
+- `v1/` - Deprecated transform-based system
+- `poc/` - Backwards-compat shim
+- `tests/archive/` - Old POC test
+- `docs/archive/` - 15 old completed docs
+- All `__pycache__/` directories
+
+**Deleted Individual Docs:**
+- `bubble-tracking-issue-continuity.adoc`
+- `CONTINUITY-bubble-tracking-issue.adoc`
+- `V2_INTEGRATION_PLAN.adoc`
+- `V2_INTEGRATION_PROGRESS.adoc`
+- `SESSION-SUMMARY-2025-11-23.adoc`
+
+**Deleted Test Files:**
+- `benchmark_deform.py` - Broken (used deleted POC classes)
+- `test_numpy_deform.py` - Redundant fallback test
+- `test_slope_tuning.py` - Parameters already tuned
+- `test_v2_deform.py` - Duplicate test
+- `test_warp_deform.py` - Duplicate test
+
+**Kept:** `test_warp_stress.py` - Only useful test for multi-tendroid performance
+
+**Files Migrated:**
+- `v1/bubbles/bubble_particle.py` → `v2/bubbles/pop_particle.py`
+- Updated imports in `bubble_manager.py`
+- Updated exports in `v2/bubbles/__init__.py`
+
+**Code Fixes:**
+- Fixed bare `except:` clauses → `except Exception:`
+- Added missing `import typing` in `tendroid_builder.py`
+- Changed `typing.TypedDict` → `dict` in return type annotation
+- Removed unused imports
+
+**Total Cleanup:** ~35+ files/folders deleted
+
+=== 3. UI Refinements
+
+**Dark Theme Implementation:**
+- **Slider controls:** `0xFF0A0A0A` (almost black)
+- **Containers:** `0xFF23211F` (medium dark gray)
+- **Strong contrast** between controls and containers
+- Matches Property window style
+
+**Simplified Controls:**
+- **Spawn Settings:** Count only (hardcoded defaults for area/radius)
+- **Removed sections:** Tendroid Geometry, Status Display
+- **Kept sections:** Wave Motion, Bubble Settings, Actions
+
+**Hardcoded Spawn Defaults:**
+- Area: 400×400
+- Radius range: 8.0-12.0
+- Radial segments: 24
+- Height segments: 48
+
+**Scrollable Content:**
+- `ScrollingFrame` wrapper with vertical-only scrolling
+- Adapts to any window height
+- 20px bottom clearance for scrolling
+
+**Tab Integration:**
+- Window name: "Tendroid Controls" (for workspace restore)
+- Docked: `RIGHT_TOP` panel (with Stage/Render Settings)
+- Explicit `dock_in()` call with Stage window
+- Auto-focused on startup (active tab)
+- **Note:** Kit doesn't persist manual tab reordering
+
+**Files Modified:**
+- `v2/ui/control_panel.py` - Scrolling, docking, tab integration
+- `v2/ui/slider_row.py` - Dark slider backgrounds (0xFF0A0A0A)
+- `v2/ui/spawn_controls.py` - Simplified to count only
+- `v2/ui/wave_controls.py` - Added dark container background
+- `v2/ui/bubble_controls.py` - Added dark container background
+- `v2/ui/action_buttons.py` - Dark background, handle None geometry_controls
+- `extension.py` - Changed `create_window()` → `create_ui()`
+
+== Performance Baseline (Pre-Optimization)
+
+**Current Performance:**
+- 15 tendroids @ 50fps (VSync limited to 60Hz)
+- 30 tendroids @ 40fps
+- Warp GPU deformation: 0.68ms/frame (1480 theoretical fps)
+- NumPy vectorized: 2.55ms/frame (392 theoretical fps)
+- Python loops: 6.67ms/frame (150 theoretical fps)
+
+**GPU:** RTX 4090 with 240Hz monitor (tested VSync off)
+
+**Current Bottlenecks:**
+- Bubble physics (Python loops)
+- USD prim updates (CPU-bound)
+- Transform operations (not GPU-accelerated)
+- Wave calculations (Python)
+
+== Ready for Optimization
+
+**Already GPU-Accelerated:**
+- ✓ Vertex deformation (Warp kernels)
+- ✓ Cylinder mesh generation
+
+**Not Yet GPU-Accelerated:**
+- Bubble physics (position, velocity, collision)
+- Wave motion calculations
+- Transform updates (translate ops)
+- Particle systems (pop particles)
+- USD prim creation/updates
+
+**Available Tools:**
+- Warp kernels (already proven 10x faster)
+- CUDA (direct GPU programming)
+- Fabric/USDRT (GPU-accelerated scene graph)
+- Omniverse RTX (ray tracing)
+
+== Architecture for Next Phase
+
+**Current Data Flow:**
+
+[source]
+----
+Python (CPU) → Warp Deformation (GPU) → USD (CPU) → RTX Renderer (GPU)
+     ↑                                        ↓
+  Bubble Physics                      Transform Updates
+   (CPU loops)                           (CPU-bound)
+----
+
+**Target Data Flow:**
+
+[source]
+----
+GPU Kernels → Fabric/USDRT → RTX Renderer
+   ↓              ↓              ↓
+Bubble Physics  Transforms   Ray Tracing
+  (Warp)        (USDRT)        (RTX)
+----
+
+**Key Optimizations to Pursue:**
+1. **Warp bubble physics** - Move position/velocity/collision to GPU
+2. **Fabric/USDRT transforms** - Bypass USD Python API
+3. **Batch transform updates** - Single GPU kernel for all tendroids
+4. **GPU wave calculations** - Parallel per-tendroid wave math
+5. **CUDA particle systems** - GPU-accelerated pop particles
+
+== Technical Debt / Known Issues
+
+**Tab Position:**
+- Kit doesn't persist manual tab reordering
+- Window docks correctly but tab order not remembered
+- Not critical for functionality
+
+**Console Customization:**
+- Requested: Remove timestamps, increase font, custom position
+- Status: Not possible (Kit SDK console is core component)
+- Alternative: Could create custom filtered log window
+
+== File Organization Summary
+
+**Clean Module Structure:**
+- Each module has single responsibility
+- Clear separation: core/controllers/scene/ui
+- No circular dependencies
+- All exports explicit in `__all__`
+
+**Documentation:**
+- `BUBBLE_GEOMETRY_FIX.adoc` - Technical details of sphere fix
+- `UI-CLEANUP-2025-11-25.adoc` - UI simplification summary
+- `UI-DARK-THEME-2025-11-25.adoc` - Dark theme implementation
+- `TAB-INTEGRATION-2025-11-25.adoc` - Tab docking details
+- `SESSION-SUMMARY-2025-11-25.adoc` - This document
+
+== Commit Suggestions
+
+**For this session's work:**
+
+[source]
+----
+fix: bubble exit snap + major cleanup + UI refinements
+
+Bubble Geometry:
+- Replace UsdGeom.Sphere with mesh using vertex-down rotation
+- Add sphere_geometry_helper.py with 90° X-axis rotation
+- Smooth exit transition instead of flat polygon snap
+
+Major Cleanup:
+- Delete deprecated v1/ and poc/ systems
+- Migrate pop_particle to v2
+- Delete docs/archive/ and tests/archive/
+- Delete 5 obsolete test files
+- Remove all __pycache__ directories
+- Fix linting issues (bare except clauses)
+
+UI Refinements:
+- Implement dark theme (0xFF0A0A0A controls, 0xFF23211F containers)
+- Simplify Spawn Settings to count only
+- Add scrollable content with vertical-only scrolling
+- Dock as tab with Stage/Render Settings in RIGHT_TOP panel
+- Remove Geometry and Status sections
+----
+
+== Next Session: GPU Optimization Phase
+
+**Primary Goal:** Maximize GPU utilization for 100+ tendroid scenes
+
+**Focus Areas:**
+1. Warp-accelerated bubble physics
+2. Fabric/USDRT for transform operations
+3. Batch processing for multiple tendroids
+4. GPU wave motion calculations
+5. CUDA particle systems
+
+**Target Performance:**
+- 100+ tendroids @ 60fps
+- All physics on GPU
+- Minimal CPU usage
+- Full RTX raytracing
+
+**Key Questions to Answer:**
+1. Can bubble physics move entirely to Warp kernels?
+2. Can Fabric bypass USD Python API for transforms?
+3. What's the theoretical maximum tendroid count?
+4. Can wave motion batch process across all tendroids?
+
+**Resources Available:**
+- RTX 4090 (16,384 CUDA cores)
+- Warp framework (already integrated)
+- Fabric/USDRT docs
+- CUDA programming reference
+
+**Working Directory:** `C:\Dev\Omniverse\fabric-tendroids\exts\qixotic.tendroids`
+
+== Chat Capacity
+
+**This session:** Used ~125K / 190K tokens (~66% used, 34% remaining)
+**Status:** Good capacity remaining for a few more tasks, but starting fresh for optimization phase is recommended
+
+== End of Session Summary
+
+**Status:** All systems functional, clean codebase, ready for major GPU optimization
+**Next Steps:** Begin GPU optimization phase with focus on Warp/CUDA/Fabric
+**Recommended:** Start new chat for optimization work to have full token budget

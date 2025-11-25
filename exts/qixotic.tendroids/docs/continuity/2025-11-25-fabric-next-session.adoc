@@ -1,0 +1,189 @@
+= Fabric-Tendroids Session Continuity Summary
+:date: 2025-11-25
+:session: GPU Optimization - Pop Particles + Batch Deformation
+
+== Current Performance
+
+* **Before this session**: ~75 fps (pop particle errors)
+* **After this session**: ~60-70 fps with 15 tendroids
+* **Target**: 90+ fps to enable scaling to 30+ tendroids
+
+== Completed This Session
+
+=== 1. Pop Particle GPU Acceleration
+
+Fixed xformOp duplicate error and migrated physics to GPU:
+
+[cols="1,2"]
+|===
+|File |Purpose
+
+|`pop_particle_physics.py`
+|Warp kernel for gravity + velocity integration
+
+|`pop_particle_gpu_manager.py`
+|GPU array management, spawn/death tracking
+
+|`pop_particle.py`
+|Refactored - thin USD visual wrapper + coordinator
+|===
+
+Key fix: `numpy.float32` → Python `float` conversion for `Gf.Vec3d` compatibility.
+
+=== 2. Batch Deformation System
+
+Consolidated N separate kernel launches into 1:
+
+[cols="1,2"]
+|===
+|File |Purpose
+
+|`batch_deform_kernel.py`
+|Single Warp kernel processing ALL vertices
+
+|`batch_warp_deformer.py`
+|GPU array concatenation + mesh application
+
+|`animation_controller.py`
+|Updated to use batch path when available
+
+|`manager.py`
+|Initializes batch deformer on scene creation
+|===
+
+Architecture:
+
+[source]
+----
+Before: 15 tendroids × wp.launch() = 15 kernel launches/frame
+After:  1 × wp.launch(total_vertices) = 1 kernel launch/frame
+----
+
+== Current Bottleneck: GPU → CPU → USD Pipeline
+
+The remaining performance cost is in `apply_to_meshes()`:
+
+[source,python]
+----
+# Current flow (every frame):
+all_points = self.out_points_gpu.numpy()    # GPU → CPU transfer
+for tendroid in tendroids:
+    points_tuples = all_points[slice].tolist()  # numpy → Python list
+    mesh.GetPointsAttr().Set(Vt.Vec3fArray(...))  # CPU → USD
+----
+
+With 15 tendroids × ~1200 vertices = ~18,000 vertices:
+
+* 1 GPU→CPU transfer (~0.5ms)
+* 15 USD SetPoints calls (~8-10ms total)
+
+== Next Session: Fabric Direct GPU→USD
+
+=== Goal
+Eliminate CPU roundtrip by writing deformed vertices directly from GPU to USD via Fabric/USDRT.
+
+=== Fabric Architecture
+
+[source]
+----
+Current:    GPU Warp Array → numpy() → Python → UsdGeom.Mesh.SetPoints()
+                              ↑ SLOW ↑
+
+Target:     GPU Warp Array → Fabric Points Attribute (GPU-resident)
+                              ↑ ZERO-COPY ↑
+----
+
+=== Key Fabric/USDRT Concepts
+
+1. **Fabric** = GPU-resident USD attribute storage
+2. **USDRT** = Runtime USD operations on Fabric data
+3. `usdrt.Rt.GetPointsAttr()` returns GPU-accessible array
+4. Can potentially share memory between Warp and Fabric
+
+=== Documentation Reference
+https://docs.omniverse.nvidia.com/kit/docs/usdrt.scenegraph/latest/overview.html
+
+=== Implementation Approach
+
+1. Check if mesh points are Fabric-backed (`UsdGeom.Mesh` → `usdrt.Rt`)
+2. Get Fabric array handle for points attribute
+3. Either:
+   - Direct Warp kernel write to Fabric array, OR
+   - `wp.copy()` from Warp output to Fabric array
+4. Mark attribute dirty for rendering
+
+=== Files to Modify
+
+[cols="1,2"]
+|===
+|File |Changes
+
+|`batch_warp_deformer.py`
+|Add Fabric-aware `apply_to_meshes_fabric()` method
+
+|`tendroid_factory.py` or `builders/`
+|Ensure meshes are created with Fabric-backed attributes
+
+|`animation_controller.py`
+|Feature flag to switch between CPU and Fabric paths
+|===
+
+== Key File Locations
+
+[source]
+----
+C:\Dev\Omniverse\fabric-tendroids\exts\qixotic.tendroids\qixotic\tendroids\v2\
+├── core/
+│   ├── batch_deform_kernel.py    # Warp kernel
+│   ├── batch_warp_deformer.py    # Batch manager (modify for Fabric)
+│   └── warp_deformer.py          # Per-tendroid fallback
+├── bubbles/
+│   ├── bubble_gpu_manager.py     # GPU bubble physics
+│   ├── pop_particle_gpu_manager.py
+│   └── pop_particle_physics.py
+├── scene/
+│   ├── animation_controller.py   # Main update loop
+│   ├── manager.py                # Scene orchestration
+│   └── tendroid_factory.py       # Mesh creation
+└── builders/
+    └── tendroid_builder.py       # Low-level mesh construction
+----
+
+== Performance Baseline
+
+With 15 tendroids, current GPU-accelerated systems:
+
+[cols="2,1,1"]
+|===
+|System |Status |Notes
+
+|Bubble physics
+|✓ GPU (Warp)
+|Single kernel, all bubbles
+
+|Pop particles
+|✓ GPU (Warp)
+|Single kernel, all particles
+
+|Tendroid deformation
+|✓ GPU (Warp)
+|Single kernel, all vertices
+
+|Mesh point updates
+|✗ CPU
+|**NEXT TARGET**
+|===
+
+== Questions for Fabric Implementation
+
+1. Does Kit/Composer have Fabric enabled by default for dynamic meshes?
+2. Can we get raw GPU pointer from Fabric to share with Warp?
+3. What's the synchronization model between Warp writes and rendering?
+4. Does Fabric support Vec3f arrays or only flat float arrays?
+
+== Session Context
+
+* RTX 4090 + 240Hz monitor
+* Omniverse USD Composer
+* Python 3.10 (Kit embedded)
+* Warp GPU kernels on cuda:0

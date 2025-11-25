@@ -28,6 +28,7 @@ class V2AnimationController:
     self.tendroid_data = []
     self.bubble_manager = None
     self.gpu_bubble_adapter = None
+    self.batch_deformer = None
     self.update_subscription = None
     self.is_running = False
 
@@ -57,6 +58,12 @@ class V2AnimationController:
     self.gpu_bubble_adapter = gpu_adapter
     if gpu_adapter:
       carb.log_info("[GPU] Bubble physics enabled - full lifecycle on GPU")
+
+  def set_batch_deformer(self, batch_deformer):
+    """Set batch deformation manager."""
+    self.batch_deformer = batch_deformer
+    if batch_deformer:
+      carb.log_info("[GPU] Batch deformation enabled")
 
   def start(self, enable_profiling: bool = False):
     """Start animation loop."""
@@ -135,7 +142,7 @@ class V2AnimationController:
     """
     GPU bubble update - single download, GPU is source of truth.
 
-    Flow: GPU physics → Download once → Apply deformations → Update visuals → Update particles
+    Flow: GPU physics → Download once → Batch deform → Update visuals → Update particles
     """
     # 1. Update physics on GPU
     self.gpu_bubble_adapter.update_gpu(
@@ -158,8 +165,11 @@ class V2AnimationController:
         'radius': float(radii[bubble_id])
       }
 
-    # 4. Apply deformations using GPU state
-    self._apply_deformations_gpu(bubble_data, wave_state)
+    # 4. Apply deformations - BATCH or fallback to per-tendroid
+    if self.batch_deformer and self.batch_deformer.is_built:
+      self._apply_batch_deformation(bubble_data, wave_state)
+    else:
+      self._apply_deformations_gpu(bubble_data, wave_state)
 
     # 5. Update visuals using GPU state
     self._update_visuals_gpu(bubble_data)
@@ -167,6 +177,25 @@ class V2AnimationController:
     # 6. Update particle system
     if self.bubble_manager and self.bubble_manager.particle_manager:
       self.bubble_manager.particle_manager.update(dt)
+
+  def _apply_batch_deformation(self, bubble_data: dict, wave_state: dict):
+    """
+    Apply deformations using single-kernel batch processing.
+    
+    MUCH faster than per-tendroid: 1 kernel launch instead of N.
+    """
+    # Update batch deformer state from GPU bubble data
+    self.batch_deformer.update_states(
+      bubble_data=bubble_data,
+      wave_state=wave_state,
+      default_config=DEFAULT_V2_BUBBLE_CONFIG
+    )
+    
+    # Single kernel launch for ALL vertices
+    all_points = self.batch_deformer.deform_all()
+    
+    # Apply to USD meshes
+    self.batch_deformer.apply_to_meshes(all_points)
 
   def _apply_deformations_gpu(self, bubble_data: dict, wave_state: dict):
     """

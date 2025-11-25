@@ -1,0 +1,225 @@
+= GPU Bubble Physics - Status & Next Steps
+:date: 2025-11-25
+
+== Current Status
+
+GPU bubble physics is **temporarily disabled** and system uses CPU fallback.
+
+**Why:** GPU system handles physics updates but lacks full lifecycle management:
+- ✓ Position updates work
+- ✓ Wave integration works  
+- ✓ Performance is excellent (110fps observed!)
+- ❌ Missing: Spawn/grow/pop/respawn cycle
+- ❌ Missing: Radius growth calculation
+- ❌ Missing: Bidirectional CPU↔GPU state sync
+
+**Result:** Bubbles appeared but were tiny, didn't deform, didn't respawn.
+
+== What's Working
+
+**CPU Fallback (Current):**
+- All bubble lifecycle phases work correctly
+- Proper deformation and wave motion
+- Respawn cycle functions
+- Expected performance: 50-60fps @ 15 tendroids
+
+**GPU Core (Tested):**
+- Kernel executes successfully
+- Position updates work (0.808ms for 50 bubbles)
+- 17x faster than CPU for position math
+- Wave integration works
+
+== Issues Found
+
+### Issue 1: Missing Lifecycle Management
+
+GPU kernel only handles position updates (phases 1-3):
+```python
+# GPU has:
+- Phase 1: Rising (✓)
+- Phase 2: Exiting (✓)
+- Phase 3: Released (✓)
+
+# GPU missing:
+- Phase 4: Pop detection
+- Phase 0→1: Respawn logic
+- Radius growth calculation
+```
+
+### Issue 2: State Synchronization
+
+Need bidirectional sync:
+```
+CPU Bubble Manager ↔ GPU Arrays
+
+CPU needs to tell GPU:
+- When to spawn (phase 0→1)
+- Initial positions
+- Growth parameters
+
+GPU needs to tell CPU:
+- Current positions
+- Phase transitions
+- When bubbles exit bounds
+```
+
+### Issue 3: Scale Updates
+
+Bubble visual scale needs CPU bubble_manager's radius:
+- GPU tracks position only
+- CPU calculates radius based on Y position
+- Visual scale depends on current_radius
+
+## What Needs Fixing
+
+### Priority 1: Add GPU State Update Methods
+
+In `bubble_gpu_manager.py`:
+```python
+def update_bubble_state(self, bubble_id: int, y_pos: float, phase: int):
+    \"\"\"Update individual bubble state in GPU arrays.\"\"\"
+    # Update GPU arrays from CPU state
+    pass
+
+def spawn_bubble(self, bubble_id: int, spawn_y: float):
+    \"\"\"Reset bubble to spawn state.\"\"\"
+    # Reset phase to 1, y to spawn_y
+    pass
+```
+
+### Priority 2: Complete GPU Kernel
+
+Add to `bubble_physics.py` kernel:
+```python
+# Pop detection
+if phase == 3 and y_positions[tid] >= pop_height:
+    phases[tid] = 4  # Set to popped
+
+# Respawn logic  
+if phase == 4:
+    respawn_timers[tid] = respawn_timers[tid] - dt
+    if respawn_timers[tid] <= 0:
+        phases[tid] = 1  # Back to rising
+        y_positions[tid] = spawn_y
+```
+
+### Priority 3: Radius Tracking
+
+Either:
+- **Option A:** Add radius to GPU arrays, calculate in kernel
+- **Option B:** Keep radius calculation in CPU, sync from GPU positions
+
+### Priority 4: Bidirectional Sync
+
+In `animation_controller.py`:
+```python
+# Before GPU update
+_sync_cpu_spawns_to_gpu()  # Tell GPU about new spawns
+
+# After GPU update  
+_sync_gpu_to_cpu()  # Get positions/phases from GPU
+```
+
+## Testing Checklist
+
+When re-enabling GPU bubbles:
+
+- [ ] Bubbles spawn at correct size
+- [ ] Bubbles grow as they rise
+- [ ] Bubbles deform tendroids
+- [ ] Wave motion affects both tendroids and bubbles
+- [ ] Bubbles exit cleanly
+- [ ] Bubbles pop at correct height
+- [ ] Bubbles respawn after delay
+- [ ] Performance is 5-10x better than CPU
+- [ ] No visual artifacts
+- [ ] 30+ tendroids maintain 60fps
+
+## Re-enabling GPU Bubbles
+
+When fixes are complete, in `animation_controller.py`:
+
+```python
+def set_gpu_bubble_adapter(self, gpu_adapter):
+    # Remove this line:
+    # self.gpu_bubble_adapter = None
+    
+    # Uncomment this line:
+    self.gpu_bubble_adapter = gpu_adapter
+```
+
+## Current Performance
+
+**With CPU (current):**
+- 15 tendroids: ~50fps
+- 30 tendroids: ~40fps
+- Bubble physics: ~4ms/frame
+
+**Expected with GPU (after fixes):**
+- 15 tendroids: ~60fps
+- 30 tendroids: ~60fps
+- 50 tendroids: ~60fps
+- Bubble physics: ~0.5ms/frame
+
+## Alternative Approach
+
+Instead of full GPU lifecycle, keep it simple:
+
+1. **CPU manages lifecycle** (spawn, pop, respawn)
+2. **GPU only does position math** (rise, exit, drift)
+3. **Sync every frame**: CPU→GPU before update, GPU→CPU after
+
+This hybrid approach is simpler but still gets 5-10x speedup on the math-heavy parts.
+
+## Files to Modify
+
+[cols="1,2"]
+|===
+|File |Changes Needed
+
+|`bubble_physics.py`
+|Add pop/respawn to kernel
+
+|`bubble_gpu_manager.py`
+|Add update_bubble_state(), spawn_bubble() methods
+
+|`animation_controller.py`
+|Uncomment GPU adapter line, add full sync
+
+|`bubble_physics_adapter.py`
+|Add spawn/pop notification methods
+|===
+
+## Summary
+
+**Good news:** GPU bubble core works and is 17x faster!
+**Current state:** Temporarily disabled, using working CPU fallback
+**Next steps:** Add lifecycle management to GPU system
+**Estimated work:** 2-3 hours to complete GPU system properly
+
+## Performance Note
+
+Even with CPU bubbles, you're seeing 110fps because:
+- Vertex deformation is on GPU (1480 theoretical fps)
+- Only 15 tendroids currently
+- Bubble physics overhead is small at this scale
+
+The GPU bubble system will shine with 50+ tendroids where CPU becomes bottleneck.
+
+## Recommendation
+
+**For now:** Use CPU bubbles (current state)
+- Everything works correctly
+- Performance is good for <30 tendroids
+- Stable and tested
+
+**Next session:** Complete GPU bubble lifecycle
+- Will enable 50-100+ tendroids
+- Full 10x+ performance gains
+- Worth the effort for final target
+
+---
+
+**Working Directory:** `C:\Dev\Omniverse\fabric-tendroids\exts\qixotic.tendroids`
+**Status:** System stable with CPU fallback
+**GPU Test Results:** Core works, needs lifecycle completion

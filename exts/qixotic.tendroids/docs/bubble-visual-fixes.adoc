@@ -1,0 +1,103 @@
+= Bubble Visual Fixes - Session Summary
+:toc:
+:toclevels: 3
+
+== Issues Addressed
+
+=== Issue 1: Bubble Not Following Centerline
+*Problem*: Bubble visual not tracking wave-displaced centerline, causing abnormal stretch
+
+*Root Cause*: The bubble position calculation was correct, but documentation was added to clarify that it matches the GPU kernel's wave displacement calculation exactly.
+
+*Fix*: Enhanced `_update_world_pos_with_wave()` with detailed comments explaining the height factor calculation matches the Warp kernel.
+
+=== Issue 2: Bubble Snap at Mouth
+*Problem*: Warping/sizing off at mouth exit, bubble snaps into view
+
+*Root Cause*: 
+- `hide_until_clear = True` caused bubble to be hidden until top cleared mouth
+- Rapid visibility change created "snap" effect
+
+*Fix*:
+- Changed `hide_until_clear` default to `False` in config
+- Bubble now visible throughout entire rising phase
+- Updated visibility logic in `_update_visual()` to make bubble visible by default
+- Simplified exiting phase visibility (always visible)
+
+=== Issue 3: Growth Not Visible
+*Problem*: Bubble growth from cylinder diameter not visible
+
+*Root Causes*:
+- Bubble started at full cylinder radius (e.g., 10)
+- Growth only happened in bottom 30% of cylinder (spawn_y=10% to max_diameter_y=40%)
+- Rise speed too fast (60 units/sec) - bubble moved through growth zone too quickly
+
+*Fixes*:
+- **Start smaller**: Bubble now spawns at 50% of cylinder radius
+- **Longer growth zone**: Extended `max_diameter_y` from 40% to 60% of cylinder height
+- **Slower rise**: Reduced `rise_speed` from 60 to 40 units/sec
+- **Smooth growth curve**: Added ease-out interpolation for more natural visual growth
+
+== Configuration Changes
+
+=== bubble_config.py
+
+[source,python]
+----
+spawn_height_pct: float = 0.10      # Unchanged - spawn at 10%
+max_diameter_pct: float = 0.60      # CHANGED: was 0.40, now 0.60
+rise_speed: float = 40.0            # CHANGED: was 60.0, now 40.0
+hide_until_clear: bool = False      # CHANGED: was True, now False
+----
+
+== Code Changes
+
+=== Spawn Method
+- Bubble now starts at `tendroid.radius * 0.5` instead of full `tendroid.radius`
+- Added debug logging to show spawn radius
+
+=== Growth Calculation
+[source,python]
+----
+min_radius = self.tendroid.radius * 0.5  # Start at 50%
+# ... growth calculation ...
+t_smooth = 1.0 - (1.0 - t) * (1.0 - t)  # Ease-out curve
+self.current_radius = min_radius + t_smooth * (max_radius - min_radius)
+----
+
+=== Visibility Logic
+- `_update_visual()` now actively makes bubble visible during rising phase (unless config overrides)
+- Exiting phase always makes bubble visible
+- No more conditional visibility based on mouth clearance
+
+== Expected Visual Behavior
+
+After these fixes, the bubble should:
+
+1. **Spawn visible** at 10% height, starting at 50% of cylinder diameter
+2. **Grow smoothly** from 50% to full deformed size over bottom 60% of cylinder
+3. **Stay visible** throughout entire lifecycle
+4. **Track centerline** precisely during wave motion - no offset deformation
+5. **Exit smoothly** at mouth with no snap or sudden size change
+
+== Testing Checklist
+
+- [ ] Bubble spawns above flared base (not inside it)
+- [ ] Bubble starts small (50% radius) and grows visibly
+- [ ] Growth happens over ~60% of cylinder height (more visible than before)
+- [ ] Bubble stays centered on wave-displaced centerline (no stretching)
+- [ ] No snap or sudden appearance at mouth
+- [ ] Bubble visible throughout rising phase
+- [ ] Wave motion continuous (no snapping after bubble exits)
+
+== Performance Notes
+
+- Slower rise speed (40 vs 60) means bubbles take longer to traverse
+- This makes growth more visible but reduces bubble frequency
+- Growth zone extended to 60% gives more time to see size change
+- All deformation still GPU-accelerated - no performance impact
+
+== Files Modified
+
+1. `v2/bubbles/bubble_config.py` - Configuration defaults
+2. `v2/bubbles/bubble_manager.py` - Spawn, growth, and visibility logic

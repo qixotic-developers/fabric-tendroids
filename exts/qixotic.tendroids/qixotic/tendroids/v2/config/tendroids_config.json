@@ -1,0 +1,98 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Tendroids Configuration",
+  "description": "Override default parameters for Tendroids scene. Any values not specified will use Python defaults.",
+  
+  "bubble_system": {
+    "color": [0.7, 0.9, 1.0],
+    "debug_logging": false,
+    "diameter_multiplier": 1.1,
+    "drift_speed": 3.0,
+    "emission_threshold": 0.90,
+    "enabled": true,
+    "hide_until_clear": true,
+    "max_bubbles_per_tendroid": 1,
+    "max_diameter": 20.0,
+    "max_particles": 100,
+    "max_pop_height": 250.0,
+    "metallic": 0.0,
+    "min_diameter": 5.0,
+    "min_pop_height": 150.0,
+    "opacity": 0.35,
+    "particle_lifetime": 2.0,
+    "particle_size": 3.0,
+    "particle_speed": 18.0,
+    "particles_per_pop": 10,
+    "particle_spread": 50.0,
+    "release_threshold": 0.95,
+    "resolution": 16,
+    "rise_speed": 60.0,
+    "roughness": 0.15,
+    "use_warp_particles": true
+  },
+  
+  "environment": {
+    "distant_light": {
+      "angle": 2.0,
+      "color": [1.0, 1.0, 1.0],
+      "exposure": 10.0,
+      "intensity": 1.0,
+      "path": "/Environment/DistantLight",
+      "rotate_y": -75.0,
+      "rotate_z": -50.0,
+      "translate_x": -275.0,
+      "translate_y": 550.0
+    },
+    "sea_floor_material": {
+      "diffuse_color": [0.76, 0.70, 0.50],
+      "metallic": 0.0,
+      "path": "/World/Looks/Sand",
+      "roughness": 0.9,
+      "use_existing": true
+    },
+    "sky": {
+      "intensity": 0.4,
+      "path": "/Environment/Sky",
+      "rotate_y": -90.0,
+      "rotate_z": -90.0,
+      "translate_y": 325.0
+    }
+  },
+  
+  "sea_floor": {
+    "amplitude": 32.0,
+    "depth": 800.0,
+    "frequency": 0.01,
+    "mesh_name": "sea_floor",
+    "octaves": 3,
+    "parent_path": "/Environment",
+    "resolution_x": 60,
+    "resolution_y": 60,
+    "width": 800.0
+  },
+  
+  "tendroid_animation": {
+    "amplitude": 0.35,
+    "bulge_length_percent": 40.0,
+    "cycle_delay": 2.0,
+    "wave_speed": 40.0
+  },
+  
+  "tendroid_geometry": {
+    "default_length": 100.0,
+    "default_num_segments": 16,
+    "default_radius": 10.0,
+    "flare_height_percent": 15.0,
+    "flare_radius_multiplier": 2.0,
+    "radial_resolution": 32
+  },
+  
+  "tendroid_spawning": {
+    "aspect_ratio_range": [7.5, 8.5],
+    "default_count": 15,
+    "max_placement_attempts": 500,
+    "radius_range": [8.0, 12.0],
+    "spacing_multiplier": 1.5,
+    "spawn_area": [400.0, 400.0]
+  }
+}

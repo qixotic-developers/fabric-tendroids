@@ -1,0 +1,270 @@
+= Bubble and Wave Refinements - Implementation Summary
+:toc:
+:toclevels: 3
+
+== Overview
+
+Major improvements to both wave system and bubble behavior based on user requirements.
+
+== Phase 1: Wave System Rewrite ✅
+
+=== Implemented Features
+
+==== Realistic Tidal Behavior
+Replaced simple sinusoidal motion with three-phase cycle:
+
+**Shore Surge (1-2s)**:: Strong, quick push toward shore (left/negative)
+**Rest (0.5-1.5s)**:: Return to neutral/center position  
+**Ebb (calculated)**:: Gentle, sustained push seaward (right/positive)
+
+==== Energy Conservation
+
+[source]
+----
+shore_force × shore_duration = ebb_force × ebb_duration
+----
+
+Example: 1.0 force × 1.5s = 0.5 force × 3.0s
+
+==== Randomization Per Cycle
+- Shore force: 0.8x to 1.2x amplitude
+- Shore duration: 1.0-2.0 seconds
+- Rest duration: 0.5-1.5 seconds
+- Ebb force: 40-60% of shore force
+- Ebb duration: calculated from energy balance
+
+==== Spatial Variation
+±15% variation across field based on position prevents perfect synchronization.
+
+=== Files Modified
+- `v2/animation/wave_controller.py` - Complete rewrite with phase system
+
+'''
+
+== Phase 2: Bubble Refinements ✅
+
+=== 1. Particle Burst on Pop ✅
+
+**Implementation**: Integrated v1 particle system
+
+- Imports `PopParticleManager` from v1
+- Creates spray of water droplets when bubble pops
+- Particles inherit bubble's velocity
+- Gravity and fade effects
+- Individual randomized lifetimes
+
+**Code Changes**:
+
+[source,python]
+----
+# In V2BubbleManager.__init__()
+self.particle_manager = PopParticleManager(stage, config)
+
+# In _BubbleState._pop()
+self.particle_manager.create_pop_spray(
+    pop_position=tuple(self.world_pos),
+    bubble_velocity=self.velocity
+)
+----
+
+=== 2. Release Position Tracking ✅
+
+**Implementation**: Bubble starts upward movement from actual exit point
+
+- Added `release_position` tracking to `_BubbleState`
+- Captured when bubble fully exits mouth
+- Used as starting point for free-float motion
+
+**Code Changes**:
+
+[source,python]
+----
+def _release(self, wave_controller=None):
+    self.release_position = tuple(self.world_pos)
+    # ... bubble now rises from this position
+----
+
+=== 3. Wave Drift for Released Bubbles ✅
+
+**Implementation**: Bubbles sway with wave motion while rising
+
+- Get wave displacement at bubble's current position
+- Apply as horizontal drift influence
+- Smooth blending with existing velocity
+- 92% momentum retention + 15% wave influence
+
+**Code Changes**:
+
+[source,python]
+----
+# In _update_released()
+bubble_wave_dx, _, bubble_wave_dz = wave_controller.get_displacement(
+    tuple(self.world_pos)
+)
+wave_drift_strength = 0.15
+self.velocity[0] = self.velocity[0] * 0.92 + bubble_wave_dx * wave_drift_strength
+self.velocity[2] = self.velocity[2] * 0.92 + bubble_wave_dz * wave_drift_strength
+----
+
+=== 4. Extended Mouth Deformation ⚠️ NEEDS ATTENTION
+
+**Status**: Partially addressed, may need refinement
+
+**Current Behavior**: 
+- Deformation continues until bubble BOTTOM clears mouth
+- Uses `bubble_bottom` position for deformation tracking
+- Interpolates radius down as bubble exits
+
+**Potential Issue**:
+The deformation stops when bottom clears. You may want it to continue LONGER, following the bubble upward for a bit after exit.
+
+**Suggested Enhancement**:
+Add a "deformation trail" that continues 10-20% of tendroid length above mouth:
+
+[source,python]
+----
+deformation_trail_height = tendroid.length * 0.15
+if bubble.y < (mouth_y + deformation_trail_height):
+    # Continue deformation even after exit
+    ...
+----
+
+**TODO**: Verify if current behavior matches expectations or if trail is needed.
+
+'''
+
+== Implementation Details
+
+=== Particle System Integration
+
+**Manager Lifecycle**:
+1. Created in `V2BubbleManager.__init__()`
+2. Passed to each `_BubbleState` instance
+3. Updated every frame in `V2BubbleManager.update()`
+4. Cleared on shutdown
+
+**Particle Properties** (from v1 config):
+- Size: 3.0 units
+- Count per pop: 10 particles
+- Lifetime: 2.0 seconds (randomized 0.7x-1.3x)
+- Speed: 18.0 units/sec
+- Spread: 50.0 degrees upward bias
+- Gravity: -5.0 units/sec²
+
+=== Wave Drift Implementation
+
+**Drift Strength**: 0.15 (15% wave influence)
+**Momentum Retention**: 0.92 (92% keeps previous velocity)
+**Update Frequency**: Every frame during released phase
+
+**Effect**:
+- Bubbles gently sway with current while rising
+- Not as locked to wave as tendroids (which use 100% wave displacement)
+- Creates natural "floating in water" appearance
+
+=== Release Position Usage
+
+**Captured**: When bubble bottom fully clears mouth
+**Format**: `(world_x, world_y, world_z)` tuple
+**Purpose**: Defines starting point for free-float upward motion
+
+Currently captured but not explicitly used for position reset. The bubble continues from its exit position naturally through velocity integration.
+
+'''
+
+== Testing Checklist
+
+=== Wave System
+- [ ] Shore surge feels powerful and quick (1-2 seconds)
+- [ ] Rest phase visible (tendroids drift back to center)
+- [ ] Ebb phase gentle and sustained (longer than surge)
+- [ ] Each cycle feels different (randomization working)
+- [ ] No discontinuities between phases
+- [ ] Spatial variation creates natural field effect
+
+=== Bubble Particles
+- [ ] Water droplets spray when bubble pops
+- [ ] Particles inherit bubble's upward velocity
+- [ ] Gravity pulls particles down naturally
+- [ ] Particles fade over ~2 seconds
+- [ ] Multiple pops don't overwhelm scene (particle limit working)
+
+=== Wave Drift
+- [ ] Released bubbles sway gently with waves
+- [ ] Drift is subtle (not as strong as tendroid sway)
+- [ ] Bubbles don't snap or jump
+- [ ] Motion feels natural and fluid
+
+=== Mouth Deformation
+- [ ] **VERIFY THIS**: Deformation continues as bubble exits
+- [ ] **CHECK**: Does deformation feel right or need to extend higher?
+- [ ] No sudden collapse when bubble clears
+- [ ] Smooth transition from deformed to cylinder shape
+
+'''
+
+== Known Issues / TODOs
+
+=== 1. Mouth Deformation Trail
+**Status**: Needs verification
+
+Current implementation stops deformation when bubble bottom clears mouth. May need extension to track bubble further up.
+
+**Test**: Watch closely as bubble exits. Does the mouth "snap" closed too early?
+
+**Fix if needed**: Add deformation trail logic in `_update_exiting()`.
+
+=== 2. Particle Import Path  
+**Potential Issue**: Import from v1 may cause issues
+
+[source,python]
+----
+from ..v1.bubbles.bubble_particle import PopParticleManager
+----
+
+This assumes v1 is sibling to v2. May need adjustment depending on actual package structure.
+
+**Alternative if needed**:
+
+[source,python]
+----
+from qixotic.tendroids.v1.bubbles.bubble_particle import PopParticleManager
+----
+
+'''
+
+== Files Modified
+
+=== Wave System
+1. `v2/animation/wave_controller.py` - Complete rewrite
+
+=== Bubble System
+1. `v2/bubbles/bubble_manager.py` - Major enhancements:
+   - Particle system integration
+   - Release position tracking
+   - Wave drift for released bubbles
+   - Particle spray on pop
+
+'''
+
+== Configuration Parameters
+
+=== Wave (unchanged in UI)
+- `amplitude`: 8.0
+- `frequency`: 0.15
+
+=== Bubble (unchanged)
+- All existing parameters preserved
+- Particle parameters inherited from v1 config
+
+'''
+
+== Next Steps
+
+1. **Test wave system** - Verify shore/ebb cycle feels right
+2. **Test particle pops** - Confirm spray effect works
+3. **Verify mouth deformation** - Check if it needs extension
+4. **Tune wave drift** - Adjust `0.15` strength if needed
+5. **Monitor performance** - Particles add overhead
+
+Current capacity: ~72K tokens remaining - sufficient for refinements and debugging.

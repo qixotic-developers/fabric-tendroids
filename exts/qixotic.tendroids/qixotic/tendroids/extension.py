@@ -2,17 +2,17 @@
 Tendroids Extension - Main entry point
 
 Omniverse extension for creating and animating Tendroid creatures.
+Uses V2 GPU-accelerated system with wave animation.
 """
 
 import carb
-import carb.settings
 import omni.ext
 import omni.usd
 import omni.kit.ui
 import omni.kit.app
 import omni.kit.window.extensions
-from .scene.manager import TendroidSceneManager
-from .ui.control_panel import TendroidControlPanel
+from .v2.scene.manager import V2SceneManager
+from .v2.ui.control_panel import V2ControlPanel
 
 
 class TendroidsExtension(omni.ext.IExt):
@@ -31,14 +31,11 @@ class TendroidsExtension(omni.ext.IExt):
             ext_id: Extension ID
         """
         try:
-            # Suppress noisy USD Runtime plugin logging
-            self._suppress_usdrt_logging()
-            
             # Create scene manager
-            self._scene_manager = TendroidSceneManager()
+            self._scene_manager = V2SceneManager()
             
             # Create UI control panel
-            self._control_panel = TendroidControlPanel(self._scene_manager)
+            self._control_panel = V2ControlPanel(self._scene_manager)
             self._control_panel.create_window()
             
             # Subscribe to update events for UI (stress test controller)
@@ -55,23 +52,6 @@ class TendroidsExtension(omni.ext.IExt):
             carb.log_error(f"[TendroidsExtension] Startup failed: {e}")
             import traceback
             traceback.print_exc()
-    
-    def _suppress_usdrt_logging(self):
-        """
-        Suppress noisy USDRT plugin info messages.
-        
-        Sets log level to WARN (2) for usdrt.population.plugin to hide
-        repetitive FabricPopulation and primvar messages during animation.
-        
-        Log levels: 0=VERBOSE, 1=INFO, 2=WARN, 3=ERROR, 4=FATAL
-        """
-        try:
-            settings = carb.settings.get_settings()
-            # Suppress usdrt.population.plugin info messages (use integer 2 for WARN)
-            settings.set("/log/channels/usdrt.population.plugin/level", 2)
-        except Exception as e:
-            # Not critical if this fails
-            pass
     
     def _on_ui_update(self, event):
         """
@@ -106,19 +86,20 @@ class TendroidsExtension(omni.ext.IExt):
         """Called when extension is unloaded."""
         try:
             # Unsubscribe from updates
-            if hasattr(self, '_ui_update_subscription'):
+            if hasattr(self, '_ui_update_subscription') and self._ui_update_subscription:
+                self._ui_update_subscription.unsubscribe()
                 self._ui_update_subscription = None
             
             # Clear Extensions panel filter
             self._set_extensions_filter("")
             
-            # Cleanup scene manager
-            if hasattr(self, '_scene_manager'):
+            # Cleanup scene manager (stops animation controller)
+            if hasattr(self, '_scene_manager') and self._scene_manager:
                 self._scene_manager.shutdown()
                 self._scene_manager = None
             
             # Cleanup UI
-            if hasattr(self, '_control_panel'):
+            if hasattr(self, '_control_panel') and self._control_panel:
                 self._control_panel.destroy()
                 self._control_panel = None
             

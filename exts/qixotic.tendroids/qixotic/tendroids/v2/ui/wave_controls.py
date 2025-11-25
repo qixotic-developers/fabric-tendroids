@@ -39,7 +39,8 @@ class WaveControls:
     def build(self, parent: ui.VStack = None):
         """Build wave controls UI."""
         with ui.CollapsableFrame("Wave Motion", height=0, collapsed=False):
-            with ui.VStack(spacing=2):
+            with ui.VStack(spacing=4, style={"background_color": 0xFF23211F}):
+                ui.Spacer(height=4)
                 # Enable checkbox
                 with ui.HStack(height=22, spacing=4):
                     ui.Label("Enable:", width=100, tooltip="Toggle wave motion on/off")
@@ -115,6 +116,7 @@ class WaveControls:
                 )
                 
                 ui.Label("Ebb: Gentle seaward (force/duration calculated)", height=20)
+                ui.Spacer(height=4)
     
     def _on_enabled_changed(self, model):
         """Handle enable/disable toggle."""

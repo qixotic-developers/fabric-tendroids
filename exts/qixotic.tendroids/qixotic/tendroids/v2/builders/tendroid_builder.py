@@ -36,8 +36,7 @@ class V2TendroidBuilder:
     bulge_width: float = 0.9,
     parent_path: str = "/World/Tendroids",
     get_height_fn=None
-    # ) -> GenericDict | None:
-  ) -> typing.TypedDict | None:
+  ) -> dict | None:
     """
     Create a complete V2 tendroid with all features.
 

@@ -68,11 +68,23 @@ class PopParticle:
   def _create_geometry(self):
     """Create small sphere for droplet."""
     try:
+      # Check if prim exists and remove it to ensure clean slate
+      if self.stage.GetPrimAtPath(self.prim_path):
+        self.stage.RemovePrim(self.prim_path)
+
       sphere = UsdGeom.Sphere.Define(self.stage, self.prim_path)
       sphere.GetRadiusAttr().Set(self.config.particle_size)
 
       # Set initial position and STORE the translate op for reuse
-      self.translate_op = sphere.AddTranslateOp()
+      # Use GetTranslateOp if it exists, otherwise add new one
+      existing_ops = sphere.GetOrderedXformOps()
+      translate_exists = any(op.GetOpType() == UsdGeom.XformOp.TypeTranslate for op in existing_ops)
+      
+      if translate_exists:
+        self.translate_op = sphere.GetTranslateOp()
+      else:
+        self.translate_op = sphere.AddTranslateOp()
+      
       self.translate_op.Set(Gf.Vec3d(*self.position))
 
       # Apply simple display color (skip full material for performance)

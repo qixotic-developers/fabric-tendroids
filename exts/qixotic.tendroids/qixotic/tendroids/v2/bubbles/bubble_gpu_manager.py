@@ -2,7 +2,7 @@
 GPU-Accelerated Bubble Manager
 
 Manages bubble physics using Warp kernels for parallel processing.
-Replaces CPU-bound Python loops with GPU batch operations.
+Complete lifecycle management with CPU ↔ GPU state synchronization.
 """
 
 import warp as wp
@@ -17,6 +17,7 @@ class BubbleGPUManager:
     Manages bubble physics on GPU using Warp kernels.
     
     All bubble state lives in GPU arrays. Updates happen in parallel.
+    Includes full lifecycle: spawn, rise, exit, release, pop, respawn.
     """
     
     def __init__(self, max_bubbles: int = 100, device: str = "cuda:0"):
@@ -44,22 +45,33 @@ class BubbleGPUManager:
         self.ages_gpu = wp.zeros(max_bubbles, dtype=float, device=device)
         self.release_timers_gpu = wp.zeros(max_bubbles, dtype=float, device=device)
         
+        # NEW: Lifecycle state
+        self.current_radius_gpu = wp.zeros(max_bubbles, dtype=float, device=device)
+        self.respawn_timers_gpu = wp.zeros(max_bubbles, dtype=float, device=device)
+        
         # Tendroid properties (constant per bubble)
         self.tendroid_x_gpu = wp.zeros(max_bubbles, dtype=float, device=device)
         self.tendroid_y_gpu = wp.zeros(max_bubbles, dtype=float, device=device)
         self.tendroid_z_gpu = wp.zeros(max_bubbles, dtype=float, device=device)
         self.tendroid_lengths_gpu = wp.zeros(max_bubbles, dtype=float, device=device)
+        self.tendroid_radius_gpu = wp.zeros(max_bubbles, dtype=float, device=device)
         
-        # CPU mirrors for readback (only when needed)
-        self._phases_cpu = None
-        self._world_positions_cpu = None
+        # Bubble config (per-bubble)
+        self.spawn_heights_gpu = wp.zeros(max_bubbles, dtype=float, device=device)
+        self.pop_heights_gpu = wp.zeros(max_bubbles, dtype=float, device=device)
+        self.max_diameter_heights_gpu = wp.zeros(max_bubbles, dtype=float, device=device)
+        self.max_radii_gpu = wp.zeros(max_bubbles, dtype=float, device=device)
     
     def register_bubble(
         self,
         bubble_id: int,
         tendroid_position: tuple,
         tendroid_length: float,
-        spawn_y: float
+        tendroid_radius: float,
+        spawn_y: float,
+        pop_height: float,
+        max_diameter_y: float,
+        max_radius: float
     ):
         """
         Register a new bubble with its tendroid properties.
@@ -68,7 +80,11 @@ class BubbleGPUManager:
             bubble_id: Index in array (0 to max_bubbles-1)
             tendroid_position: (x, y, z) world position
             tendroid_length: Cylinder height
+            tendroid_radius: Base cylinder radius
             spawn_y: Starting Y position
+            pop_height: Y position where bubble pops
+            max_diameter_y: Y position where bubble reaches max size
+            max_radius: Maximum bubble radius
         """
         if bubble_id >= self.max_bubbles:
             return
@@ -82,30 +98,82 @@ class BubbleGPUManager:
         y_pos[bubble_id] = spawn_y
         self.y_positions_gpu = wp.array(y_pos, dtype=float, device=self.device)
         
+        # Set initial radius
+        radii = self.current_radius_gpu.numpy()
+        radii[bubble_id] = tendroid_radius * 0.5
+        self.current_radius_gpu = wp.array(radii, dtype=float, device=self.device)
+        
         # Set tendroid properties
-        t_x = self.tendroid_x_gpu.numpy()
-        t_y = self.tendroid_y_gpu.numpy()
-        t_z = self.tendroid_z_gpu.numpy()
-        t_len = self.tendroid_lengths_gpu.numpy()
+        self._update_array(self.tendroid_x_gpu, bubble_id, tendroid_position[0])
+        self._update_array(self.tendroid_y_gpu, bubble_id, tendroid_position[1])
+        self._update_array(self.tendroid_z_gpu, bubble_id, tendroid_position[2])
+        self._update_array(self.tendroid_lengths_gpu, bubble_id, tendroid_length)
+        self._update_array(self.tendroid_radius_gpu, bubble_id, tendroid_radius)
         
-        t_x[bubble_id] = tendroid_position[0]
-        t_y[bubble_id] = tendroid_position[1]
-        t_z[bubble_id] = tendroid_position[2]
-        t_len[bubble_id] = tendroid_length
-        
-        self.tendroid_x_gpu = wp.array(t_x, dtype=float, device=self.device)
-        self.tendroid_y_gpu = wp.array(t_y, dtype=float, device=self.device)
-        self.tendroid_z_gpu = wp.array(t_z, dtype=float, device=self.device)
-        self.tendroid_lengths_gpu = wp.array(t_len, dtype=float, device=self.device)
+        # Set bubble config
+        self._update_array(self.spawn_heights_gpu, bubble_id, spawn_y)
+        self._update_array(self.pop_heights_gpu, bubble_id, pop_height)
+        self._update_array(self.max_diameter_heights_gpu, bubble_id, max_diameter_y)
+        self._update_array(self.max_radii_gpu, bubble_id, max_radius)
         
         self.active_count += 1
+    
+    def _update_array(self, gpu_array, index: int, value: float):
+        """Helper to update single element in GPU array."""
+        arr = gpu_array.numpy()
+        arr[index] = value
+        gpu_array.assign(wp.array(arr, dtype=gpu_array.dtype, device=self.device))
+    
+    def update_bubble_state(self, bubble_id: int, y_pos: float, phase: int):
+        """
+        Update individual bubble state from CPU.
+        
+        Used for CPU-initiated spawns or state corrections.
+        
+        Args:
+            bubble_id: Bubble index
+            y_pos: New Y position
+            phase: New phase (0-4)
+        """
+        if bubble_id >= self.max_bubbles:
+            return
+        
+        self._update_array(self.y_positions_gpu, bubble_id, y_pos)
+        
+        phases = self.phases_gpu.numpy()
+        phases[bubble_id] = phase
+        self.phases_gpu = wp.array(phases, dtype=int, device=self.device)
+    
+    def spawn_bubble(self, bubble_id: int, spawn_y: float, tendroid_radius: float):
+        """
+        Reset bubble to spawn state.
+        
+        Args:
+            bubble_id: Bubble index
+            spawn_y: Starting Y position
+            tendroid_radius: Base radius for initial size
+        """
+        if bubble_id >= self.max_bubbles:
+            return
+        
+        # Reset to rising phase at spawn position
+        self._update_array(self.y_positions_gpu, bubble_id, spawn_y)
+        self._update_array(self.ages_gpu, bubble_id, 0.0)
+        self._update_array(self.velocities_x_gpu, bubble_id, 0.0)
+        self._update_array(self.velocities_y_gpu, bubble_id, 0.0)
+        self._update_array(self.velocities_z_gpu, bubble_id, 0.0)
+        self._update_array(self.current_radius_gpu, bubble_id, tendroid_radius * 0.5)
+        
+        phases = self.phases_gpu.numpy()
+        phases[bubble_id] = 1  # rising
+        self.phases_gpu = wp.array(phases, dtype=int, device=self.device)
     
     def update_all(
         self,
         dt: float,
         rise_speed: float,
         released_rise_speed: float,
-        spawn_height_pct: float,
+        respawn_delay: float,
         wave_state: dict = None
     ):
         """
@@ -113,9 +181,9 @@ class BubbleGPUManager:
         
         Args:
             dt: Delta time
-            rise_speed: Rising speed
+            rise_speed: Rising speed inside cylinder
             released_rise_speed: Free-float speed
-            spawn_height_pct: Spawn height percentage
+            respawn_delay: Seconds until respawn after pop
             wave_state: Optional wave controller state
         """
         if self.active_count == 0:
@@ -150,14 +218,21 @@ class BubbleGPUManager:
                 self.phases_gpu,
                 self.ages_gpu,
                 self.release_timers_gpu,
+                self.current_radius_gpu,
+                self.respawn_timers_gpu,
                 self.tendroid_x_gpu,
                 self.tendroid_y_gpu,
                 self.tendroid_z_gpu,
                 self.tendroid_lengths_gpu,
+                self.tendroid_radius_gpu,
+                self.spawn_heights_gpu,
+                self.pop_heights_gpu,
+                self.max_diameter_heights_gpu,
+                self.max_radii_gpu,
                 dt,
                 rise_speed,
                 released_rise_speed,
-                spawn_height_pct,
+                respawn_delay,
                 wave_enabled,
                 wave_displacement,
                 wave_amplitude,
@@ -172,9 +247,10 @@ class BubbleGPUManager:
         Download bubble states from GPU.
         
         Returns:
-            (phases, world_positions) as numpy arrays
+            (phases, world_positions, radii) as numpy arrays
             phases: [N] int array
-            world_positions: [N, 3] float array
+            world_positions: [N, 3] float array  
+            radii: [N] float array
         """
         phases = self.phases_gpu.numpy()
         
@@ -183,22 +259,29 @@ class BubbleGPUManager:
         wz = self.world_z_gpu.numpy()
         
         world_positions = np.stack([wx, wy, wz], axis=-1)
+        radii = self.current_radius_gpu.numpy()
         
-        return phases, world_positions
+        return phases, world_positions, radii
+    
+    def get_bubble_radii(self) -> np.ndarray:
+        """
+        Download current bubble radii from GPU.
+        
+        Returns:
+            [N] float array of current radii
+        """
+        return self.current_radius_gpu.numpy()
     
     def destroy(self):
         """Free GPU resources."""
-        self.y_positions_gpu = None
-        self.velocities_x_gpu = None
-        self.velocities_y_gpu = None
-        self.velocities_z_gpu = None
-        self.world_x_gpu = None
-        self.world_y_gpu = None
-        self.world_z_gpu = None
-        self.phases_gpu = None
-        self.ages_gpu = None
-        self.release_timers_gpu = None
-        self.tendroid_x_gpu = None
-        self.tendroid_y_gpu = None
-        self.tendroid_z_gpu = None
-        self.tendroid_lengths_gpu = None
+        # Clear all references to allow GPU memory cleanup
+        arrays = [
+            'y_positions_gpu', 'velocities_x_gpu', 'velocities_y_gpu', 'velocities_z_gpu',
+            'world_x_gpu', 'world_y_gpu', 'world_z_gpu', 'phases_gpu', 'ages_gpu',
+            'release_timers_gpu', 'current_radius_gpu', 'respawn_timers_gpu',
+            'tendroid_x_gpu', 'tendroid_y_gpu', 'tendroid_z_gpu', 
+            'tendroid_lengths_gpu', 'tendroid_radius_gpu',
+            'spawn_heights_gpu', 'pop_heights_gpu', 'max_diameter_heights_gpu', 'max_radii_gpu'
+        ]
+        for attr in arrays:
+            setattr(self, attr, None)

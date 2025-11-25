@@ -1,0 +1,121 @@
+= Bubble Geometry Vertex-Down Fix
+:toc:
+:sectnums:
+
+== Problem: Exit Snap Artifact
+
+When bubbles exit the top of the cylinder at slow speeds, a visual "snap" occurs during the hide transition.
+
+=== Root Cause
+
+Standard UV sphere generation creates vertices in latitude/longitude rings with poles on the Y-axis. This creates degenerate triangle topology at the poles - when viewed from below, you see a flat polygon face instead of a smooth surface.
+
+=== Visual Comparison
+
+----
+STANDARD UV SPHERE:               ROTATED 90° (vertex-down):
+                
+     pole at top                     equator vertex at bottom
+         ●                                  |
+        /|\                                /|\
+       / | \                              / | \
+      |  |  |                            |  |  |
+       \ | /                              \ | /
+        \|/                                \|/
+         ●  <-- pole = flat face            ● 
+                                            
+    (flat bottom polygon)           (smooth quad geometry)
+----
+
+== Solution: 90° Rotation Around X-Axis
+
+Rotating the sphere 90° around the X-axis during mesh generation moves the poles to the Z-axis, putting smooth equator geometry at the bottom.
+
+=== Implementation
+
+The rotation is applied per-vertex after standard UV sphere generation:
+
+[source,python]
+----
+def _rotate_around_x_axis(x, y, z, angle):
+    cos_a = math.cos(angle)
+    sin_a = math.sin(angle)
+    new_y = y * cos_a - z * sin_a
+    new_z = y * sin_a + z * cos_a
+    return x, new_y, new_z
+
+# In create_uv_sphere_points():
+rotation_angle = (math.pi / 2.0) if vertex_down else 0.0
+# ... generate vertices, then:
+if vertex_down:
+    nx, ny, nz = _rotate_around_x_axis(nx, ny, nz, rotation_angle)
+----
+
+=== Key Benefits
+
+1. **Smooth exit transition** - Quad geometry at bottom instead of pole topology
+2. **Zero runtime cost** - Rotation happens once at mesh creation
+3. **Natural physics** - Real bubbles don't have flat bottoms
+4. **Industry standard** - Same approach used by Houdini and other DCC tools
+
+== Files Modified
+
+=== NEW: `v2/bubbles/sphere_geometry_helper.py`
+
+Geometry generation with three main functions:
+
+* `create_uv_sphere_points()` - Vertex generation with optional 90° rotation
+* `create_sphere_face_indices()` - Triangle indices for mesh
+* `create_sphere_mesh()` - Complete USD mesh creation
+
+=== MODIFIED: `v2/bubbles/bubble_manager.py`
+
+The `_BubbleState._create_visual()` method now uses:
+
+[source,python]
+----
+mesh = create_sphere_mesh(
+    stage=self.stage,
+    path=self.prim_path,
+    radius=1.0,
+    horizontal_segments=16,
+    vertical_segments=10,
+    vertex_down=True  # The key parameter
+)
+----
+
+=== MODIFIED: `v2/bubbles/bubble_visual.py`
+
+Updated to use mesh-based sphere (used by legacy V2WarpController/V2NumpyController).
+
+== Usage
+
+=== Production (V2BubbleManager)
+
+The fix is automatic - bubbles now use vertex-down mesh geometry by default.
+
+=== Manual Sphere Creation
+
+[source,python]
+----
+from qixotic.tendroids.v2.bubbles import create_sphere_mesh
+
+mesh = create_sphere_mesh(
+    stage=stage,
+    path="/World/MySphere",
+    radius=5.0,
+    horizontal_segments=16,
+    vertical_segments=10,
+    vertex_down=True
+)
+----
+
+== Verification
+
+In USD stage hierarchy, bubble should appear as **Mesh** prim (expandable with points/faces) rather than **Sphere** prim (single procedural node).
+
+== Session Reference
+
+* Date: 2025-11-25
+* Issue: Bubble exit snap artifact at slow speeds
+* Solution: 90° X-axis rotation for vertex-down mesh geometry

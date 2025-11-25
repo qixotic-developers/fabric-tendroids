@@ -91,6 +91,84 @@ class V2TendroidWrapper:
         new_points = self.deformer.deform_wave_only(wave_dx, wave_dz)
         if new_points is not None:
             self.points_attr.Set(new_points)
+    
+    def apply_deformation_with_wave_state(
+        self,
+        bubble_y: float,
+        bubble_radius: float,
+        wave_state: dict
+    ):
+        """
+        Apply deformation with wave computed on GPU.
+        
+        Faster than apply_deformation() because wave spatial variation
+        is computed per-vertex on GPU.
+        
+        Args:
+            bubble_y: Bubble center Y position (local coords)
+            bubble_radius: Current bubble radius
+            wave_state: Dict from WaveController.get_wave_state()
+        """
+        if not self.deformer or not self.points_attr:
+            return
+        
+        self._bubble_active = True
+        
+        # Cache wave values for bubble position calculation
+        if wave_state.get('enabled', False):
+            import math
+            spatial_phase = self.position[0] * 0.003 + self.position[2] * 0.002
+            spatial_factor = 1.0 + math.sin(spatial_phase) * 0.15
+            displacement_value = wave_state['displacement'] * spatial_factor
+            self._last_wave_dx = displacement_value * wave_state['amplitude'] * wave_state['dir_x']
+            self._last_wave_dz = displacement_value * wave_state['amplitude'] * wave_state['dir_z']
+        else:
+            self._last_wave_dx = 0.0
+            self._last_wave_dz = 0.0
+        
+        new_points = self.deformer.deform_with_wave_state(
+            bubble_y,
+            bubble_radius,
+            wave_state,
+            self.position[0],
+            self.position[2]
+        )
+        if new_points is not None:
+            self.points_attr.Set(new_points)
+    
+    def apply_wave_only_with_state(self, wave_state: dict):
+        """
+        Apply wave displacement only using GPU-computed spatial variation.
+        
+        Faster than apply_wave_only() for multiple tendroids.
+        
+        Args:
+            wave_state: Dict from WaveController.get_wave_state()
+        """
+        if not self.deformer or not self.points_attr:
+            return
+        
+        self._bubble_active = False
+        
+        # Cache wave values for consistency
+        if wave_state.get('enabled', False):
+            import math
+            spatial_phase = self.position[0] * 0.003 + self.position[2] * 0.002
+            spatial_factor = 1.0 + math.sin(spatial_phase) * 0.15
+            displacement_value = wave_state['displacement'] * spatial_factor
+            self._last_wave_dx = displacement_value * wave_state['amplitude'] * wave_state['dir_x']
+            self._last_wave_dz = displacement_value * wave_state['amplitude'] * wave_state['dir_z']
+        else:
+            self._last_wave_dx = 0.0
+            self._last_wave_dz = 0.0
+        
+        new_points = self.deformer.deform_wave_only_with_state(
+            wave_state,
+            self.position[0],
+            self.position[2]
+        )
+        if new_points is not None:
+            self.points_attr.Set(new_points)
 
     def reset_deformation(self, wave_dx: float = 0.0, wave_dz: float = 0.0):
         """

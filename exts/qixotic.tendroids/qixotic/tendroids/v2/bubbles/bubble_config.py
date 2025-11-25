@@ -35,15 +35,15 @@ class V2BubbleConfig:
     resolution: int = 16
     
     # === Pop Particles ===
-    particles_per_pop: int = 10
+    particles_per_pop: int = 3           # Reduced from 10 for performance
     particle_speed: float = 18.0
-    particle_lifetime: float = 2.0
+    particle_lifetime: float = 1.0       # Reduced from 2.0
     particle_size: float = 3.0
     particle_spread: float = 50.0
     
     # === Performance ===
     max_bubbles_per_tendroid: int = 1
-    max_particles: int = 100
+    max_particles: int = 30              # Reduced from 100
     
     # === Behavior ===
     hide_until_clear: bool = False      # Show bubble immediately (was True)

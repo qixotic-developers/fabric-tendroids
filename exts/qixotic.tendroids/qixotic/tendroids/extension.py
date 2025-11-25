@@ -6,7 +6,6 @@ Uses V2 GPU-accelerated system with wave animation.
 """
 
 import carb
-import carb.settings
 import omni.ext
 import omni.usd
 import omni.kit.ui
@@ -32,9 +31,6 @@ class TendroidsExtension(omni.ext.IExt):
             ext_id: Extension ID
         """
         try:
-            # Suppress noisy USD Runtime plugin logging
-            self._suppress_usdrt_logging()
-            
             # Create scene manager
             self._scene_manager = V2SceneManager()
             
@@ -56,23 +52,6 @@ class TendroidsExtension(omni.ext.IExt):
             carb.log_error(f"[TendroidsExtension] Startup failed: {e}")
             import traceback
             traceback.print_exc()
-    
-    def _suppress_usdrt_logging(self):
-        """
-        Suppress noisy USDRT plugin info messages.
-        
-        Sets log level to WARN (2) for usdrt.population.plugin to hide
-        repetitive FabricPopulation and primvar messages during animation.
-        
-        Log levels: 0=VERBOSE, 1=INFO, 2=WARN, 3=ERROR, 4=FATAL
-        """
-        try:
-            settings = carb.settings.get_settings()
-            # Suppress usdrt.population.plugin info messages (use integer 2 for WARN)
-            settings.set("/log/channels/usdrt.population.plugin/level", 2)
-        except Exception as e:
-            # Not critical if this fails
-            pass
     
     def _on_ui_update(self, event):
         """

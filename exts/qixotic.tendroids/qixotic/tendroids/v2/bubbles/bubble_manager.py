@@ -18,9 +18,8 @@ import random
 from pxr import UsdGeom, Gf
 
 from .bubble_config import V2BubbleConfig, DEFAULT_V2_BUBBLE_CONFIG
-
-# Import particle manager from v1 (up two levels from v2/bubbles, then into v1/bubbles)
-from ...v1.bubbles.bubble_particle import PopParticleManager
+from .sphere_geometry_helper import create_sphere_mesh
+from .pop_particle import PopParticleManager
 
 
 class V2BubbleManager:
@@ -182,12 +181,19 @@ class _BubbleState:
         if self.stage.GetPrimAtPath(self.prim_path).IsValid():
             self.stage.RemovePrim(self.prim_path)
         
-        sphere = UsdGeom.Sphere.Define(self.stage, self.prim_path)
-        sphere.CreateRadiusAttr(1.0)
-        sphere.CreateDisplayColorAttr([self.config.color])
-        sphere.CreateDisplayOpacityAttr([self.config.opacity])
+        # Use mesh sphere with vertex-down orientation for smooth exit transition
+        mesh = create_sphere_mesh(
+            stage=self.stage,
+            path=self.prim_path,
+            radius=1.0,
+            horizontal_segments=16,
+            vertical_segments=10,
+            vertex_down=True
+        )
+        mesh.CreateDisplayColorAttr([self.config.color])
+        mesh.CreateDisplayOpacityAttr([self.config.opacity])
         
-        xform = UsdGeom.Xformable(sphere.GetPrim())
+        xform = UsdGeom.Xformable(mesh.GetPrim())
         xform.ClearXformOpOrder()
         self.translate_op = xform.AddTranslateOp()
         self.scale_op = xform.AddScaleOp()
@@ -195,7 +201,7 @@ class _BubbleState:
         self.translate_op.Set(Gf.Vec3d(*self.world_pos))
         self._update_scale()
         
-        self.sphere_prim = sphere.GetPrim()
+        self.sphere_prim = mesh.GetPrim()
         
         if self.config.hide_until_clear:
             UsdGeom.Imageable(self.sphere_prim).MakeInvisible()
@@ -222,9 +228,15 @@ class _BubbleState:
     
     def _update_idle(self, dt: float, wave_controller=None):
         """Idle state - tendroid sways with wave, waiting for respawn."""
-        # Apply wave-only deformation while waiting
-        wave_dx, wave_dz = self._get_wave_displacement(wave_controller)
-        self.tendroid.apply_wave_only(wave_dx, wave_dz)
+        # Apply wave-only deformation while waiting (use GPU-optimized path)
+        if wave_controller:
+            wave_state = wave_controller.get_wave_state()
+            self.tendroid.apply_wave_only_with_state(wave_state)
+            # Update cached values for consistency
+            self._last_wave_dx = self.tendroid._last_wave_dx
+            self._last_wave_dz = self.tendroid._last_wave_dz
+        else:
+            self.tendroid.apply_wave_only(0.0, 0.0)
         
         self.respawn_timer -= dt
         if self.respawn_timer <= 0 and self.config.auto_respawn:
@@ -254,13 +266,19 @@ class _BubbleState:
         # Deformation radius - how big the bulge is in the mesh
         deform_radius = self.current_radius * self.config.diameter_multiplier
         
-        # Get wave displacement ONCE and reuse for both deformation and position
-        wave_dx, wave_dz = self._get_wave_displacement(wave_controller)
+        # Use GPU-optimized deformation with wave state
+        if wave_controller:
+            wave_state = wave_controller.get_wave_state()
+            self.tendroid.apply_deformation_with_wave_state(self.y, deform_radius, wave_state)
+            # Get cached wave values from tendroid for bubble position
+            self._last_wave_dx = self.tendroid._last_wave_dx
+            self._last_wave_dz = self.tendroid._last_wave_dz
+        else:
+            self.tendroid.apply_deformation(self.y, deform_radius, 0.0, 0.0)
+            self._last_wave_dx = 0.0
+            self._last_wave_dz = 0.0
         
-        # Drive deformation at bubble position WITH wave displacement
-        self.tendroid.apply_deformation(self.y, deform_radius, wave_dx, wave_dz)
-        
-        # Update world position using SAME wave values (no second query)
+        # Update world position using cached wave values
         self._update_world_pos_from_cached_wave()
         
         # Debug logging
@@ -268,7 +286,7 @@ class _BubbleState:
             height_ratio = min(1.0, self.y / self.tendroid.length)
             factor = height_ratio * height_ratio * (3.0 - 2.0 * height_ratio)
             carb.log_info(
-                f"[Bubble Debug] y={self.y:.1f}, wave_dx={wave_dx:.2f}, factor={factor:.2f}, "
+                f"[Bubble Debug] y={self.y:.1f}, wave_dx={self._last_wave_dx:.2f}, factor={factor:.2f}, "
                 f"world_x={self.world_pos[0]:.1f}"
             )
         
@@ -296,33 +314,52 @@ class _BubbleState:
 
     
     def _update_exiting(self, dt: float, wave_controller=None):
-        """Bubble exiting mouth - deformation continues following bubble exactly as during rising."""
+        """
+        Bubble exiting mouth - continue deforming at bubble center.
+        
+        The Gaussian falloff in the GPU kernel naturally closes the mouth
+        as the bubble rises away. No special logic needed - just keep
+        tracking the bubble until it's fully clear.
+        """
         self.age += dt
         self.y += self.config.rise_speed * dt
         
-        # Get wave displacement ONCE and cache it
-        wave_dx, wave_dz = self._get_wave_displacement(wave_controller)
+        # Get wave state for GPU-optimized path
+        wave_state = wave_controller.get_wave_state() if wave_controller else None
         
-        # Check if bubble bottom has cleared mouth
-        bubble_bottom = self._get_bubble_bottom_y()
         mouth_y = self.tendroid.length
+        bubble_radius = self.current_radius
         
-        if bubble_bottom < mouth_y:
-            # Bubble still partially inside - apply deformation EXACTLY like rising phase
-            deform_radius = self.current_radius * self.config.diameter_multiplier
-            self.tendroid.apply_deformation(self.y, deform_radius, wave_dx, wave_dz)
-            
-            # Position bubble using CACHED wave values (same as deformation)
-            self._update_world_pos_from_cached_wave()
-            
-            # Add throw momentum on top
-            self.world_pos[0] += self.velocity[0] * dt * 0.5
-            self.world_pos[2] += self.velocity[2] * dt * 0.5
-        else:
-            # Bubble fully cleared - stop deformation and release
-            self.tendroid.reset_deformation(wave_dx, wave_dz)
+        # How far is bubble CENTER above the mouth?
+        center_above_mouth = self.y - mouth_y
+        
+        # Bubble is fully clear when its bottom edge passes the mouth
+        # Bottom edge = center - radius, so clear when center > mouth + radius
+        if center_above_mouth >= bubble_radius:
+            # Bubble fully clear - switch to wave-only
+            if wave_state:
+                self.tendroid.apply_wave_only_with_state(wave_state)
+            else:
+                self.tendroid.apply_wave_only(0.0, 0.0)
             self._release(wave_controller)
             return
+        
+        # Still exiting - deform at bubble center, let Gaussian close the mouth
+        deform_radius = bubble_radius * self.config.diameter_multiplier
+        
+        if wave_state:
+            self.tendroid.apply_deformation_with_wave_state(self.y, deform_radius, wave_state)
+            self._last_wave_dx = self.tendroid._last_wave_dx
+            self._last_wave_dz = self.tendroid._last_wave_dz
+        else:
+            self.tendroid.apply_deformation(self.y, deform_radius, 0.0, 0.0)
+        
+        # Position bubble using cached wave values
+        self._update_world_pos_from_cached_wave()
+        
+        # Add throw momentum
+        self.world_pos[0] += self.velocity[0] * dt * 0.5
+        self.world_pos[2] += self.velocity[2] * dt * 0.5
         
         # Ensure bubble is visible during exit
         if self.sphere_prim:
@@ -357,9 +394,14 @@ class _BubbleState:
         self.age += dt
         self.release_timer += dt
         
-        # Tendroid continues wave-only motion
-        wave_dx, wave_dz = self._get_wave_displacement(wave_controller)
-        self.tendroid.apply_wave_only(wave_dx, wave_dz)
+        # Tendroid continues wave-only motion (use GPU-optimized path)
+        if wave_controller:
+            wave_state = wave_controller.get_wave_state()
+            self.tendroid.apply_wave_only_with_state(wave_state)
+            self._last_wave_dx = self.tendroid._last_wave_dx
+            self._last_wave_dz = self.tendroid._last_wave_dz
+        else:
+            self.tendroid.apply_wave_only(0.0, 0.0)
         
         # Bubble stays spherical (no shape transition needed)
         self.vertical_stretch = 1.0
@@ -422,8 +464,11 @@ class _BubbleState:
     
     def _update_popped(self, dt: float, wave_controller=None):
         """Popped state - tendroid continues wave motion."""
-        wave_dx, wave_dz = self._get_wave_displacement(wave_controller)
-        self.tendroid.apply_wave_only(wave_dx, wave_dz)
+        if wave_controller:
+            wave_state = wave_controller.get_wave_state()
+            self.tendroid.apply_wave_only_with_state(wave_state)
+        else:
+            self.tendroid.apply_wave_only(0.0, 0.0)
         
         self.phase = "idle"
         self.respawn_timer = self.config.respawn_delay

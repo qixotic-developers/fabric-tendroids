@@ -127,9 +127,10 @@ class V2AnimationController:
                 )
             else:
                 # No bubble manager - apply wave-only to all tendroids
+                # Use GPU-optimized path with wave state
+                wave_state = self.wave_controller.get_wave_state()
                 for tendroid in self.tendroids:
-                    wave_dx, _, wave_dz = self.wave_controller.get_displacement(tendroid.position)
-                    tendroid.apply_wave_only(wave_dx, wave_dz)
+                    tendroid.apply_wave_only_with_state(wave_state)
             
         except Exception as e:
             carb.log_error(f"[V2AnimationController] Update error: {e}")

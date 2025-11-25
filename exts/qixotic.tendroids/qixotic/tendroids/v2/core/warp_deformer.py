@@ -74,6 +74,74 @@ def deform_cylinder_kernel(
     out_points[tid] = wp.vec3(final_x, vertex_y, final_z)
 
 
+@wp.kernel
+def deform_cylinder_kernel_with_wave_state(
+    base_points: wp.array(dtype=wp.vec3),
+    out_points: wp.array(dtype=wp.vec3),
+    height_factors: wp.array(dtype=float),
+    bubble_y: float,
+    bubble_radius: float,
+    cylinder_radius: float,
+    cylinder_length: float,
+    max_amplitude: float,
+    bulge_width: float,
+    # Wave state (computed on GPU)
+    wave_displacement: float,
+    wave_amplitude: float,
+    wave_dir_x: float,
+    wave_dir_z: float,
+    tendroid_world_x: float,
+    tendroid_world_z: float,
+):
+    """
+    GPU kernel with wave computed internally.
+    
+    Computes spatial variation per-vertex on GPU, eliminating
+    per-tendroid Python get_displacement() calls.
+    """
+    tid = wp.tid()
+    
+    pos = base_points[tid]
+    vertex_y = pos[1]
+    h_factor = height_factors[tid]
+    
+    # Compute wave displacement with spatial variation ON GPU
+    spatial_phase = tendroid_world_x * 0.003 + tendroid_world_z * 0.002
+    spatial_factor = 1.0 + wp.sin(spatial_phase) * 0.15
+    
+    displacement_value = wave_displacement * spatial_factor
+    wave_dx = displacement_value * wave_amplitude * wave_dir_x
+    wave_dz = displacement_value * wave_amplitude * wave_dir_z
+    
+    # Bubble deformation on ORIGINAL position
+    max_radius = cylinder_radius * (1.0 + max_amplitude)
+    radius_range = max_radius - cylinder_radius
+    
+    growth_factor = 0.0
+    if radius_range > 0.0:
+        growth_factor = (bubble_radius - cylinder_radius) / radius_range
+        growth_factor = wp.clamp(growth_factor, 0.0, 1.0)
+    
+    current_amplitude = max_amplitude * growth_factor
+    
+    sigma = bubble_radius * bulge_width
+    dist = vertex_y - bubble_y
+    gaussian = wp.exp(-(dist * dist) / (2.0 * sigma * sigma))
+    
+    displacement = current_amplitude * gaussian
+    scale = 1.0 + displacement
+    
+    # Apply radial scaling to ORIGINAL position
+    scaled_x = pos[0] * scale
+    scaled_z = pos[2] * scale
+    
+    # Add wave displacement AFTER scaling
+    final_x = scaled_x + wave_dx * h_factor
+    final_z = scaled_z + wave_dz * h_factor
+    
+    out_points[tid] = wp.vec3(final_x, vertex_y, final_z)
+
+
 class V2WarpDeformer:
     """
     Warp-accelerated cylinder deformer with wave composition.
@@ -177,6 +245,78 @@ class V2WarpDeformer:
             bubble_radius=self.cylinder_radius,  # No deformation at cylinder radius
             wave_dx=wave_dx,
             wave_dz=wave_dz
+        )
+    
+    def deform_with_wave_state(
+        self,
+        bubble_y: float,
+        bubble_radius: float,
+        wave_state: dict,
+        tendroid_world_x: float,
+        tendroid_world_z: float
+    ) -> list:
+        """
+        Run deformation with wave computed on GPU.
+        
+        This is faster than deform() because wave spatial variation
+        is computed per-vertex on GPU, not per-tendroid in Python.
+        
+        Args:
+            bubble_y: Bubble center Y position
+            bubble_radius: Current bubble radius
+            wave_state: Dict from WaveController.get_wave_state()
+            tendroid_world_x: Tendroid world X position
+            tendroid_world_z: Tendroid world Z position
+            
+        Returns:
+            NumPy array of deformed points
+        """
+        if not wave_state.get('enabled', False):
+            # Wave disabled - use simple kernel
+            return self.deform(bubble_y, bubble_radius, 0.0, 0.0)
+        
+        wp.launch(
+            kernel=deform_cylinder_kernel_with_wave_state,
+            dim=self.num_points,
+            inputs=[
+                self.base_points_gpu,
+                self.out_points_gpu,
+                self.height_factors_gpu,
+                bubble_y,
+                bubble_radius,
+                self.cylinder_radius,
+                self.cylinder_length,
+                self.max_amplitude,
+                self.bulge_width,
+                wave_state['displacement'],
+                wave_state['amplitude'],
+                wave_state['dir_x'],
+                wave_state['dir_z'],
+                tendroid_world_x,
+                tendroid_world_z,
+            ],
+            device=self.device
+        )
+        
+        return self.out_points_gpu.numpy()
+    
+    def deform_wave_only_with_state(
+        self,
+        wave_state: dict,
+        tendroid_world_x: float,
+        tendroid_world_z: float
+    ) -> list:
+        """
+        Apply wave displacement only using GPU-computed spatial variation.
+        
+        Used when no bubble is active.
+        """
+        return self.deform_with_wave_state(
+            bubble_y=0.0,
+            bubble_radius=self.cylinder_radius,
+            wave_state=wave_state,
+            tendroid_world_x=tendroid_world_x,
+            tendroid_world_z=tendroid_world_z
         )
     
     def destroy(self):

@@ -25,7 +25,13 @@ from .core import (
 )
 
 # Bubbles
-from .bubbles import V2Bubble, V2BubbleVisual, V2BubbleConfig, V2BubbleManager
+from .bubbles import (
+    V2Bubble,
+    V2BubbleVisual,
+    V2BubbleConfig,
+    V2BubbleManager,
+    create_sphere_mesh,
+)
 
 # Utils
 from .utils import apply_material
@@ -93,6 +99,7 @@ __all__ = [
     "V2BubbleVisual",
     "V2BubbleConfig",
     "V2BubbleManager",
+    "create_sphere_mesh",
     # Utils
     "apply_material",
     # Config

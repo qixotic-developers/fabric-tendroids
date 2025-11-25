@@ -4,11 +4,8 @@ Tendroids - Interactive underwater creatures with bubble-guided deformation
 This module provides the core functionality for creating and animating
 Tendroids using Warp GPU acceleration for optimal performance.
 
-Primary API (V2 - Recommended):
+Primary API:
     from qixotic.tendroids.v2 import V2WarpController, V2WarpTendroid
-
-Legacy API (V1 - Deprecated):
-    from qixotic.tendroids.v1 import scene, animation, bubbles
 """
 
 from .extension import TendroidsExtension
@@ -29,12 +26,6 @@ from .v2 import (
     V2Deformer,
     V2NumpyController,
     V2NumpyTendroid,
-    # Backwards compatibility aliases
-    WarpController,
-    WarpTendroid,
-    WarpDeformer,
-    POCBubble,
-    POCBubbleVisual,
 )
 
 # Import C++ extension if available
@@ -61,12 +52,6 @@ __all__ = [
     "V2Deformer",
     "V2NumpyController",
     "V2NumpyTendroid",
-    # Backwards compatibility
-    "WarpController",
-    "WarpTendroid",
-    "WarpDeformer",
-    "POCBubble",
-    "POCBubbleVisual",
 ]
 
 if _has_cpp:

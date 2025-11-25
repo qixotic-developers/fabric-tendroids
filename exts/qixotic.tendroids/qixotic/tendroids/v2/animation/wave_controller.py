@@ -221,6 +221,30 @@ class WaveController:
         
         return (dx, dy, dz)
     
+    def get_wave_state(self) -> dict:
+        """
+        Get raw wave state for GPU computation.
+        
+        Returns dict with all values needed to compute wave displacement
+        on GPU, avoiding per-tendroid Python calls.
+        
+        Returns:
+            {
+                'displacement': float,  # Current -1 to +1 value
+                'amplitude': float,     # Max displacement
+                'dir_x': float,         # Direction X component
+                'dir_z': float,         # Direction Z component  
+                'enabled': bool
+            }
+        """
+        return {
+            'displacement': self.current_displacement,
+            'amplitude': self.config.amplitude,
+            'dir_x': self.config.direction[0],
+            'dir_z': self.config.direction[2],
+            'enabled': self.enabled
+        }
+    
     def get_segment_factor(self, height_ratio: float) -> float:
         """
         Calculate wave influence factor for a height along tendroid.

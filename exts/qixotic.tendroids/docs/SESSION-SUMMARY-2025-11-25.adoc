@@ -1,0 +1,117 @@
+= Session Summary: Bubble Geometry Fix + Major Cleanup
+:date: 2025-11-25
+
+== Problem Solved
+
+Bubble "snap" artifact when exiting cylinder at slow speeds - caused by flat polygon face at bottom of UV sphere.
+
+== Solution
+
+90° X-axis rotation during mesh generation puts smooth equator geometry at bottom instead of pole topology.
+
+== Files Added
+
+[cols="1,2"]
+|===
+|File |Description
+
+|`v2/bubbles/sphere_geometry_helper.py`
+|UV sphere mesh generation with vertex-down rotation option
+
+|`v2/bubbles/pop_particle.py`
+|Migrated from v1 - bubble pop particle spray system
+|===
+
+== Files Modified
+
+[cols="1,2"]
+|===
+|File |Description
+
+|`v2/bubbles/bubble_manager.py`
+|Use mesh sphere instead of UsdGeom.Sphere; import pop_particle locally
+
+|`v2/bubbles/bubble_visual.py`
+|Use mesh-based sphere (for legacy controllers)
+
+|`v2/bubbles/__init__.py`
+|Export sphere geometry and pop_particle classes
+
+|`v2/__init__.py`
+|Add create_sphere_mesh export
+
+|`extension.py`
+|Remove broken USDRT log suppression
+
+|`__init__.py`
+|Remove v1/poc references
+
+|`docs/BUBBLE_GEOMETRY_FIX.adoc`
+|Technical documentation
+|===
+
+== Files/Folders Deleted
+
+=== Entire Folders Removed
+
+* `v1/` - Deprecated v1 system (particle code migrated to v2)
+* `poc/` - Deprecated backwards-compat shim
+* `tests/archive/` - Old POC test
+* `docs/archive/` - Old completed work docs
+* All `__pycache__/` directories
+
+=== Individual Docs Removed
+
+* `docs/bubble-tracking-issue-continuity.adoc`
+* `docs/CONTINUITY-bubble-tracking-issue.adoc`
+* `docs/V2_INTEGRATION_PLAN.adoc`
+* `docs/V2_INTEGRATION_PROGRESS.adoc`
+* `docs/SESSION-SUMMARY-2025-11-23.adoc`
+
+== Final Structure
+
+----
+qixotic/tendroids/
+├── cpp/                    # C++ fast mesh updater
+├── tests/                  # Active tests only
+├── v2/                     # Canonical implementation
+│   ├── animation/
+│   ├── bubbles/           # +sphere_geometry_helper, +pop_particle
+│   ├── builders/
+│   ├── config/
+│   ├── controllers/
+│   ├── core/
+│   ├── environment/
+│   ├── scene/
+│   ├── ui/
+│   └── utils/
+├── extension.py
+├── fast_mesh_updater.pyd
+└── __init__.py
+----
+
+== Commit Message Suggestion
+
+----
+fix: bubble exit snap + major repo cleanup
+
+Bubble geometry:
+- Replace UsdGeom.Sphere with mesh sphere using vertex-down rotation
+- Add sphere_geometry_helper.py with 90° X-axis rotation
+- Smooth exit transition instead of flat polygon snap
+
+Cleanup:
+- Delete deprecated v1/ system (migrate pop_particle to v2)
+- Delete deprecated poc/ backwards-compat shim  
+- Delete docs/archive/ and tests/archive/
+- Delete obsolete continuity/integration docs
+- Remove all __pycache__ directories
+- Clean up main __init__.py exports
+----
+
+== Testing Verification
+
+1. Bubble should appear as Mesh prim in USD hierarchy (not Sphere)
+2. Slow rise speed should show smooth exit transition
+3. No startup errors in console
+4. Pop particles still work (migrated to v2)

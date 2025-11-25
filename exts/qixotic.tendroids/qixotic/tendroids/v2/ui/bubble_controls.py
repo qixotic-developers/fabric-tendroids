@@ -34,7 +34,8 @@ class BubbleControls:
   def build(self, parent: ui.VStack = None):
     """Build bubble controls UI."""
     with ui.CollapsableFrame("Bubble Settings", height=0, collapsed=False):
-      with ui.VStack(spacing=2):
+      with ui.VStack(spacing=4, style={"background_color": 0xFF23211F}):
+        ui.Spacer(height=4)
         cfg = self._get_config()
 
         # Rise speed (inside tendroid)
@@ -83,6 +84,7 @@ class BubbleControls:
           self._on_respawn_delay_changed,
           precision=1
         )
+        ui.Spacer(height=4)
 
   def _on_rise_speed_changed(self, value: float):
     """Handle rise speed change."""

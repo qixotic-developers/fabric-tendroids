@@ -1,0 +1,100 @@
+= Tab Integration with Stage Panel
+:date: 2025-11-25
+
+== Changes Made
+
+=== Docking Configuration
+
+**Target panel:** RIGHT_TOP (where Stage and Render Settings are located)
+
+**Explicit docking:**
+
+[source,python]
+----
+# Get Stage window
+stage_window = ui.Workspace.get_window("Stage")
+# Dock our window with Stage window
+self.window.dock_in(stage_window, ui.DockPosition.SAME)
+# Make our window the active tab
+self.window.focus()
+----
+
+=== Window Configuration
+
+[cols="1,2"]
+|===
+|Property |Value
+
+|Title
+|"Tendroid Manager"
+
+|Width
+|350px
+
+|Height
+|600px
+
+|Dock Preference
+|`ui.DockPreference.RIGHT_TOP`
+
+|Dock Position
+|`ui.DockPosition.SAME` (tabs with Stage)
+
+|Flags
+|`ui.WINDOW_FLAGS_NO_SCROLLBAR`
+
+|Auto Focus
+|Yes (makes it active tab on startup)
+|===
+
+=== Tab Behavior
+
+**On extension load:**
+1. Window docks to RIGHT_TOP panel
+2. Uses `dock_in()` to explicitly group with Stage window
+3. Calls `focus()` to make it the active tab
+4. Should appear as first tab (leftmost) due to focus
+
+**Manual reordering:**
+- User can drag tab to reorder
+- Kit remembers tab positions
+
+== Files Modified
+
+[cols="1,2"]
+|===
+|File |Changes
+
+|`v2/ui/control_panel.py`
+|Changed dock preference to RIGHT_TOP, added _dock_with_stage() method, added explicit dock_in() call
+|===
+
+== Expected Behavior
+
+When you restart Composer:
+
+1. **Tendroid Manager appears as a tab** in the upper-right panel
+2. **Tabs with:** Stage, Render Settings
+3. **Active by default** (visible tab)
+4. **Scrollable content** with dark theme
+
+== Troubleshooting
+
+If not appearing as tab:
+1. Check Window menu → check if "Tendroid Manager" is listed
+2. Manually drag window to Stage tab bar
+3. Kit will remember the docking position
+
+If in wrong panel:
+- Stage/Render Settings are in RIGHT_TOP
+- Property/Materials are in RIGHT_BOTTOM
+- Current setting: RIGHT_TOP
+
+== Testing
+
+✓ Extension loads without errors
+✓ Window docks to RIGHT_TOP
+✓ Calls dock_in() with Stage window
+✓ Focuses window on startup
+□ Appears as tab with Stage (test in Composer)
+□ Is leftmost/active tab (test in Composer)

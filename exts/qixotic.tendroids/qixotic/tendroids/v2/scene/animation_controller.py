@@ -8,7 +8,6 @@ GPU bubble physics fully supported with proper state synchronization.
 import time
 
 import carb
-import omni.kit.app
 
 from ..animation import WaveConfig, WaveController
 from ..bubbles import DEFAULT_V2_BUBBLE_CONFIG
@@ -36,6 +35,10 @@ class V2AnimationController:
     self._absolute_time = 0.0
 
     self.wave_controller = WaveController(WaveConfig())
+
+    # Fabric GPU path (zero-copy mesh updates)
+    self._use_fabric_write = True  # Enable Fabric by default
+    self._stage_id = None
 
     # Profiling
     self._profiling_enabled = False
@@ -65,10 +68,23 @@ class V2AnimationController:
     if batch_deformer:
       carb.log_info("[GPU] Batch deformation enabled")
 
+  def set_fabric_write(self, enabled: bool):
+    """Enable/disable Fabric GPU write path."""
+    self._use_fabric_write = enabled
+    path_name = "Fabric GPU" if enabled else "CPU"
+    carb.log_info(f"[AnimationController] Mesh write path: {path_name}")
+
   def start(self, enable_profiling: bool = False):
     """Start animation loop."""
     if self.is_running:
       return
+
+    # Get stage_id for Fabric operations
+    import omni.usd
+    usd_context = omni.usd.get_context()
+    if usd_context:
+      self._stage_id = usd_context.get_stage_id()
+      carb.log_info(f"[AnimationController] Stage ID: {self._stage_id}")
 
     update_stream = omni.kit.app.get_app().get_update_event_stream()
     self.update_subscription = update_stream.create_subscription_to_pop(
@@ -183,6 +199,7 @@ class V2AnimationController:
     Apply deformations using single-kernel batch processing.
     
     MUCH faster than per-tendroid: 1 kernel launch instead of N.
+    Supports both CPU and Fabric GPU write paths.
     """
     # Update batch deformer state from GPU bubble data
     self.batch_deformer.update_states(
@@ -190,12 +207,17 @@ class V2AnimationController:
       wave_state=wave_state,
       default_config=DEFAULT_V2_BUBBLE_CONFIG
     )
-    
+
     # Single kernel launch for ALL vertices
     all_points = self.batch_deformer.deform_all()
-    
-    # Apply to USD meshes
-    self.batch_deformer.apply_to_meshes(all_points)
+
+    # Apply to meshes - choose write path
+    if self._use_fabric_write and self._stage_id is not None:
+      # Fabric GPU path (zero-copy)
+      self.batch_deformer.apply_to_meshes_fabric(self._stage_id)
+    else:
+      # CPU path (fallback)
+      self.batch_deformer.apply_to_meshes(all_points)
 
   def _apply_deformations_gpu(self, bubble_data: dict, wave_state: dict):
     """

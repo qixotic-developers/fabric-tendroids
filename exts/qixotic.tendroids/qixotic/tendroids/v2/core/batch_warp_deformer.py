@@ -168,7 +168,7 @@ class BatchWarpDeformer:
         return self.out_points_gpu.numpy()
     
     def apply_to_meshes(self, all_points: np.ndarray):
-        """Apply deformed points to USD meshes - OPTIMIZED."""
+        """Apply deformed points to USD meshes - CPU PATH."""
         if all_points is None:
             return
         from pxr import Vt, UsdGeom
@@ -182,6 +182,48 @@ class BatchWarpDeformer:
             if hasattr(tendroid, 'mesh_prim') and tendroid.mesh_prim:
                 mesh = UsdGeom.Mesh(tendroid.mesh_prim)
                 mesh.GetPointsAttr().Set(Vt.Vec3fArray(points_tuples))
+    
+    def apply_to_meshes_fabric(self, stage_id):
+        """Apply deformed points via Fabric - GPU PATH (FAST)."""
+        if not self._built:
+            return
+        
+        from usdrt import Vt
+        from ..utils import FabricHelper
+        
+        # Get USDRT stage (cached)
+        usdrt_stage = FabricHelper.get_usdrt_stage(stage_id)
+        
+        # CRITICAL: Do ONE GPU→CPU transfer for all vertices
+        # Multiple numpy() calls create GPU sync points causing stuttering
+        all_points_cpu = self.out_points_gpu.numpy()
+        
+        # Apply to each tendroid mesh
+        for i, tendroid in enumerate(self.tendroids):
+            offset = self.vertex_offsets[i]
+            count = self.vertex_counts[i]
+            
+            # Get mesh path
+            if hasattr(tendroid, 'mesh_path'):
+                mesh_path = tendroid.mesh_path
+            elif hasattr(tendroid, 'mesh_prim') and tendroid.mesh_prim:
+                mesh_path = str(tendroid.mesh_prim.GetPath())
+            else:
+                continue
+            
+            # Get Fabric points attribute
+            points_attr = FabricHelper.get_fabric_points_attribute(
+                usdrt_stage, mesh_path
+            )
+            if not points_attr:
+                continue
+            
+            # Extract slice from CPU numpy array (no GPU sync!)
+            tendroid_points = all_points_cpu[offset:offset + count]
+            
+            # Write to Fabric - VtArray constructor accepts numpy directly
+            # No tolist() needed - numpy is passed as-is
+            points_attr.Set(Vt.Vec3fArray(tendroid_points))
     
     def reset(self):
         """Reset to pre-build state."""

@@ -6,7 +6,7 @@ for realistic sea floor attachment.
 """
 
 import math
-from pxr import Gf, UsdGeom
+from pxr import Gf, UsdGeom, Sdf
 
 
 class CylinderGenerator:
@@ -165,5 +165,12 @@ class CylinderGenerator:
         # Compute and set extent
         extent = UsdGeom.PointBased(mesh_prim).ComputeExtent(points)
         mesh_prim.CreateExtentAttr(extent)
+        
+        # Add "Deformable" tag for Fabric GPU rendering
+        # This tells OmniHydra to render points directly from Fabric
+        # instead of USD, enabling zero-copy GPU deformation
+        prim = mesh_prim.GetPrim()
+        if not prim.HasAttribute("Deformable"):
+            prim.CreateAttribute("Deformable", Sdf.ValueTypeNames.Token, True)
         
         return mesh_prim, points, deform_start

@@ -3,6 +3,8 @@ V2 Bubbles - Bubble-driven deformation system
 
 Bubbles rise inside tendroids, driving the bulge deformation.
 Sphere geometry uses vertex-down orientation for smooth exit transitions.
+
+GPU-accelerated physics available via bubble_physics module.
 """
 
 from .bubble import V2Bubble
@@ -14,7 +16,12 @@ from .sphere_geometry_helper import (
     create_sphere_face_indices,
     create_sphere_mesh,
 )
-from .pop_particle import PopParticle, PopParticleManager
+from .pop_particle import PopParticleVisual, PopParticleManager
+from .pop_particle_gpu_manager import PopParticleGPUManager
+
+# GPU-accelerated bubble physics
+from .bubble_gpu_manager import BubbleGPUManager
+from .bubble_physics_adapter import BubblePhysicsAdapter, create_gpu_bubble_system
 
 __all__ = [
     "V2Bubble",
@@ -25,6 +32,11 @@ __all__ = [
     "create_uv_sphere_points",
     "create_sphere_face_indices",
     "create_sphere_mesh",
-    "PopParticle",
+    "PopParticleVisual",
     "PopParticleManager",
+    "PopParticleGPUManager",
+    # GPU acceleration
+    "BubbleGPUManager",
+    "BubblePhysicsAdapter",
+    "create_gpu_bubble_system",
 ]

@@ -38,7 +38,8 @@ class ActionButtons:
     def build(self, parent: ui.VStack = None):
         """Build action buttons UI."""
         with ui.CollapsableFrame("Actions", height=0, collapsed=False):
-            with ui.VStack(spacing=3):
+            with ui.VStack(spacing=5, style={"background_color": 0xFF23211F}):
+                ui.Spacer(height=4)
                 # Spawn and Clear row
                 with ui.HStack(spacing=5, height=28):
                     ui.Button(
@@ -65,21 +66,29 @@ class ActionButtons:
                         clicked_fn=self._on_stop_clicked,
                         tooltip="Pause animation loop"
                     )
+                
+                ui.Spacer(height=4)
     
     def _on_spawn_clicked(self):
         """Handle spawn button click."""
         try:
             sp = self.spawn_controls
-            geo = self.geometry_controls
+            
+            # Use defaults if no geometry controls
+            radial_segs = 24
+            height_segs = 48
+            if self.geometry_controls:
+                radial_segs = self.geometry_controls.radial_segments
+                height_segs = self.geometry_controls.height_segments
             
             self._update_status(f"Spawning {sp.count} tendroids...")
             
             success = self.scene_manager.create_tendroids(
                 count=sp.count,
-                spawn_area=(sp.area_width, sp.area_depth),
-                radius_range=(sp.radius_min, sp.radius_max),
-                radial_segments=geo.radial_segments,
-                height_segments=geo.height_segments
+                spawn_area=(400, 400),  # Default area
+                radius_range=(8.0, 12.0),  # Default radius range
+                radial_segments=radial_segs,
+                height_segments=height_segs
             )
             
             if success:

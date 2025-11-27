@@ -1,0 +1,260 @@
+= Fabric + Warp GPU Integration Research
+:date: 2025-11-25
+:status: Research Complete - Ready for Implementation
+
+== Executive Summary
+
+Fabric provides **direct GPU-resident USD attribute storage** with zero-copy integration to Warp kernels. The key is the `Deformable` tag which tells OmniHydra to render mesh points directly from Fabric instead of USD.
+
+**Performance Impact**: Eliminates CPU roundtrip (GPU → numpy → Python → USD), replacing 15 separate USD writes with 1 Fabric write.
+
+== Critical Components
+
+=== 1. The "Deformable" Tag
+
+[source,python]
+----
+# REQUIRED: Tell OmniHydra to render points from Fabric
+if not prim.HasAttribute("Deformable"):
+    prim.CreateAttribute("Deformable", Sdf.ValueTypeNames.PrimTypeTag, True)
+----
+
+**Purpose**: Without this tag, OmniHydra reads points from USD. With it, OmniHydra reads points directly from Fabric GPU memory.
+
+**Location**: Must be set on each mesh prim that will use Fabric-accelerated rendering.
+
+=== 2. USDRT Stage Access
+
+[source,python]
+----
+from usdrt import Usd, Sdf, Gf, Vt, Rt
+import warp as wp
+
+# Attach to stage via stage_id
+stage = Usd.Stage.Attach(stage_id)
+prim = stage.GetPrimAtPath(Sdf.Path(path))
+
+# Get points attribute
+points_attr = prim.GetAttribute("points")
+points_array = points_attr.Get()  # Returns VtArray attached to Fabric
+----
+
+**Key Insight**: When you call `.Get()` on a Fabric-backed attribute, the returned `VtArray` is **directly attached** to Fabric memory. No copy is made.
+
+=== 3. Warp Array Creation from Fabric
+
+[source,python]
+----
+# Create Warp array that SHARES memory with Fabric VtArray
+warp_array = wp.array(points_array, dtype=wp.vec3, device="cuda")
+
+# Launch kernel to modify IN-PLACE
+wp.launch(
+    kernel=deform_kernel,
+    dim=len(points_array),
+    inputs=[warp_array, ...],
+    device="cuda"
+)
+----
+
+**Critical**: The `wp.array()` constructor accepts VtArray and creates a view into the same GPU memory. Changes to `warp_array` modify Fabric directly.
+
+=== 4. Writing Back to Fabric
+
+[source,python]
+----
+# Option 1: If warp_array modified Fabric memory directly
+points_attr.Set(points_array)  # Just mark dirty
+
+# Option 2: If using separate Warp buffer (our current case)
+points_attr.Set(Vt.Vec3fArray(warp_array.numpy()))  # Copy back
+----
+
+**Our Current Architecture**: We use a separate Warp output buffer (`out_points_gpu`), so we'll need Option 2 initially. Could optimize later to Option 1.
+
+== Fabric VtArray Key Properties
+
+=== Memory States
+
+[source]
+----
+VtArray from Fabric has 3 possible states:
+
+1. Attached to Fabric (IsFabricData() == True)
+   - Modifications write directly to Fabric
+   - No local copy exists
+
+2. Detached (DetachFromSource() called)
+   - Creates local copy
+   - Modifications are local only
+
+3. External (from numpy/warp array)
+   - References external memory
+   - IsPythonData() == True
+----
+
+=== GPU Synchronization
+
+From docs: "Just as a CPU automatically mirrors data between main memory and CPU caches, Fabric automatically mirrors data between CPU and GPU."
+
+**Valid Bits**: 
+- `cpuValid` - CPU memory has current data
+- `gpuValid` - GPU memory has current data
+
+When you call `getAttributeArrayGpu()`, if CPU is valid but GPU isn't, Fabric schedules CPU→GPU copy before kernel launch.
+
+== Integration Pattern for Tendroids
+
+=== Current Flow (CPU Bottleneck)
+
+[source]
+----
+[Warp Kernel] → out_points_gpu.numpy() → tolist() → UsdGeom.Mesh.SetPoints()
+    GPU              GPU→CPU          list conversion      CPU→USD
+----
+
+=== Target Flow (Fabric Direct)
+
+[source]
+----
+[Warp Kernel] → out_points_gpu → Fabric VtArray → OmniHydra Render
+    GPU            GPU→GPU        GPU-resident     GPU direct
+----
+
+== Implementation Checklist
+
+=== Phase 1: Fabric-Backed Mesh Creation
+
+[cols="1,2"]
+|===
+|Task |Location
+
+|Add "Deformable" tag
+|`tendroid_factory.py` or `tendroid_builder.py`
+
+|Verify Fabric population
+|Ensure meshes are in Fabric after creation
+
+|Store USDRT prim handles
+|`TendroidData` or similar - need `usdrt.UsdPrim`
+|===
+
+=== Phase 2: Fabric Write Path
+
+[cols="1,2"]
+|===
+|Task |Location
+
+|Add `apply_to_meshes_fabric()` method
+|`batch_warp_deformer.py`
+
+|Get USDRT stage handle
+|`Usd.Stage.Attach(stage_id)`
+
+|Get Fabric VtArray for points
+|`prim.GetAttribute("points").Get()`
+
+|Copy Warp output to VtArray
+|`points_attr.Set(Vt.Vec3fArray(warp_array))`
+|===
+
+=== Phase 3: Feature Flag & Testing
+
+[cols="1,2"]
+|===
+|Task |Location
+
+|Add `use_fabric_write` flag
+|`animation_controller.py`
+
+|Conditional path selection
+|Choose CPU vs Fabric based on flag
+
+|Performance comparison
+|Measure both paths with 15 tendroids
+|===
+
+== Expected Performance Gain
+
+**Current Bottleneck**: ~8-10ms for 15 × USD SetPoints calls
+
+**Fabric Path**: 
+- 1 GPU→GPU copy (if needed): ~0.1ms
+- 1 Fabric Set call: ~0.2ms
+- Total: ~0.3ms
+
+**Estimated Recovery**: 7-9ms → 12-15 fps gain
+
+**Target Result**: 60-70 fps → 75-85 fps (enabling 30+ tendroid scenes)
+
+== Questions & Considerations
+
+=== Q1: Stage ID Access
+**Q**: How to get stage_id in our extension context?
+**A**: `omni.usd.get_context().get_stage_id()`
+
+=== Q2: Warp Output Buffer
+**Q**: Can we write directly from Warp kernel to Fabric VtArray?
+**A**: Yes, but requires architectural change. Initial impl can use our existing `out_points_gpu` buffer.
+
+=== Q3: Synchronization
+**Q**: When does OmniHydra see the updated points?
+**A**: Fabric marks attribute dirty on Set(). OmniHydra pulls on next render.
+
+=== Q4: Multiple Meshes
+**Q**: Do we need separate Set() calls for each tendroid?
+**A**: Yes - each tendroid is a separate prim, requires separate Fabric write. But all deformation happens in 1 Warp kernel.
+
+== Code Example: Complete Integration
+
+[source,python]
+----
+from usdrt import Usd, Sdf, Vt
+import warp as wp
+
+def apply_to_meshes_fabric(self, stage_id, tendroids_data):
+    """Apply deformed vertices to meshes via Fabric (FAST PATH)"""
+    
+    # Get USDRT stage
+    usdrt_stage = Usd.Stage.Attach(stage_id)
+    
+    # Our Warp output buffer (already computed)
+    all_points = self.out_points_gpu  # wp.array on GPU
+    
+    offset = 0
+    for tendroid_data in tendroids_data:
+        vertex_count = tendroid_data.vertex_count
+        
+        # Get USDRT prim (must be stored during creation)
+        prim_path = tendroid_data.mesh_path
+        prim = usdrt_stage.GetPrimAtPath(Sdf.Path(prim_path))
+        
+        # Get Fabric points attribute
+        points_attr = prim.GetAttribute("points")
+        
+        # Extract slice from our Warp output
+        tendroid_slice = all_points[offset:offset + vertex_count]
+        
+        # Convert Warp slice to VtArray and set
+        # NOTE: This does numpy() copy - could optimize later
+        points_attr.Set(Vt.Vec3fArray(tendroid_slice.numpy()))
+        
+        offset += vertex_count
+----
+
+== References
+
+- USDRT Overview: https://docs.omniverse.nvidia.com/kit/docs/usdrt.scenegraph/latest/overview.html
+- Fabric + Warp Example: https://docs.omniverse.nvidia.com/kit/docs/usdrt/latest/docs/whatsinfabric.html
+- USD/Fabric/USDRT Guide: https://docs.omniverse.nvidia.com/kit/docs/usdrt/latest/docs/usd_fabric_usdrt.html
+
+== Next Steps
+
+1. **Phase 2**: Implement Fabric-backed mesh creation
+   - Add "Deformable" tag to meshes
+   - Store USDRT prim handles
+   
+2. **Phase 3**: Implement `apply_to_meshes_fabric()`
+   - Get stage_id in animation_controller
+   - Create Fabric write path
+   - Add feature flag for A/B testing

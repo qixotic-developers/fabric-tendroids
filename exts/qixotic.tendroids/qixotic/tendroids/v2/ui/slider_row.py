@@ -1,18 +1,17 @@
 """
 Reusable slider row components with consistent styling
 
-Provides helper functions for creating int and float slider rows
-with thumb-style handles and tooltips.
+Dark-themed sliders matching Property panel style.
 """
 
 import omni.ui as ui
 
-# Shared slider style for thumb handle
+# Very dark slider style for controls (darker than container)
 SLIDER_STYLE = {
     "draw_mode": ui.SliderDrawMode.HANDLE,
-    "background_color": 0xFF333333,
-    "secondary_color": 0xFF666666,
-    "color": 0xFF888888,
+    "background_color": 0xFF0A0A0A,  # Very dark background
+    "secondary_color": 0xFF444444,    # Handle track
+    "color": 0xFF888888,              # Handle itself
     "border_radius": 3,
 }
 

@@ -1,375 +1,179 @@
-@startuml tendroids-component-diagram
+@startuml tendroids-component-diagram-v2
 
-title Tendroids Component Architecture
+title Tendroids V2 Component Architecture - GPU Pipeline
 
-!define CORE_COLOR #E1F5FE
-!define ANIMATION_COLOR #F3E5F5
-!define SCENE_COLOR #E8F5E9
-!define SEA_FLOOR_COLOR #B2EBF2
-!define CONFIG_COLOR #C8E6C9
+!define GPU_COLOR #FFCDD2
+!define CPU_COLOR #C5E1A5
+!define FABRIC_COLOR #B39DDB
 !define UI_COLOR #FFF9C4
-!define UTILS_COLOR #FFE0B2
-!define EXTERNAL_COLOR #FFEBEE
 
-skinparam componentStyle rectangle
+skinparam component {
+  BackgroundColor<<GPU>> GPU_COLOR
+  BackgroundColor<<CPU>> CPU_COLOR
+  BackgroundColor<<Fabric>> FABRIC_COLOR
+  BackgroundColor<<UI>> UI_COLOR
+}
 
-package "Tendroids Extension" {
-  
-  component "Extension Entry" as ExtEntry {
-    [TendroidsExtension]
-    
-    note right of TendroidsExtension
-      on_startup():
-      - Create SceneManager
-      - Create ControlPanel
-      
-      on_shutdown():
-      - Cleanup SceneManager
-      - Destroy UI
-    end note
-  }
-  
-  package "Configuration" CONFIG_COLOR {
-    component "Config System" as ConfigSystem {
-      [ConfigLoader]
-      [get_config_value]
-      
-      database "tendroids_config.json" as ConfigDB
-      
-      note right of ConfigLoader
-        Hybrid config:
-        - Loads JSON overrides
-        - Merges with Python defaults
-        - Caching for performance
-        - Type-safe fallback
-      end note
-    }
-  }
-  
-  package "Core Components" CORE_COLOR {
-    
-    component "Tendroid" as TendroidComp {
-      [Tendroid]
-      
-      note right of Tendroid
-        Main controller
-        Delegates to:
-        - Builder (creation)
-        - Lifecycle (state)
-        - Components (animation)
-      end note
-    }
-    
-    component "USD Creation" as USDCreation {
-      [TendroidBuilder]
-      [CylinderGenerator]
-      [TerrainConform]
-      
-      note right of TendroidBuilder
-        Reads geometry params
-        from config system
-      end note
-    }
-    
-    component "Vertex Deformation" as Deformation {
-      [WarpDeformer]
-      [GPU Kernel]
-      
-      note right of GPU Kernel
-        CUDA kernel:
-        deform_breathing_bulge()
-        Processes vertices in parallel
-      end note
-    }
-    
-    component "Safety System" as Safety {
-      [MaterialSafetyChecker]
-      
-      note right of MaterialSafetyChecker
-        Prevents GPU crashes
-        Detects glass materials
-        Blocks unsafe animation
-      end note
-    }
-    
-    component "Mesh Updates" as MeshUpdates {
-      [MeshVertexUpdater]
-    }
-    
-    component "Lifecycle" as Lifecycle {
-      [TendroidLifecycle]
-    }
-  }
-  
-  package "Animation Components" ANIMATION_COLOR {
-    
-    component "Breathing" as Breathing {
-      [BreathingAnimator]
-      
-      note right of BreathingAnimator
-        Wave timing calculations
-        Bubble emission detection
-        Parameter management
-        Reads animation params
-        from config system
-      end note
-    }
-    
-    component "Idle Motion" as IdleMotion {
-      [IdleMotionAnimator]
-      
-      note bottom of IdleMotionAnimator
-        Not yet integrated
-        Ready for Phase 2
-      end note
-    }
-  }
-  
-  package "Sea Floor" SEA_FLOOR_COLOR {
-    
-    component "Terrain Generation" as TerrainGen {
-      [SeaFloorConfig]
-      [SeaFloorController]
-      [SeaFloorHelper]
-      
-      note right of SeaFloorConfig
-        from_json() classmethod
-        Loads terrain params
-      end note
-      
-      note right of SeaFloorHelper
-        Perlin noise generation
-        Height map caching
-        get_height_at(x, z)
-      end note
-    }
-    
-    component "Environment Setup" as EnvSetup {
-      [EnvironmentConfig]
-      [EnvironmentSetup]
-      
-      note right of EnvironmentConfig
-        Sky, Light, Material
-        from_json() classmethods
-      end note
-    }
-  }
-  
-  package "Scene Management" SCENE_COLOR {
-    
-    component "Scene Coordinator" as SceneCoord {
-      [TendroidSceneManager]
-      
-      note right of TendroidSceneManager
-        High-level orchestrator
-        Manages Tendroid collection
-        Creates sea floor
-        Delegates to:
-        - Factory (creation)
-        - AnimationController (updates)
-        - SeaFloorController (terrain)
-      end note
-    }
-    
-    component "Animation Loop" as AnimLoop {
-      [AnimationController]
-      
-      note right of AnimationController
-        Update subscription
-        Frame-by-frame updates
-        Delta time management
-      end note
-    }
-    
-    component "Creation Patterns" as CreationPatterns {
-      [TendroidFactory]
-      
-      note right of TendroidFactory
-        create_single()
-        create_batch()
-        Parameter variations
-        Reads spawning params
-        from config system
-      end note
-    }
-  }
-  
-  package "User Interface" UI_COLOR {
-    
-    component "Control Panel" as ControlPanel {
-      [TendroidControlPanel]
-      
-      note right of TendroidControlPanel
-        Main UI coordinator
-        Wires together:
-        - SpawnSettings
-        - ActionButtons
-        - StatusDisplay
-      end note
-    }
-    
-    component "Spawn Settings" as SpawnSettings {
-      [SpawnSettingsUI]
-      
-      note right of SpawnSettingsUI
-        Single/Multi modes
-        Parameter controls
-        Conditional visibility
-      end note
-    }
-    
-    component "Actions" as Actions {
-      [ActionButtons]
-      
-      note right of ActionButtons
-        Spawn Tendroids
-        Start/Stop Animation
-        Clear All
-      end note
-    }
-    
-    component "Status" as Status {
-      [StatusDisplay]
-      
-      note right of StatusDisplay
-        Status messages
-        Tendroid count
-        Animation state
-      end note
-    }
-  }
-  
-  package "Utilities" UTILS_COLOR {
-    
-    component "Math" as Math {
-      [MathHelpers]
-      
-      note right of MathHelpers
-        smooth_step
-        ease_out_quartic
-        calculate_flare_radius
-        calculate_wave_displacement
-        calculate_wave_position
-      end note
-    }
+component "User Interface" <<UI>> {
+  [V2ControlPanel]
+  [WaveControls]
+  [BubbleControls]
+  [ActionButtons]
+}
+
+component "Scene Management" <<CPU>> {
+  [V2SceneManager]
+  [V2AnimationController]
+  [V2TendroidFactory]
+}
+
+component "Wave System" <<CPU>> {
+  [WaveController]
+  [WaveConfig]
+}
+
+component "GPU Deformation" <<GPU>> {
+  [BatchWarpDeformer]
+  [BatchDeformKernel]
+  component "Warp GPU Arrays" {
+    [base_points]
+    [out_points]
+    [wave_dx/dz]
   }
 }
 
-package "External Dependencies" EXTERNAL_COLOR {
-  
-  component "Omniverse" as Omniverse {
-    [USD Stage]
-    [UsdGeom]
-    [omni.ui]
-    [omni.kit]
-  }
-  
-  component "NVIDIA Warp" as Warp {
-    [Warp Runtime]
-    [CUDA Backend]
-  }
-  
-  component "NumPy" as NumPy {
-    [numpy]
-    [Perlin noise]
+component "Fabric Write" <<Fabric>> {
+  [FabricHelper]
+  [FabricStage (USDRT)]
+  [VtArray Write Ops]
+}
+
+component "Bubble Physics" <<GPU>> {
+  [BubbleGPUManager]
+  [BubblePhysics Kernel]
+  component "Bubble GPU State" {
+    [phases]
+    [positions]
+    [velocities]
   }
 }
 
-' Component relationships
+component "Particle System" <<GPU>> {
+  [PopParticleGPUManager]
+  [PopParticle Kernel]
+}
 
-ExtEntry --> SceneCoord : creates & manages
-ExtEntry --> ControlPanel : creates & owns
+component "USD Scene" {
+  [Tendroid Meshes]
+  [Bubble Spheres]
+  [Particle Sprites]
+  [Sea Floor]
+}
 
-' Config relationships
-ConfigSystem o-- ConfigDB : reads from
-USDCreation --> ConfigSystem : reads geometry params
-Breathing --> ConfigSystem : reads animation params
-CreationPatterns --> ConfigSystem : reads spawning params
-TerrainGen --> ConfigSystem : reads terrain params
-EnvSetup --> ConfigSystem : reads environment params
+component "OmniHydra Renderer" <<GPU>> {
+  [Rasterizer]
+  [Material Eval]
+  [Lighting]
+}
 
-ControlPanel --> SceneCoord : controls
-ControlPanel *-- SpawnSettings : contains
-ControlPanel *-- Actions : contains
-ControlPanel *-- Status : contains
+' User interactions
+[V2ControlPanel] --> [V2SceneManager] : spawn/clear/start/stop
+[WaveControls] --> [WaveController] : adjust parameters
+[BubbleControls] --> [BubbleGPUManager] : trigger bubbles
 
-Actions --> SceneCoord : calls methods
-Actions --> SpawnSettings : reads parameters
-Actions --> Status : updates display
+' Scene orchestration
+[V2SceneManager] --> [V2TendroidFactory] : create tendroids
+[V2SceneManager] --> [BatchWarpDeformer] : initialize
+[V2SceneManager] --> [V2AnimationController] : start/stop
 
-SceneCoord *-- AnimLoop : contains
-SceneCoord ..> CreationPatterns : uses
-SceneCoord ..> TerrainGen : uses
+' Animation loop (60 fps)
+[V2AnimationController] --> [WaveController] : update(dt)
+[WaveController] --> [WaveConfig] : read params
+[WaveController] ..> [wave_dx/dz] : compute displacement
 
-AnimLoop o-- TendroidComp : updates
+[V2AnimationController] --> [BubbleGPUManager] : update_gpu(dt)
+[BubbleGPUManager] --> [BubblePhysics Kernel] : launch
+[BubblePhysics Kernel] ..> [Bubble GPU State] : update
 
-CreationPatterns ..> TendroidComp : creates
-CreationPatterns ..> USDCreation : uses
+' Deformation pipeline
+[V2AnimationController] --> [BatchWarpDeformer] : deform_all()
+[BatchWarpDeformer] --> [BatchDeformKernel] : launch
+[BatchDeformKernel] ..> [base_points] : read
+[BatchDeformKernel] ..> [out_points] : write
+[BatchDeformKernel] ..> [wave_dx/dz] : read
 
-TendroidComp --> USDCreation : delegates creation
-TendroidComp --> Lifecycle : delegates lifecycle
-TendroidComp *-- Deformation : contains
-TendroidComp *-- Breathing : contains
-TendroidComp *-- Safety : contains
-TendroidComp *-- MeshUpdates : contains
+' Single GPU sync point
+[BatchWarpDeformer] ..> [out_points] : numpy() ONCE
+note on link: Critical: Single transfer\nfor all vertices
 
-USDCreation ..> Math : uses
-USDCreation ..> TerrainGen : conforms to terrain
-Deformation ..> Math : uses
-Breathing ..> Math : uses
-TerrainGen ..> Math : uses
+' Fabric write path
+[BatchWarpDeformer] --> [FabricHelper] : apply_to_meshes_fabric()
+[FabricHelper] --> [FabricStage (USDRT)] : get cached stage
+[FabricHelper] --> [VtArray Write Ops] : Set() per tendroid
 
-TendroidComp ..> Omniverse : uses USD API
-USDCreation --> Omniverse : creates prims
-MeshUpdates --> Omniverse : writes vertices
-TerrainGen --> Omniverse : creates mesh
-EnvSetup --> Omniverse : creates sky/lights
-ControlPanel --> Omniverse : uses omni.ui
+' Bubble visuals
+[V2AnimationController] ..> [Bubble GPU State] : read state
+[V2AnimationController] --> [Bubble Spheres] : update transforms
 
-Deformation --> Warp : launches kernels
-TerrainGen --> NumPy : Perlin noise generation
+' Particle spawns
+[BubbleGPUManager] --> [PopParticleGPUManager] : create pop spray
+[PopParticleGPUManager] --> [PopParticle Kernel] : launch
 
-interface "IExt" as IExtInterface
-ExtEntry .up.|> IExtInterface
+' USD update
+[VtArray Write Ops] --> [Tendroid Meshes] : vertex positions
+[Tendroid Meshes] --> [OmniHydra Renderer] : render queue
+[Bubble Spheres] --> [OmniHydra Renderer] : render queue
+[Particle Sprites] --> [OmniHydra Renderer] : render queue
+[Sea Floor] --> [OmniHydra Renderer] : render queue
 
-interface "Update Events" as UpdateInterface
-AnimLoop .up.|> UpdateInterface
-
-note as N1
-  **Data Flow**:
-  1. User interacts with UI
-  2. ActionButtons call SceneManager
-  3. SceneManager creates sea floor
-  4. SceneManager uses Factory
-  5. Factory creates Tendroids
-  6. Tendroids conform to terrain
-  7. AnimationController updates Tendroids
-  8. Tendroids use Warp for deformation
-  9. Deformed vertices written to USD
+note bottom of "GPU Deformation"
+  **Batch Processing**
+  - 15 tendroids × ~1200 vertices
+  - Single kernel launch
+  - ~1.0ms execution time
 end note
 
-note as N2
-  **Key Patterns**:
-  - Builder: USD creation
-  - Factory: Tendroid instantiation
-  - Lifecycle: State management
-  - Component: Specialized responsibilities
-  - Coordinator: SceneManager & ControlPanel
-  - Config: Hybrid JSON/Python system
+note bottom of "Fabric Write"
+  **Zero-Copy Pipeline**
+  - One GPU→CPU transfer
+  - Direct NumPy→VtArray
+  - No tolist() overhead
+  - ~0.8ms for 15 meshes
 end note
 
-note as N3
-  **Configuration System**:
-  All major components read
-  parameters from JSON config:
-  - Geometry (flare, segments)
-  - Animation (wave, amplitude)
-  - Spawning (count, area)
-  - Terrain (size, amplitude)
-  - Environment (sky, lights)
+note bottom of "Bubble Physics"
+  **GPU State Machine**
+  - 5 phases (idle/rising/exiting/released/popped)
+  - Wave momentum integration
+  - Elongation simulation
+  - ~0.5ms execution
+end note
+
+note right of "OmniHydra Renderer"
+  **Rendering Pipeline**
+  - Reads from Fabric GPU
+  - Zero-copy rendering
+  - "Deformable" tag required
+  - ~5.7ms per frame
+end note
+
+legend right
+  **Performance Breakdown (115 fps)**:
   
-  Provides runtime tweakability
-  without code changes
-end note
+  GPU Work: ~8.2ms (93%)
+  - Deformation: 1.0ms
+  - Fabric writes: 0.8ms
+  - Bubble physics: 0.5ms
+  - Particles: 0.2ms
+  - Rendering: 5.7ms
+  
+  CPU Work: ~0.5ms (6%)
+  - Wave calculations (NumPy)
+  
+  **Single GPU Sync Point**:
+  - BatchDeformKernel → numpy()
+  - Eliminated stuttering
+  - 60→115 fps improvement
+endlegend
 
 @enduml

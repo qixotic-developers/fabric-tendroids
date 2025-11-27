@@ -1,0 +1,264 @@
+== Tendroid Creatures
+
+=== Overview
+
+Tendroids are the primary entities in the system - cylindrical sea anemone-like creatures anchored to the sea floor. They exhibit lifelike behavior through:
+
+* Dynamic vertex deformation (GPU-accelerated)
+* Graduated wave motion from base to tip
+* Bubble breathing mechanics
+* Realistic material appearance
+
+=== Anatomy
+
+Each tendroid consists of:
+
+**Geometry**:
+
+* Cylindrical mesh (24 radial × 48 height segments)
+* Flared base for anchoring
+* Smooth surface topology
+* Tagged as "Deformable" for Fabric GPU rendering
+
+**Dimensions**:
+
+* Height: ~100 units (variable)
+* Radius: 8-12 units (random)
+* Base flare: 2× radius
+* Segments: ~1200 vertices total
+
+=== Lifecycle
+
+==== Creation
+
+[source,python]
+----
+# V2TendroidFactory creates batch of tendroids
+data = V2TendroidFactory.create_batch(
+    stage=stage,
+    count=15,
+    spawn_area=(400, 400),
+    radius_range=(8.0, 12.0)
+)
+
+# Each tendroid gets:
+# - USD mesh prim
+# - V2WarpDeformer
+# - Registered in BatchWarpDeformer
+----
+
+**Process**:
+
+1. Generate random spawn positions
+2. Conform to sea floor height
+3. Create USD cylinder mesh with "Deformable" tag
+4. Build vertex deformer
+5. Register in GPU batch system
+
+==== Animation
+
+Tendroids animate via GPU batch deformation:
+
+* **Wave Motion**: Graduated sway (anchored base → free tip)
+* **Bubble Deformation**: Radial bulge as bubble rises
+* **Fabric Updates**: Zero-copy mesh writes
+
+Performance: ~1.8ms for 15 tendroids (deformation + Fabric writes)
+
+==== Destruction
+
+[source,python]
+----
+scene_manager.clear_tendroids()
+# - Removes USD prims
+# - Destroys GPU arrays
+# - Frees deformers
+----
+
+=== Behavior Characteristics
+
+==== Anchoring
+
+* Base vertices remain at sea floor height
+* No translation of tendroid root
+* Only vertex deformation for motion
+
+==== Movement Patterns
+
+**Idle State**:
+
+* Gentle wave-induced sway
+* Graduated motion (0% at base → 100% at tip)
+* Natural underwater plant appearance
+
+**Breathing State**:
+
+* Additional deformation from bubble passage
+* Bulge follows bubble Y position
+* Returns to neutral after bubble exits
+
+==== Visual Appearance
+
+**Material**: OmniGlass preset
+
+* Translucent aqua/teal color
+* Slight subsurface scattering
+* Refractive properties
+* Responds to scene lighting
+
+**Mesh Quality**:
+
+* High segment count (48 height) for smooth deformation
+* "Deformable" tag enables Fabric GPU read
+* Double-sided rendering
+
+=== Technical Implementation
+
+==== V2WarpTendroid
+
+Core tendroid class integrating:
+
+[source,python]
+----
+class V2TendroidWrapper:
+    def __init__(self, name, position, mesh_prim, deformer):
+        self.name = name
+        self.position = position
+        self.mesh_prim = mesh_prim  # USD prim
+        self.deformer = deformer    # V2WarpDeformer
+----
+
+**Methods**:
+
+* `apply_deformation_with_wave_state()` - Bubble + wave
+* `apply_wave_only_with_state()` - Wave motion only
+
+==== V2WarpDeformer
+
+Per-tendroid deformation logic:
+
+* Stores base vertex positions
+* Computes deformation coefficients
+* Used by BatchWarpDeformer for GPU execution
+
+==== BatchWarpDeformer Integration
+
+Each tendroid registered in batch system:
+
+[source,python]
+----
+batch_deformer.register_tendroid(
+    tendroid=tendroid,
+    base_points=vertex_data
+)
+
+# Single GPU kernel processes ALL tendroids
+batch_deformer.deform_all()
+----
+
+**Advantages**:
+
+* Eliminates per-tendroid kernel overhead
+* Single GPU→CPU transfer
+* Parallel vertex processing
+
+=== Configuration
+
+Tendroid parameters from `tendroids_config.json`:
+
+[source,json]
+----
+{
+  "spawn_count": 15,
+  "spawn_area": [400, 400],
+  "radius_range": [8.0, 12.0],
+  "height": 100.0,
+  "radial_segments": 24,
+  "height_segments": 48,
+  "base_flare_radius_mult": 2.0
+}
+----
+
+**Tunable Parameters**:
+
+* `spawn_count`: Number of tendroids (impacts FPS)
+* `spawn_area`: Scatter range (XZ plane)
+* `radius_range`: Min/max cylinder radius
+* Segment counts affect mesh quality and performance
+
+=== Performance Characteristics
+
+==== Per-Tendroid Costs
+
+[cols="2,1"]
+|===
+|Operation |Time
+
+|Vertex deformation (GPU)
+|~0.067ms
+
+|Fabric mesh update
+|~0.053ms
+
+|Wave calculation (CPU)
+|~0.033ms
+
+|**Total per tendroid**
+|**~0.15ms**
+|===
+
+**Scaling**: Nearly linear up to 30-45 tendroids
+
+==== Memory Footprint
+
+Per tendroid:
+
+* Base vertices: ~38 KB (1200 × 12 bytes)
+* Deformed vertices: ~38 KB
+* GPU arrays: ~76 KB
+* USD mesh: Negligible (scene graph)
+
+**Total for 15**: ~1.1 MB (minimal)
+
+=== Best Practices
+
+==== Spawn Distribution
+
+* Use reasonable spawn area (400×400 works well)
+* Avoid overlapping tendroids (visual clutter)
+* Conform to sea floor for natural appearance
+
+==== Performance
+
+* Keep count ≤30 for 60+ fps
+* Monitor frame time with profiling enabled
+* Adjust segment counts for quality/performance trade-off
+
+==== Visual Quality
+
+* Height segments ≥48 for smooth deformation
+* Radial segments ≥24 for circular appearance
+* Use OmniGlass material for best results
+
+=== Known Behaviors
+
+**"That's Just How Tendroids Work"**:
+
+* Mouth closing is intentionally slow for smooth visuals
+* Wave motion continues during bubble passage (realistic)
+* No collision between adjacent tendroids (design choice)
+
+=== Future Enhancements
+
+**Planned**:
+
+* LOD system for distant tendroids
+* Swept torus topology for dynamic transparency
+* Customizable colors per tendroid
+* Bioluminescent glow effects
+
+**Under Consideration**:
+
+* Variable heights (currently uniform)
+* Clustered spawning patterns
+* Interactive grabbing/pulling physics

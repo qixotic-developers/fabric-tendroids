@@ -38,8 +38,7 @@ class V2ControlPanel:
         self.bubble_controls = BubbleControls()
         self.action_buttons = ActionButtons(
             self.scene_manager,
-            self.spawn_controls,
-            None  # No geometry controls
+            self.spawn_controls
         )
         
         carb.log_info("[V2ControlPanel] Initialized")

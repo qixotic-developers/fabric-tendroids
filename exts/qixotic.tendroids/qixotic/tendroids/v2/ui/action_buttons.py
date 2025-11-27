@@ -11,18 +11,16 @@ import omni.ui as ui
 class ActionButtons:
     """Action buttons with scene manager integration."""
     
-    def __init__(self, scene_manager, spawn_controls, geometry_controls):
+    def __init__(self, scene_manager, spawn_controls):
         """
         Initialize action buttons.
         
         Args:
             scene_manager: V2SceneManager instance
             spawn_controls: SpawnControls for reading parameters
-            geometry_controls: GeometryControls for reading parameters
         """
         self.scene_manager = scene_manager
         self.spawn_controls = spawn_controls
-        self.geometry_controls = geometry_controls
         self.status_callback = None  # Callback(str) for status updates
         
     def set_status_callback(self, callback):
@@ -74,12 +72,9 @@ class ActionButtons:
         try:
             sp = self.spawn_controls
             
-            # Use defaults if no geometry controls
+            # Use default geometry settings
             radial_segs = 24
             height_segs = 48
-            if self.geometry_controls:
-                radial_segs = self.geometry_controls.radial_segments
-                height_segs = self.geometry_controls.height_segments
             
             self._update_status(f"Spawning {sp.count} tendroids...")
             

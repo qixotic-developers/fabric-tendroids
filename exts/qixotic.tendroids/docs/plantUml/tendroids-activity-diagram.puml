@@ -1,286 +1,178 @@
-@startuml tendroids-activity-diagram
+@startuml tendroids-activity-diagram-v2
 
-title Tendroid Animation Update Activity Flow
+title Tendroids V2 Workflow - Spawn to Animate
 
-|AnimationController|
+|User Interface|
 start
+:User opens V2ControlPanel;
+:Set spawn parameters\n(count, area, radius);
 
-:Wait for update event;
+|Scene Manager|
+:User clicks "Spawn Tendroids";
+:V2SceneManager.create_tendroids();
 
-:Receive update event;
+|Builders|
+:V2TendroidFactory.create_batch();
+fork
+  :Generate random positions;
+fork again
+  :Conform to sea floor height;
+fork again
+  :Create USD cylinder meshes;
+  note right: CylinderGenerator\nwith "Deformable" tag
+end fork
 
-:Extract delta time (dt);
+|Scene Manager|
+:Create V2WarpTendroid for each;
+:Wrap in V2TendroidWrapper;
 
-note right
-  Default: 1/60 second
-  From event payload if available
-end note
-
-|#AntiqueWhite|Tendroid Processing Loop|
-
-partition "For Each Tendroid" {
-  
-  |Tendroid|
-  
-  :update(dt) called;
-  
-  if (is_created and is_active?) then (yes)
-    
-    if (All components initialized?) then (yes)
-      
-      |MaterialSafetyChecker|
-      
-      :Increment check_counter;
-      
-      if (check_counter >= 30?) then (yes)
-        
-        :Reset check_counter = 0;
-        
-        :Get USD material binding;
-        
-        :Extract material name and path;
-        
-        :Clean strings for matching;
-        
-        if (Contains glass keywords?) then (yes)
-          
-          :Set is_glass_material = True;
-          
-          :Set animation_disabled_reason;
-          
-          :Log ERROR:\n"GLASS MATERIAL DETECTED\nAnimation BLOCKED";
-          
-        else (no)
-          
-          :Set is_glass_material = False;
-          
-          :Log INFO: Material safe;
-          
-        endif
-        
-      else (no)
-        
-        :Skip check this frame;
-        
-      endif
-      
-      |Tendroid|
-      
-      if (Material safe for animation?) then (yes)
-        
-        |BreathingAnimator|
-        
-        :time += dt;
-        
-        :cycle_time = time % cycle_duration;
-        
-        if (cycle_time >= travel_time?) then (yes)
-          
-          :In delay period;
-          
-          :Return wave_center = -1000\nactive = False;
-          
-        else (no)
-          
-          :Calculate wave_position:\nwave_center = deform_start + (cycle_time * speed);
-          
-          :Return wave parameters:\n- wave_center\n- bulge_length\n- amplitude\n- active = True;
-          
-        endif
-        
-        |Tendroid|
-        
-        if (Wave active?) then (yes)
-          
-          |WarpDeformer|
-          
-          :Prepare Warp kernel inputs:\n- original_positions (conformed)\n- deformed_positions\n- wave_center\n- bulge_length\n- amplitude\n- deform_start_y;
-          
-          note right
-            original_positions include
-            terrain-conformed base vertices
-          end note
-          
-          :wp.launch(\nkernel=deform_breathing_bulge,\ndim=num_vertices,\ndevice="cuda");
-          
-          |#LightBlue|GPU Kernel Execution|
-          
-          partition "For Each Vertex (Parallel)" {
-            
-            :tid = wp.tid();
-            
-            :Get original position (x, y, z);
-            
-            if (y < deform_start_y?) then (yes)
-              
-              :Skip - below deformation zone\n(terrain-conformed base);
-              
-              :deformed = original;
-              
-            else (no)
-              
-              :Calculate radial_dist =\nsqrt(x² + z²);
-              
-              if (radial_dist < 0.001?) then (yes)
-                
-                :Skip - on axis;
-                
-                :deformed = original;
-                
-              else (no)
-                
-                :distance_from_center =\ny - wave_center;
-                
-                :half_bulge = bulge_length / 2;
-                
-                if (abs(distance_from_center) > half_bulge?) then (yes)
-                  
-                  :Outside bulge influence;
-                  
-                  :deformed = original;
-                  
-                else (no)
-                  
-                  :Calculate envelope:\nnormalized_dist =\ndistance_from_center / half_bulge;
-                  
-                  :envelope = 0.5 * (1 + cos(π * normalized_dist));
-                  
-                  note right
-                    Raised cosine provides
-                    smooth zero-to-peak-to-zero
-                  end note
-                  
-                  :displacement = 1 + (envelope * amplitude);
-                  
-                  :new_x = x * displacement;
-                  
-                  :new_z = z * displacement;
-                  
-                  :deformed = (new_x, y, new_z);
-                  
-                endif
-                
-              endif
-              
-            endif
-            
-            :Write to deformed_positions[tid];
-            
-          }
-          
-          |WarpDeformer|
-          
-          :GPU kernel complete;
-          
-          :Copy deformed_positions\nfrom CUDA to CPU (numpy);
-          
-          :Convert numpy array to\nlist of Gf.Vec3f;
-          
-          :Return deformed_vertices;
-          
-          |MeshVertexUpdater|
-          
-          :update_vertices(deformed_vertices);
-          
-          :mesh.GetPointsAttr().Set(\nVt.Vec3fArray(vertices));
-          
-          note right
-            Direct USD attribute write
-            Updates mesh in viewport
-            Base maintains terrain conforming
-          end note
-          
-          |Tendroid|
-          
-        else (no)
-          
-          :Wave inactive - no deformation;
-          
-        endif
-        
-        |BreathingAnimator|
-        
-        :Check wave position;
-        
-        if (wave_center >= length * 0.95?) then (yes)
-          
-          if (Enough time since last bubble?) then (yes)
-            
-            :Mark bubble emission;
-            
-            :last_bubble_time = time;
-            
-            |Tendroid|
-            
-            :_emit_bubble();
-            
-            note right
-              Phase 2 feature
-              Currently logs only
-              Future: Create sphere prim
-            end note
-            
-          else (no)
-            
-            :Too soon for next bubble;
-            
-          endif
-          
-        else (no)
-          
-          :Wave not at top yet;
-          
-        endif
-        
-      else (no)
-        
-        :Material unsafe - skip all updates;
-        
-        note right
-          SAFETY: Glass material detected
-          Animation completely blocked
-          No GPU operations performed
-        end note
-        
-      endif
-      
-    else (no)
-      
-      :Components not initialized;
-      
-      :Skip update;
-      
-    endif
-    
-  else (no)
-    
-    :Tendroid not active or not created;
-    
-    :Skip update;
-    
-  endif
-  
-  |Tendroid|
-  
-  :Update complete for this Tendroid;
-  
+|GPU Initialization|
+:Initialize BatchWarpDeformer;
+partition "GPU Setup" {
+  :Allocate base_points array;
+  :Allocate out_points array;
+  :Allocate vertex_tendroid_ids;
+  :Build batch arrays on GPU;
 }
 
-|AnimationController|
+:Initialize BubblePhysicsAdapter;
+partition "Bubble GPU Setup" {
+  :Allocate bubble state arrays;
+  :Allocate particle arrays;
+  :Create GPU managers;
+}
 
-:All Tendroids updated;
+|UI Update|
+:Display tendroid count;
+:Enable animation controls;
 
-:Frame complete;
+|User Interface|
+:User clicks "Start Animation";
 
-stop
+|Animation Controller|
+:V2AnimationController.start();
+:Subscribe to update events;
+:Initialize wave controller;
+:Enable Fabric write path;
 
-note bottom
-  Update loop repeats every frame
-  Typically 60 FPS = ~16.67ms per frame
-  Target: All updates complete within budget
+repeat :Wait for frame event (60 fps);
   
-  Terrain conforming done once at creation
-  Base vertices stay conformed during animation
+  |Wave System|
+  :WaveController.update(dt);
+  :Compute wave displacement (NumPy);
+  :Generate wave_state dict;
+  
+  |Bubble System|
+  :BubblePhysicsAdapter.update_gpu(dt);
+  partition "GPU Bubble Physics" {
+    :Launch BubblePhysics kernel;
+    :Update all bubble states;
+    :Integrate wave momentum;
+  }
+  :Download bubble states (single transfer);
+  
+  |Deformation System|
+  :BatchWarpDeformer.update_states();
+  :Update bubble_y, bubble_radius arrays;
+  :Update wave_dx, wave_dz arrays;
+  
+  partition "GPU Deformation" {
+    :Launch BatchDeformKernel;
+    :Deform ALL vertices;
+    :Apply wave displacement;
+  }
+  
+  :Download vertices (single numpy());
+  
+  |Fabric Write|
+  partition "Fabric GPU Write" {
+    :Get cached Fabric stage;
+    fork
+      :Set mesh 0 points;
+    fork again
+      :Set mesh 1 points;
+    fork again
+      :Set mesh N points;
+    end fork
+  }
+  
+  |Visual Updates|
+  :Update bubble sphere transforms;
+  :Update bubble visibility;
+  :Update particle positions;
+  
+  |Rendering|
+  partition "OmniHydra" {
+    :Read Fabric GPU data (zero-copy);
+    :Rasterize geometry;
+    :Evaluate materials;
+    :Compute lighting;
+    :Display frame;
+  }
+
+repeat while (Animation running?) is (yes)
+
+|User Interface|
+:User clicks "Stop Animation";
+
+|Animation Controller|
+:V2AnimationController.stop();
+:Unsubscribe from events;
+:Log performance statistics;
+
+if (User clicks "Clear All"?) then (yes)
+  |Scene Manager|
+  :Stop animation;
+  :Clear bubble managers;
+  :Destroy GPU resources;
+  :Remove USD prims;
+  :Reset state;
+  stop
+else (no)
+  |User Interface|
+  :Ready for restart;
+  stop
+endif
+
+note right of "GPU Bubble Physics"
+  **Performance**: ~0.5ms
+  - All bubbles in parallel
+  - State machine on GPU
+  - Wave integration on GPU
 end note
+
+note right of "GPU Deformation"
+  **Performance**: ~1.0ms
+  - All vertices in parallel
+  - Single kernel launch
+  - 15 tendroids × 1200 vertices
+end note
+
+note right of "Fabric GPU Write"
+  **Performance**: ~0.8ms
+  - 15 VtArray.Set() calls
+  - Direct NumPy→Fabric
+  - No tolist() overhead
+end note
+
+note right of "OmniHydra"
+  **Performance**: ~5.7ms
+  - Largest single cost
+  - Zero-copy from Fabric
+  - "Deformable" tag required
+end note
+
+legend right
+  **Total Performance**:
+  - Frame time: ~8.7ms
+  - FPS: 115 (15 tendroids)
+  - GPU utilization: 93%
+  
+  **GPU Optimizations**:
+  - Batch deformation kernel
+  - Fabric write path
+  - GPU bubble physics
+  - Single sync point
+endlegend
 
 @enduml

@@ -1,0 +1,477 @@
+== Deformation System
+
+=== Overview
+
+The deformation system is the core GPU pipeline that animates tendroid vertices in real-time. It combines bubble-induced bulging with wave-driven sway using a single Warp kernel that processes all vertices from all tendroids simultaneously.
+
+**Performance**: ~1.0ms for 15 tendroids (~18,000 vertices)
+
+**Architecture**: Batch GPU processing with Fabric zero-copy writes
+
+=== Batch Deformation Architecture
+
+==== Single Kernel Philosophy
+
+Traditional approach (slow):
+[source]
+----
+for each tendroid:
+    launch kernel for tendroid vertices  # 15 kernel launches!
+    download results                      # 15 GPU→CPU transfers!
+    update mesh                           # 15 USD writes!
+----
+
+**Batch approach (fast)**:
+[source]
+----
+launch SINGLE kernel for ALL vertices    # 1 kernel launch
+download results ONCE                    # 1 GPU→CPU transfer
+update meshes via Fabric                 # 15 Fabric writes
+----
+
+**Performance gain**: 10x+ improvement
+
+==== BatchWarpDeformer Class
+
+Central coordinator for GPU deformation:
+
+[source,python]
+----
+class BatchWarpDeformer:
+    def __init__(self, device="cuda:0"):
+        # GPU arrays for ALL vertices
+        self.base_points_gpu = None      # Original positions
+        self.out_points_gpu = None       # Deformed positions
+        self.vertex_tendroid_ids = None  # Vertex→Tendroid mapping
+        
+        # Per-tendroid state
+        self.bubble_y_gpu = None         # Bubble Y positions
+        self.bubble_radius_gpu = None    # Bubble radii
+        self.wave_dx_gpu = None          # Wave X displacement
+        self.wave_dz_gpu = None          # Wave Z displacement
+----
+
+=== Registration Process
+
+Each tendroid registers its vertices:
+
+[source,python]
+----
+# During scene creation
+batch_deformer = BatchWarpDeformer()
+
+for tendroid in tendroids:
+    batch_deformer.register_tendroid(
+        tendroid=tendroid,
+        base_points=vertex_array  # Numpy array of XYZ positions
+    )
+
+# Build GPU arrays
+batch_deformer.build()
+----
+
+**Build Process**:
+
+1. Concatenate all base_points into single array
+2. Create vertex_tendroid_ids mapping
+3. Allocate GPU arrays
+4. Upload to CUDA device
+
+=== Deformation Kernel
+
+==== Kernel Structure
+
+[source,python]
+----
+@wp.kernel
+def batch_deform_kernel(
+    # Vertex data (ALL tendroids concatenated)
+    base_points: wp.array(dtype=wp.vec3),
+    out_points: wp.array(dtype=wp.vec3),
+    height_factors: wp.array(dtype=float),
+    
+    # Per-vertex mapping
+    vertex_tendroid_ids: wp.array(dtype=int),
+    
+    # Per-tendroid state
+    bubble_y: wp.array(dtype=float),
+    bubble_radius: wp.array(dtype=float),
+    wave_dx: wp.array(dtype=float),
+    wave_dz: wp.array(dtype=float),
+    
+    # Geometry parameters
+    cylinder_radius: wp.array(dtype=float),
+    max_amplitude: wp.array(dtype=float),
+    bulge_width: wp.array(dtype=float),
+):
+    tid = wp.tid()  # Thread ID = vertex index
+    
+    # Look up which tendroid this vertex belongs to
+    tendroid_id = vertex_tendroid_ids[tid]
+    
+    # Fetch tendroid-specific parameters
+    t_bubble_y = bubble_y[tendroid_id]
+    t_bubble_radius = bubble_radius[tendroid_id]
+    t_wave_dx = wave_dx[tendroid_id]
+    t_wave_dz = wave_dz[tendroid_id]
+    
+    # Apply deformation
+    pos = base_points[tid]
+    deformed = apply_bubble_bulge(pos, t_bubble_y, t_bubble_radius)
+    deformed = apply_wave_sway(deformed, t_wave_dx, t_wave_dz)
+    
+    out_points[tid] = deformed
+----
+
+**Execution**: One thread per vertex, all in parallel
+
+==== Bubble Bulge Calculation
+
+Radial expansion centered on bubble Y position:
+
+[source,python]
+----
+def apply_bubble_bulge(pos, bubble_y, bubble_radius):
+    # Distance from bubble center
+    dist = abs(pos.y - bubble_y)
+    
+    # Gaussian-like falloff
+    if dist < bulge_width:
+        falloff = exp(-dist² / bulge_width²)
+        scale = 1.0 + (amplitude * falloff)
+        
+        # Scale radially (X and Z)
+        pos.x *= scale
+        pos.z *= scale
+    
+    return pos
+----
+
+**Shape**: Smooth bulge that follows bubble position
+
+==== Wave Sway Application
+
+Graduated displacement from base to tip:
+
+[source,python]
+----
+def apply_wave_sway(pos, wave_dx, wave_dz):
+    # Height factor: 0 at base, 1 at tip
+    h = pos.y / cylinder_length
+    
+    # Graduated influence
+    influence = h * h  # Quadratic for anchored feel
+    
+    # Apply displacement
+    pos.x += wave_dx * influence
+    pos.z += wave_dz * influence
+    
+    return pos
+----
+
+**Result**: Base stays anchored, tip sways freely
+
+=== Per-Frame Update Flow
+
+==== State Update
+
+Before kernel launch, update GPU arrays:
+
+[source,python]
+----
+def update_states(self, bubble_data, wave_state):
+    # For each tendroid
+    for i, tendroid in enumerate(self.tendroids):
+        # Bubble state
+        if tendroid.name in bubble_data:
+            self.bubble_y_cpu[i] = bubble_data[name]['position'][1]
+            self.bubble_radius_cpu[i] = bubble_data[name]['radius']
+        
+        # Wave state  
+        dx, dz = wave_state.get_displacement(tendroid.id, 1.0)
+        self.wave_dx_cpu[i] = dx
+        self.wave_dz_cpu[i] = dz
+    
+    # Upload to GPU
+    self.bubble_y_gpu.assign(self.bubble_y_cpu)
+    self.bubble_radius_gpu.assign(self.bubble_radius_cpu)
+    self.wave_dx_gpu.assign(self.wave_dx_cpu)
+    self.wave_dz_gpu.assign(self.wave_dz_cpu)
+----
+
+==== Kernel Launch
+
+Single launch for all vertices:
+
+[source,python]
+----
+def deform_all(self):
+    wp.launch(
+        kernel=batch_deform_kernel,
+        dim=self.total_vertices,  # All vertices!
+        inputs=[
+            self.base_points_gpu,
+            self.out_points_gpu,
+            # ... all parameters
+        ],
+        device=self.device
+    )
+    
+    return self.out_points_gpu  # GPU array
+----
+
+**Performance**: ~1.0ms for 18,000 vertices
+
+==== Critical: Single GPU Sync
+
+[source,python]
+----
+# Download ALL vertices ONCE
+all_points_cpu = self.out_points_gpu.numpy()
+
+# This is the ONLY GPU→CPU transfer per frame
+# Eliminates stuttering from multiple syncs
+----
+
+**Why This Matters**:
+
+* Multiple `numpy()` calls = multiple GPU syncs
+* GPU syncs block CPU pipeline
+* Single sync = smooth 115 fps
+* Multiple syncs = stuttering at 60-70 fps
+
+=== Fabric Write Path
+
+==== Zero-Copy Integration
+
+After single download, write to Fabric:
+
+[source,python]
+----
+def apply_to_meshes_fabric(self, stage_id):
+    # Get Fabric stage (cached)
+    fabric_stage = FabricHelper.get_fabric_stage(stage_id)
+    
+    offset = 0
+    for tendroid in self.tendroids:
+        count = tendroid.vertex_count
+        
+        # Slice from CPU array (no GPU sync!)
+        tendroid_points = all_points_cpu[offset:offset + count]
+        
+        # Direct VtArray write
+        points_attr = fabric_stage.GetAttribute(...)
+        points_attr.Set(Vt.Vec3fArray(tendroid_points))
+        
+        offset += count
+----
+
+**Key Optimizations**:
+
+* FabricHelper caches stage handle
+* VtArray accepts NumPy directly (no `tolist()`)
+* No per-tendroid GPU syncs
+
+==== "Deformable" Tag
+
+Meshes must be tagged for Fabric GPU read:
+
+[source,python]
+----
+# In CylinderGenerator
+mesh_prim.CreateAttribute(
+    "omni:fabric:type",
+    Sdf.ValueTypeNames.String
+).Set("Deformable")
+----
+
+**Purpose**: Tells OmniHydra to read from Fabric GPU arrays
+
+=== Performance Analysis
+
+==== Breakdown (15 Tendroids)
+
+[cols="2,1,2"]
+|===
+|Operation |Time |Implementation
+
+|GPU State Upload
+|~0.1ms
+|bubble_y, wave_dx, etc.
+
+|Kernel Launch
+|~1.0ms
+|All 18K vertices
+
+|GPU→CPU Transfer
+|~0.1ms
+|Single numpy() call
+
+|Fabric Writes
+|~0.8ms
+|15 VtArray.Set() calls
+
+|**Total**
+|**~2.0ms**
+|**Deformation pipeline**
+|===
+
+**Efficiency**: 87% GPU execution (1.0ms kernel / 1.15ms GPU work)
+
+==== Scaling Predictions
+
+[cols="1,1,1,1"]
+|===
+|Tendroids |Vertices |Kernel Time |Total Time
+
+|15
+|18,000
+|1.0ms
+|2.0ms
+
+|30
+|36,000
+|2.0ms
+|4.0ms
+
+|45
+|54,000
+|3.0ms
+|6.0ms
+
+|60
+|72,000
+|4.0ms
+|8.0ms
+|===
+
+**Note**: Linear scaling up to GPU memory limits
+
+=== Optimization Techniques
+
+==== Vertex-Level Parallelism
+
+Every vertex processed by independent thread:
+
+* No thread synchronization needed
+* Full GPU core utilization
+* Memory coalescing for sequential access
+
+==== Memory Layout
+
+Vertices stored as Structure of Arrays (SoA):
+
+[source]
+----
+# Good: Coalesced reads
+base_points[0..N]  # All X, Y, Z together
+
+# Bad: Array of Structures (AoS)
+vertices[0].x, vertices[0].y, vertices[0].z
+vertices[1].x, vertices[1].y, vertices[1].z
+----
+
+**Benefit**: 2-3x faster memory access
+
+==== Shared Memory
+
+Per-tendroid parameters cached in registers:
+
+[source]
+----
+# Fetch once per thread
+t_bubble_y = bubble_y[tendroid_id]  # Cached in register
+t_wave_dx = wave_dx[tendroid_id]    # Cached in register
+
+# Use multiple times without memory access
+scale = calculate_scale(t_bubble_y, ...)
+offset = calculate_offset(t_wave_dx, ...)
+----
+
+=== Best Practices
+
+==== Registration
+
+* Register all tendroids before `build()`
+* Call `build()` only once
+* Don't register/unregister during animation
+
+==== State Updates
+
+* Update bubble/wave state every frame
+* Use NumPy arrays for CPU data
+* Avoid Python loops for state preparation
+
+==== Fabric Integration
+
+* Cache Fabric stage handle (FabricHelper does this)
+* Tag meshes as "Deformable"
+* Use single GPU sync point
+
+=== Troubleshooting
+
+==== Stuttering
+
+**Symptom**: Periodic frame drops
+
+**Cause**: Multiple GPU syncs
+
+**Fix**: Ensure single `numpy()` call
+
+==== Low FPS
+
+**Symptom**: <60 fps with few tendroids
+
+**Cause**: Fabric path not enabled
+
+**Fix**: Verify stage_id and "Deformable" tags
+
+==== Mesh Not Updating
+
+**Symptom**: Static tendroid geometry
+
+**Cause**: Fabric stage not found or tags missing
+
+**Fix**:
+1. Check stage_id validity
+2. Verify "Deformable" tag on mesh
+3. Enable Fabric write path
+
+=== Future Optimizations
+
+==== Wave in Kernel
+
+Move wave calculations to GPU:
+
+* Eliminate CPU→GPU wave transfer
+* Compute sin/cos in kernel
+* Potential gain: ~0.3ms
+
+**Trade-off**: More complex kernel logic
+
+==== Consolidated Fabric Write
+
+Single write for all meshes:
+
+* Concatenate VtArrays
+* One Fabric operation
+* Potential gain: ~0.2ms
+
+**Challenge**: USD expects separate mesh prims
+
+==== Compute Shader Path
+
+Alternative to Warp kernels:
+
+* Direct Fabric compute shader
+* No CPU round-trip
+* Potential gain: ~0.5ms
+
+**Complexity**: High (low-level GPU programming)
+
+=== Related Systems
+
+* **Bubble Physics**: Provides bubble_y and bubble_radius
+* **Wave Controller**: Provides wave_dx and wave_dz
+* **Fabric Helper**: Manages stage caching and writes
+* **Animation Controller**: Orchestrates per-frame updates

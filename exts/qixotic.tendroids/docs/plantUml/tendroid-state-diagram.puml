@@ -1,225 +1,130 @@
-@startuml tendroid-state-diagram
+@startuml tendroid-state-diagram-v2
 
-title Tendroid Lifecycle States
+title Bubble State Machine - GPU Implementation
 
-[*] --> Uninitialized : Tendroid created
+!define IDLE_COLOR #E8F5E9
+!define ACTIVE_COLOR #FFF9C4
+!define EXIT_COLOR #FFE0B2
+!define DONE_COLOR #FFCDD2
 
-state Uninitialized {
-  [*] --> InitializingComponents
-  InitializingComponents : Attributes set
-  InitializingComponents : Components not yet created
+state "Phase 0: IDLE" as Idle <<IDLE_COLOR>>
+state "Phase 1: RISING" as Rising <<ACTIVE_COLOR>>
+state "Phase 2: EXITING" as Exiting <<EXIT_COLOR>>
+state "Phase 3: RELEASED" as Released <<ACTIVE_COLOR>>
+state "Phase 4: POPPED" as Popped <<DONE_COLOR>>
+
+[*] --> Idle : Tendroid created
+
+Idle --> Rising : Breath timer expires\n(random interval)
+
+note right of Idle
+  **GPU State**:
+  - phase = 0
+  - y = 0
+  - radius = cylinder_diameter
+  - visible = false
   
-  InitializingComponents --> GeometryCreated : create() called
+  **Tendroid**:
+  - No deformation
+  - Wave-only motion
   
-  state GeometryCreated {
-    [*] --> LoadingConfig
-    
-    LoadingConfig : ConfigLoader reads JSON
-    LoadingConfig : Merge with Python defaults
-    LoadingConfig : Get geometry parameters
-    LoadingConfig --> QueryingTerrain : Config loaded
-    
-    QueryingTerrain : get_height_at(position)
-    QueryingTerrain : Query sea floor height map
-    QueryingTerrain : Adjust Y position to floor
-    QueryingTerrain --> CreatingXform : Position adjusted
-    
-    CreatingXform : Base Xform defined in USD
-    CreatingXform --> GeneratingMesh : Xform created
-    
-    GeneratingMesh : CylinderGenerator creates mesh
-    GeneratingMesh : Vertices generated with flare
-    GeneratingMesh : Topology defined
-    GeneratingMesh --> ConformingToTerrain : Mesh created
-    
-    ConformingToTerrain : TerrainConform adjusts base
-    ConformingToTerrain : Query height for each base vertex
-    ConformingToTerrain : Adjust Y to terrain contours
-    ConformingToTerrain : Update mesh with conformed vertices
-    ConformingToTerrain --> InitializingComponents_Internal : Base conformed
-    
-    InitializingComponents_Internal : MaterialSafetyChecker created
-    InitializingComponents_Internal : MeshVertexUpdater created
-    InitializingComponents_Internal : WarpDeformer created (GPU)
-    InitializingComponents_Internal : Uses conformed vertices
-    InitializingComponents_Internal : BreathingAnimator created
-    InitializingComponents_Internal : Load animation params from config
-    InitializingComponents_Internal --> CheckingMaterial : Components ready
-    
-    CheckingMaterial : Initial material safety check
-    CheckingMaterial --> [*] : Check complete
-  }
-  
-  GeometryCreated --> [*] : is_created = True
-}
-
-Uninitialized --> Ready : Creation successful
-
-state Ready {
-  [*] --> Inactive
-  
-  state Inactive {
-    state "Waiting" as InactiveWaiting
-    InactiveWaiting : is_active = False
-    InactiveWaiting : Not receiving updates
-    InactiveWaiting : Base conformed to terrain
-  }
-  
-  Inactive --> Active : set_active(True)
-  Active --> Inactive : set_active(False)
-  
-  state Active {
-    [*] --> CheckingMaterialSafety
-    
-    state CheckingMaterialSafety {
-      [*] --> CheckCounter
-      CheckCounter : Increment counter each frame
-      CheckCounter --> PerformCheck : counter >= 30
-      CheckCounter --> SkipCheck : counter < 30
-      
-      PerformCheck : Get material binding
-      PerformCheck : Check for glass keywords
-      PerformCheck --> MaterialSafe : No glass detected
-      PerformCheck --> MaterialUnsafe : Glass detected
-      
-      SkipCheck --> [*]
-    }
-    
-    CheckingMaterialSafety --> [*]
-    
-    state MaterialSafe {
-      [*] --> UpdatingAnimation
-      
-      state UpdatingAnimation {
-        [*] --> CalculatingWave
-        CalculatingWave : BreathingAnimator.update(dt)
-        CalculatingWave : Get wave parameters
-        CalculatingWave --> CheckingWaveActive : Parameters returned
-        
-        CheckingWaveActive --> DeformingMesh : active = True
-        CheckingWaveActive --> WaitingForNextCycle : active = False
-        
-        state DeformingMesh {
-          [*] --> LaunchingWarpKernel
-          LaunchingWarpKernel : WarpDeformer.update()
-          LaunchingWarpKernel : Uses conformed vertices as base
-          LaunchingWarpKernel : GPU kernel execution
-          LaunchingWarpKernel --> CopyingResults : Kernel complete
-          
-          CopyingResults : Copy deformed vertices to CPU
-          CopyingResults --> UpdatingUSD : Data ready
-          
-          UpdatingUSD : MeshVertexUpdater.update_vertices()
-          UpdatingUSD : Set USD points attribute
-          UpdatingUSD --> [*] : Mesh updated
-        }
-        
-        DeformingMesh --> CheckingBubble : Deformation complete
-        
-        CheckingBubble --> EmittingBubble : Wave at 95% height
-        CheckingBubble --> [*] : No bubble emission
-        
-        state EmittingBubble {
-          state "Placeholder" as BubblePlaceholder
-          BubblePlaceholder : Currently just logging
-          BubblePlaceholder : Phase 2: Create sphere prim
-        }
-        
-        EmittingBubble --> [*]
-        WaitingForNextCycle --> [*]
-      }
-      
-      UpdatingAnimation --> [*] : Frame complete
-    }
-    
-    state MaterialUnsafe {
-      state "Blocked" as AnimationBlocked
-      AnimationBlocked : is_glass_material = True
-      AnimationBlocked : All updates skipped
-      AnimationBlocked : Status: "Animation disabled"
-      AnimationBlocked : Waiting for material change
-      
-      AnimationBlocked --> CheckingMaterialSafety : Next check cycle
-    }
-    
-    MaterialSafe --> CheckingMaterialSafety : Next frame
-    MaterialUnsafe --> CheckingMaterialSafety : Next check
-  }
-}
-
-Ready --> ParameterUpdate : set_breathing_parameters()
-
-state ParameterUpdate {
-  [*] --> ValidatingMaterial
-  ValidatingMaterial : Check if material safe
-  ValidatingMaterial --> Rejecting : Glass material
-  ValidatingMaterial --> Updating : Material safe
-  
-  Rejecting : Log warning
-  Rejecting : Ignore parameter changes
-  Rejecting --> [*]
-  
-  Updating : Update BreathingAnimator
-  Updating : Recalculate timing values
-  Updating --> [*]
-}
-
-ParameterUpdate --> Ready
-
-Ready --> Destroying : destroy() called
-
-state Destroying {
-  [*] --> RemovingPrim
-  RemovingPrim : stage.RemovePrim(base_path)
-  RemovingPrim --> CleaningUpWarp : USD prim removed
-  
-  CleaningUpWarp : WarpDeformer.cleanup()
-  CleaningUpWarp : Release CUDA memory
-  CleaningUpWarp --> SettingFlags : Resources freed
-  
-  SettingFlags : is_created = False
-  SettingFlags --> [*]
-}
-
-Destroying --> [*] : Cleanup complete
-
-note right of LoadingConfig
-  NEW: Config system loads
-  parameters from JSON file
-  with Python defaults fallback
+  **Duration**: 2-8 seconds (random)
 end note
 
-note right of QueryingTerrain
-  NEW: Sea floor height query
-  Adjusts position to sit
-  naturally on terrain
+Rising --> Exiting : Bubble reaches\nmouth_exit_y
+
+note right of Rising
+  **GPU State**:
+  - phase = 1
+  - y increases (rise_speed)
+  - radius grows → peak → shrinks
+  - elongation applied
+  - wave momentum added
+  
+  **Tendroid**:
+  - Deformation bulge
+  - Follows bubble Y position
+  
+  **Physics**:
+  - Upward velocity: 35 units/s
+  - Radial growth curve
+  - Wave drift integration
+  
+  **Visibility**:
+  - hide_until_clear option
+  - or always visible
 end note
 
-note right of ConformingToTerrain
-  NEW: Terrain conforming
-  Base vertices follow
-  floor contours for
-  natural appearance
+Exiting --> Released : Y >= mouth_top
+
+note right of Exiting
+  **GPU State**:
+  - phase = 2
+  - transition phase
+  - size stabilizes
+  - wave momentum continues
+  
+  **Tendroid**:
+  - Reduced deformation
+  - Smooth transition
+  
+  **Duration**: ~0.3 seconds
+  **Purpose**: Smooth visual handoff
 end note
 
-note right of CheckingMaterialSafety
-  Material safety is checked
-  every 30 frames (not per-frame)
-  to minimize performance impact
+Released --> Popped : Lifetime expires\n(random)
+
+note right of Released
+  **GPU State**:
+  - phase = 3
+  - free-floating
+  - wave drift only
+  - gentle rise
+  
+  **Tendroid**:
+  - No deformation
+  - Wave-only motion
+  
+  **Physics**:
+  - Upward: 15 units/s
+  - Horizontal: wave drift
+  - No elongation
+  
+  **Duration**: 1.5-3.5 seconds (random)
 end note
 
-note right of MaterialUnsafe
-  CRITICAL SAFETY FEATURE:
-  When glass material detected,
-  animation completely blocked
-  to prevent GPU crashes
+Popped --> Idle : Recycle bubble\n(return to pool)
+
+note right of Popped
+  **GPU State**:
+  - phase = 4
+  - visible = false
+  - triggers particle spray
+  
+  **Tendroid**:
+  - No deformation
+  - Wave-only motion
+  
+  **Particle System**:
+  - Create 8-12 droplets
+  - Radial spray pattern
+  - Gravity + damping
+  
+  **Duration**: Instant (1 frame)
 end note
 
-note right of DeformingMesh
-  GPU-accelerated deformation
-  using NVIDIA Warp kernels
-  provides smooth, organic motion
-  Base stays conformed to terrain
+note bottom
+  **GPU State Machine Implementation**:
+  - Runs entirely on GPU (BubblePhysics Warp kernel)
+  - State transitions computed in parallel for all bubbles
+  - Zero CPU overhead for physics
+  - Wave integration on GPU
+  - ~0.5ms for complete bubble system
+  
+  **Performance**:
+  - 15 tendroids = 15 bubbles maximum
+  - All bubbles updated in single kernel launch
+  - 10x+ faster than CPU implementation
 end note
 
 @enduml

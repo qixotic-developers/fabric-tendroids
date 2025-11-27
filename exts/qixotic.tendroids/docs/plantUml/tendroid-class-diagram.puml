@@ -1,461 +1,186 @@
-@startuml tendroid-class-diagram
+@startuml tendroid-class-diagram-v2
 
-!define CORE_COLOR #E1F5FE
-!define ANIMATION_COLOR #F3E5F5
-!define SCENE_COLOR #E8F5E9
-!define SEA_FLOOR_COLOR #B2EBF2
-!define CONFIG_COLOR #C8E6C9
-!define UI_COLOR #FFF9C4
-!define UTILS_COLOR #FFE0B2
+title Tendroids V2 Key Classes - GPU Architecture
 
-skinparam packageStyle rectangle
-skinparam classFontSize 11
-skinparam classAttributeFontSize 10
+!define GPU_COLOR #FFCDD2
+!define FABRIC_COLOR #B39DDB
 
-package "config" CONFIG_COLOR {
-  class ConfigLoader <<static>> {
-    - _config_cache: Dict[str, Any]
-    - _config_path: str
-    __
-    {static} + get_config_path(): str
-    {static} + load_json(): Dict[str, Any]
-    {static} + reload(): Dict[str, Any]
-    {static} + merge_with_dataclass(instance, section, **overrides)
-    {static} + get_value(*path, default): Any
-  }
-  
-  class get_config_value <<function>> {
-    + (*path, default): Any
-  }
+class V2SceneManager {
+  - tendroids: list[V2TendroidWrapper]
+  - batch_deformer: BatchWarpDeformer
+  - bubble_manager: V2BubbleManager
+  - gpu_bubble_adapter: BubblePhysicsAdapter
+  - animation_controller: V2AnimationController
+  --
+  + create_tendroids(count, spawn_area)
+  + start_animation()
+  + stop_animation()
+  + clear_tendroids()
 }
 
-package "core" CORE_COLOR {
-  class Tendroid {
-    - name: str
-    - position: tuple
-    - radius: float
-    - length: float
-    - num_segments: int
-    - radial_resolution: int
-    - base_path: str
-    - mesh_path: str
-    - mesh_prim: UsdPrim
-    - warp_deformer: WarpDeformer
-    - breathing_animator: BreathingAnimator
-    - material_safety: MaterialSafetyChecker
-    - mesh_updater: MeshVertexUpdater
-    - deform_start_height: float
-    - _initial_vertices: list
-    - _flare_height: float
-    - is_created: bool
-    - is_active: bool
-    __
-    + create(stage, parent_path): bool
-    + update(dt: float): void
-    + set_active(active: bool): void
-    + set_breathing_parameters(**kwargs): void
-    + destroy(stage): void
-    + get_top_position(): tuple
-    + is_animation_enabled(): bool
-    + get_status_message(): str
-  }
-  
-  class TendroidBuilder <<static>> {
-    {static} + create_in_stage(tendroid, stage, parent_path): bool
-    {static} - _create_usd_geometry(tendroid, stage, parent_path): bool
-    {static} - _conform_base_to_terrain(tendroid): bool
-    {static} - _initialize_components(tendroid): bool
-    {static} - _log_creation_status(tendroid): void
-  }
-  
-  class TendroidLifecycle <<static>> {
-    {static} + set_active(tendroid, active: bool): void
-    {static} + set_breathing_parameters(tendroid, **kwargs): void
-    {static} + destroy(tendroid, stage): void
-    {static} + get_top_position(tendroid): tuple
-    {static} + is_animation_enabled(tendroid): bool
-    {static} + get_status_message(tendroid): str
-  }
-  
-  class CylinderGenerator <<static>> {
-    {static} + create_tendroid_cylinder(stage, path, radius, length, num_segments, radial_resolution, flare_height_percent, flare_radius_multiplier): tuple
-  }
-  
-  class TerrainConform <<static>> {
-    {static} + conform_base_to_terrain(vertices, base_position, flare_height, num_segments, radial_resolution): list
-  }
-  
-  class WarpDeformer {
-    - deform_start_height: float
-    - num_vertices: int
-    - original_positions: wp.array
-    - deformed_positions: wp.array
-    __
-    + __init__(original_vertices, deform_start_height)
-    + update(wave_center, bulge_length, amplitude): list
-    + cleanup(): void
-  }
-  
-  class MaterialSafetyChecker {
-    - mesh_path: str
-    - check_interval: int
-    - check_counter: int
-    - is_glass_material: bool
-    - animation_disabled_reason: str
-    - glass_keywords: list
-    __
-    + __init__(mesh_path, check_interval)
-    + check_material(): bool
-    + should_check_now(): bool
-    + is_safe_for_animation(): bool
-    + get_status_message(): str
-    - _clean_string(text): str
-    - _log_material_change(was_glass, material_name, material_path): void
-  }
-  
-  class MeshVertexUpdater {
-    - mesh_prim: UsdPrim
-    - mesh: UsdGeom.Mesh
-    - points_attr: UsdAttribute
-    __
-    + __init__(mesh_prim)
-    + update_vertices(vertices): bool
-    + is_valid(): bool
-  }
+class V2AnimationController {
+  - _frame_count: int
+  - _absolute_time: float
+  - _use_fabric_write: bool
+  - wave_controller: WaveController
+  --
+  + start(enable_profiling)
+  + stop()
+  + set_fabric_write(enabled)
+  - _on_update(event)
+  - _update_gpu_path(dt, wave_state)
+  - _apply_batch_deformation()
 }
 
-package "animation" ANIMATION_COLOR {
-  class BreathingAnimator {
-    - length: float
-    - deform_start_height: float
-    - wave_speed: float
-    - bulge_length_percent: float
-    - amplitude: float
-    - cycle_delay: float
-    - bulge_length: float
-    - travel_time: float
-    - cycle_duration: float
-    - time: float
-    - last_bubble_time: float
-    __
-    + __init__(length, deform_start_height, wave_speed, bulge_length_percent, amplitude, cycle_delay)
-    + update(dt): dict
-    + should_emit_bubble(): bool
-    + reset(): void
-    + set_parameters(wave_speed, bulge_length_percent, amplitude, cycle_delay): void
-  }
-  
-  class IdleMotionAnimator {
-    - sway_frequency: float
-    - sway_amplitude: float
-    - rotation_frequency: float
-    - rotation_amplitude: float
-    - time: float
-    - enabled: bool
-    __
-    + __init__(sway_frequency, sway_amplitude, rotation_frequency, rotation_amplitude)
-    + update(dt): dict
-    + reset(): void
-    + set_enabled(enabled): void
-    + set_parameters(sway_frequency, sway_amplitude, rotation_frequency, rotation_amplitude): void
-  }
+class BatchWarpDeformer <<GPU>> {
+  - tendroids: list
+  - base_points_gpu: wp.array
+  - out_points_gpu: wp.array
+  - vertex_tendroid_ids: wp.array
+  - bubble_y_gpu: wp.array
+  - wave_dx_gpu: wp.array
+  --
+  + register_tendroid(tendroid, base_points)
+  + build()
+  + update_states(bubble_data, wave_state)
+  + deform_all(): wp.array
+  + apply_to_meshes_fabric(stage_id)
 }
 
-package "sea_floor" SEA_FLOOR_COLOR {
-  class SeaFloorConfig <<dataclass>> {
-    + width: float
-    + depth: float
-    + amplitude: float
-    + frequency: float
-    + octaves: int
-    + resolution_x: int
-    + resolution_y: int
-    + parent_path: str
-    + mesh_name: str
-    __
-    + mesh_path: str <<property>>
-    + grid_spacing_x: float <<property>>
-    + grid_spacing_y: float <<property>>
-    + from_json(**overrides): SeaFloorConfig <<classmethod>>
-  }
-  
-  class SeaFloorController <<static>> {
-    {static} + create_sea_floor(stage, config): bool
-    {static} - _build_vertices(config, height_map): list
-    {static} - _build_faces(config): tuple
-    {static} - _build_normals(config, vertices): list
-    {static} - _build_uvs(config): list
-  }
-  
-  class SeaFloorHelper <<static>> {
-    {static} - _height_map: np.ndarray
-    __
-    {static} + initialize_height_map(config): void
-    {static} + get_height_at(x: float, z: float): float
-    {static} - _generate_perlin_noise_2d(shape, frequency, octaves): np.ndarray
-  }
+class "@wp.kernel\\nbatch_deform_kernel" as BatchKernel <<GPU>> {
+  GPU kernel that processes:
+  - ALL vertices from ALL tendroids
+  - Bubble deformation
+  - Wave displacement
+  - Single kernel launch
+  - ~1.0ms execution
 }
 
-package "scene" SCENE_COLOR {
-  class TendroidSceneManager {
-    - tendroids: list
-    - animation_controller: AnimationController
-    __
-    + __init__()
-    + create_tendroids(count, spawn_area, radius_range, num_segments): bool
-    + create_single_tendroid(position, radius, length, num_segments, bulge_length_percent, amplitude, wave_speed, cycle_delay): bool
-    + start_animation(): void
-    + stop_animation(): void
-    + clear_tendroids(stage): void
-    + get_tendroid_count(): int
-    + set_all_active(active): void
-    + shutdown(): void
-  }
-  
-  class AnimationController {
-    - tendroids: list
-    - update_subscription: object
-    - is_running: bool
-    __
-    + __init__()
-    + set_tendroids(tendroids): void
-    + start(): void
-    + stop(): void
-    - _on_update(event): void
-    + set_all_active(active): void
-    + is_animating(): bool
-    + shutdown(): void
-  }
-  
-  class TendroidFactory <<static>> {
-    {static} - FLARE_RADIUS_MULTIPLIER: float
-    __
-    {static} + create_single(stage, parent_path, position, radius, length, num_segments, bulge_length_percent, amplitude, wave_speed, cycle_delay): Tendroid
-    {static} + create_batch(stage, count, parent_path, spawn_area, radius_range, num_segments, max_attempts): list
-    {static} - _check_interference(x, z, base_radius, existing_positions, spacing_multiplier): bool
-  }
-  
-  class EnvironmentConfig <<dataclass>> {
-    + sky: SkyConfig
-    + distant_light: DistantLightConfig
-    + sea_floor_material: SeaFloorMaterialConfig
-    __
-    + __post_init__(): void
-    + from_json(): EnvironmentConfig <<classmethod>>
-  }
-  
-  class SkyConfig <<dataclass>> {
-    + path: str
-    + translate_y: float
-    + rotate_y: float
-    + rotate_z: float
-    + intensity: float
-    __
-    + from_json(**overrides): SkyConfig <<classmethod>>
-  }
-  
-  class DistantLightConfig <<dataclass>> {
-    + path: str
-    + translate_x: float
-    + translate_y: float
-    + rotate_y: float
-    + rotate_z: float
-    + angle: float
-    + intensity: float
-    + exposure: float
-    + color: Tuple[float, float, float]
-    __
-    + from_json(**overrides): DistantLightConfig <<classmethod>>
-  }
-  
-  class SeaFloorMaterialConfig <<dataclass>> {
-    + path: str
-    + use_existing: bool
-    + diffuse_color: Tuple[float, float, float]
-    + roughness: float
-    + metallic: float
-    __
-    + from_json(**overrides): SeaFloorMaterialConfig <<classmethod>>
-  }
-  
-  class EnvironmentSetup <<static>> {
-    {static} + setup_environment(stage, config): void
-    {static} + get_sea_floor_material(stage, material_config): UsdShade.Material
-    {static} - _create_sky(stage, config): void
-    {static} - _create_distant_light(stage, config): void
-  }
+class FabricHelper <<Fabric>> {
+  - _stage_cache: dict
+  --
+  + get_fabric_stage(stage_id): FabricStage
+  + write_mesh_points(prim_path, points, stage_id)
 }
 
-package "ui" UI_COLOR {
-  class TendroidControlPanel {
-    - scene_manager: TendroidSceneManager
-    - window: ui.Window
-    - spawn_settings: SpawnSettingsUI
-    - action_buttons: ActionButtons
-    - status_display: StatusDisplay
-    __
-    + __init__(scene_manager)
-    + create_window(): void
-    - _on_count_changed(value): void
-    + destroy(): void
-  }
-  
-  class SpawnSettingsUI {
-    - spawn_count: int
-    - spawn_width: int
-    - spawn_depth: int
-    - single_diameter: float
-    - single_length: float
-    - bulge_size_percent: float
-    - amplitude: float
-    - wave_speed: float
-    - pause_duration: float
-    - num_segments: int
-    - single_settings_frame: ui.Frame
-    - multi_settings_frame: ui.Frame
-    - on_count_changed_callback: callable
-    __
-    + __init__()
-    + create_ui(parent_stack): void
-    - _create_single_settings(): void
-    - _create_multi_settings(): void
-    - _on_count_changed(value): void
-  }
-  
-  class ActionButtons {
-    - scene_manager: TendroidSceneManager
-    - spawn_settings: SpawnSettingsUI
-    - status_display: StatusDisplay
-    __
-    + __init__(scene_manager)
-    + set_spawn_settings(spawn_settings): void
-    + set_status_display(status_display): void
-    + create_ui(parent_stack): void
-    - _on_spawn_clicked(): void
-    - _spawn_single_tendroid(): void
-    - _spawn_multiple_tendroids(): void
-    - _on_start_clicked(): void
-    - _on_stop_clicked(): void
-    - _on_clear_clicked(): void
-  }
-  
-  class StatusDisplay {
-    - status_label: ui.Label
-    - count_label: ui.Label
-    - animation_label: ui.Label
-    __
-    + __init__()
-    + create_ui(parent_stack): void
-    + update_status(message): void
-    + update_count(count): void
-    + update_animation_status(status): void
-  }
+class WaveController {
+  - config: WaveConfig
+  - _phase: float
+  - _cycle_time: float
+  --
+  + update(dt)
+  + get_wave_state(): dict
+  + get_displacement(tendroid_id, height_factor): tuple
 }
 
-package "utils" UTILS_COLOR {
-  class MathHelpers <<static>> {
-    {static} + smooth_step(edge0, edge1, x): float
-    {static} + ease_out_quartic(t): float
-    {static} + calculate_flare_radius(y, base_radius, max_radius, flare_height): float
-    {static} + calculate_wave_displacement(y, wave_center, wave_length, amplitude, deform_start_y): float
-    {static} + calculate_wave_position(time, speed, start_y): float
-  }
+class BubblePhysicsAdapter <<GPU>> {
+  - gpu_manager: BubbleGPUManager
+  - particle_manager: PopParticleGPUManager
+  - _name_to_id: dict
+  --
+  + update_gpu(dt, config, wave_state)
+  + trigger_bubble(name)
+  + destroy()
+}
+
+class BubbleGPUManager <<GPU>> {
+  - phases_gpu: wp.array
+  - positions_gpu: wp.array
+  - velocities_gpu: wp.array
+  - radii_gpu: wp.array
+  --
+  + update(dt, config, wave_state)
+  + get_bubble_states(): tuple
+  + trigger_bubble(id)
+}
+
+class "@wp.kernel\\nbubble_physics_kernel" as BubbleKernel <<GPU>> {
+  GPU kernel that:
+  - Updates all bubble states
+  - Phase transitions
+  - Physics integration
+  - Wave momentum
+  - ~0.5ms execution
+}
+
+class V2TendroidWrapper {
+  - name: str
+  - position: tuple
+  - mesh_prim: UsdGeom.Mesh
+  - deformer: V2WarpDeformer
+  --
+  + apply_deformation_with_wave_state()
+  + apply_wave_only_with_state()
+}
+
+class V2WarpDeformer {
+  - base_points_list: list[np.ndarray]
+  - cylinder_radius: float
+  - max_amplitude: float
+  --
+  + deform_vertices_gpu(bubble_y, bubble_radius): np.ndarray
 }
 
 ' Relationships
-Tendroid --> TendroidBuilder : delegates creation to
-Tendroid --> TendroidLifecycle : delegates lifecycle to
-Tendroid *-- WarpDeformer : contains
-Tendroid *-- BreathingAnimator : contains
-Tendroid *-- MaterialSafetyChecker : contains
-Tendroid *-- MeshVertexUpdater : contains
+V2SceneManager *-- V2AnimationController : contains
+V2SceneManager *-- BatchWarpDeformer : creates
+V2SceneManager *-- BubblePhysicsAdapter : creates
+V2SceneManager o-- V2TendroidWrapper : manages
 
-TendroidBuilder ..> CylinderGenerator : uses
-TendroidBuilder ..> TerrainConform : uses
-TendroidBuilder ..> MathHelpers : uses
-TendroidBuilder ..> get_config_value : reads geometry params
-TendroidBuilder ..> get_config_value : reads animation params
+V2AnimationController o-- WaveController : contains
+V2AnimationController --> BatchWarpDeformer : updates
+V2AnimationController --> BubblePhysicsAdapter : updates
+V2AnimationController --> FabricHelper : writes via
 
-TerrainConform ..> SeaFloorHelper : uses get_height_at
+BatchWarpDeformer ..> BatchKernel : launches
+BatchWarpDeformer --> FabricHelper : writes via
+BatchWarpDeformer o-- V2TendroidWrapper : registered
 
-WarpDeformer ..> MathHelpers : uses
-BreathingAnimator ..> MathHelpers : uses
+BubblePhysicsAdapter *-- BubbleGPUManager : contains
+BubbleGPUManager ..> BubbleKernel : launches
 
-TendroidSceneManager o-- Tendroid : manages many
-TendroidSceneManager *-- AnimationController : contains
-TendroidSceneManager ..> TendroidFactory : uses
-TendroidSceneManager ..> SeaFloorController : uses
+V2TendroidWrapper *-- V2WarpDeformer : contains
 
-AnimationController o-- Tendroid : updates many
+note right of V2SceneManager
+  **Entry Point**
+  Orchestrates all systems
+  Creates GPU resources
+  Manages lifecycle
+end note
 
-TendroidFactory ..> Tendroid : creates
-TendroidFactory ..> TendroidBuilder : uses
-TendroidFactory ..> get_config_value : reads spawning params
+note right of BatchWarpDeformer
+  **GPU Batch Processing**
+  - Single kernel for ALL vertices
+  - Fabric GPU write path
+  - Zero-copy to renderer
+  - 115 fps performance
+end note
 
-SeaFloorConfig ..> ConfigLoader : uses from_json
-SeaFloorController ..> SeaFloorConfig : uses
-SeaFloorController ..> SeaFloorHelper : uses
-SeaFloorController ..> EnvironmentSetup : uses
+note right of BubblePhysicsAdapter
+  **GPU Bubble System**
+  - Complete lifecycle on GPU
+  - Wave momentum integration
+  - 10x+ faster than CPU
+end note
 
-EnvironmentConfig *-- SkyConfig : contains
-EnvironmentConfig *-- DistantLightConfig : contains
-EnvironmentConfig *-- SeaFloorMaterialConfig : contains
+note right of FabricHelper
+  **Fabric Integration**
+  - Stage caching
+  - Direct VtArray writes
+  - Eliminated 10ms bottleneck
+end note
 
-SkyConfig ..> ConfigLoader : uses from_json
-DistantLightConfig ..> ConfigLoader : uses from_json
-SeaFloorMaterialConfig ..> ConfigLoader : uses from_json
-
-EnvironmentSetup ..> EnvironmentConfig : uses
-
-TendroidControlPanel *-- TendroidSceneManager : contains
-TendroidControlPanel *-- SpawnSettingsUI : contains
-TendroidControlPanel *-- ActionButtons : contains
-TendroidControlPanel *-- StatusDisplay : contains
-
-ActionButtons --> TendroidSceneManager : controls
-ActionButtons --> SpawnSettingsUI : reads from
-ActionButtons --> StatusDisplay : updates
-
-note right of Tendroid
-  Main controller class
-  Delegates to:
-  - TendroidBuilder (creation)
-  - TendroidLifecycle (state)
-  - Components (animation, safety, updates)
+note bottom
+  **Performance (15 Tendroids)**:
+  - Total: 8.7ms per frame (115 fps)
+  - Deformation kernel: 1.0ms
+  - Fabric writes: 0.8ms
+  - Bubble physics: 0.5ms
+  - Wave calc (CPU): 0.5ms
+  - Rendering: 5.7ms
   
-  Conforms base to terrain
-end note
-
-note right of WarpDeformer
-  GPU-accelerated vertex deformation
-  Uses NVIDIA Warp kernels
-  Raised cosine envelope
-end note
-
-note right of MaterialSafetyChecker
-  Prevents GPU crashes
-  Detects glass materials
-  Blocks animation when unsafe
-end note
-
-note right of ConfigLoader
-  Hybrid JSON/Python config
-  Loads tendroids_config.json
-  Merges with dataclass defaults
-  Provides type-safe fallback
-end note
-
-note right of SeaFloorHelper
-  Perlin noise terrain generation
-  Caches height map
-  Provides height queries
-  Used for terrain conforming
-end note
-
-note right of EnvironmentConfig
-  Contains Sky, Light, Material configs
-  Each sub-config has from_json()
-  Loads parameters from JSON
+  **GPU Utilization**: 93%
+  **Architecture**: Python + Warp GPU kernels
 end note
 
 @enduml

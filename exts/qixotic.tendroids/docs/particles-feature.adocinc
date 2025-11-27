@@ -1,0 +1,265 @@
+== Particle Effects
+
+=== Overview
+
+The particle system provides dramatic pop effects when bubbles burst, creating a spray of droplet particles that arc outward and fall back down with realistic physics.
+
+**Performance**: ~0.2ms for all active particles
+
+**Implementation**: Warp GPU kernel with gravity and damping
+
+=== Particle Lifecycle
+
+==== Spawn
+
+Triggered when bubble transitions to POPPED phase:
+
+[source,python]
+----
+# In BubbleGPUManager
+if old_phase != 4 and new_phase == 4:  # POPPED
+    particle_manager.create_pop_spray(
+        pop_position=bubble_pos,
+        bubble_velocity=bubble_vel,
+        particle_count=random(8, 12)
+    )
+----
+
+**Spawn Pattern**:
+
+* Radial spray (360° around bubble)
+* Upward bias (inherit bubble Y velocity)
+* Random velocity variation for natural look
+
+==== Physics
+
+Warp kernel simulates gravity and damping:
+
+[source,python]
+----
+@wp.kernel
+def update_particles(
+    positions, velocities, lifetimes,
+    gravity, damping, dt
+):
+    tid = wp.tid()
+    
+    if lifetimes[tid] > 0:
+        # Apply gravity
+        velocities[tid].y += gravity * dt
+        
+        # Apply damping
+        velocities[tid] *= damping
+        
+        # Integrate position
+        positions[tid] += velocities[tid] * dt
+        
+        # Decay lifetime
+        lifetimes[tid] -= dt
+----
+
+**Forces**:
+
+* Gravity: -9.8 units/s²
+* Damping: 0.95 per frame
+* Lifetime: 1-2 seconds
+
+==== Destruction
+
+Particles automatically recycle when lifetime expires:
+
+* Invisible (alpha → 0)
+* Position reset to pool
+* Ready for next spawn
+
+=== Visual Representation
+
+==== Sprite Geometry
+
+Each particle is a camera-facing sprite:
+
+* Billboard quad (always faces camera)
+* Translucent texture (droplet shape)
+* Size: ~1.0 unit diameter
+
+**Material**:
+
+* OmniGlass base
+* Blue tint (matches bubble color)
+* High opacity (0.7-0.8)
+* Fade out with lifetime
+
+==== Animation
+
+Particles exhibit:
+
+* **Arc trajectory**: Upward → peak → downward
+* **Size decay**: Shrinks as lifetime decreases
+* **Alpha fade**: Fades out before despawn
+
+=== Configuration Parameters
+
+[source,json]
+----
+{
+  "particle_lifetime": 1.5,        // Seconds before fade
+  "spray_velocity_min": 10.0,      // Min initial speed
+  "spray_velocity_max": 20.0,      // Max initial speed
+  "spray_angle_variance": 30.0,    // Cone spread (degrees)
+  "gravity": -9.8,                 // Downward acceleration
+  "damping": 0.95,                 // Air resistance
+  "particle_count_min": 8,         // Min particles per pop
+  "particle_count_max": 12         // Max particles per pop
+}
+----
+
+=== GPU Implementation
+
+==== PopParticleGPUManager
+
+Manages particle pool:
+
+[source,python]
+----
+class PopParticleGPUManager:
+    def __init__(self, max_particles=200, device="cuda:0"):
+        # Particle state arrays
+        self.positions_gpu = wp.zeros(max_particles, dtype=wp.vec3)
+        self.velocities_gpu = wp.zeros(max_particles, dtype=wp.vec3)
+        self.lifetimes_gpu = wp.zeros(max_particles, dtype=float)
+        self.active_count = 0
+----
+
+==== Particle Pool
+
+Fixed-size pool with recycling:
+
+* Max 200 particles (configurable)
+* Particles recycle when lifetime ends
+* Always allocate from pool head
+
+**Benefits**:
+
+* No dynamic allocation
+* Predictable memory usage
+* Constant GPU array size
+
+=== Performance Characteristics
+
+==== GPU Execution
+
+[cols="2,1"]
+|===
+|Operation |Time
+
+|Physics kernel
+|~0.15ms
+
+|Visual updates
+|~0.05ms
+
+|**Total**
+|**~0.2ms**
+|===
+
+**Note**: Nearly constant regardless of active count (up to 200)
+
+==== Memory Usage
+
+* Per particle: ~32 bytes GPU
+* Max pool (200): ~6.4 KB
+* Negligible overhead
+
+=== Integration with Bubble System
+
+==== Pop Detection
+
+Animation controller detects phase transitions:
+
+[source,python]
+----
+# In _update_visuals_gpu()
+old_phase = state.phase
+new_phase = bubble_data[name]['phase']
+
+if old_phase != 'popped' and new_phase == 'popped':
+    # Trigger particle spray
+    particle_manager.create_pop_spray(...)
+----
+
+==== Velocity Inheritance
+
+Particles inherit bubble's last velocity:
+
+[source,python]
+----
+# Base velocity from bubble
+base_vel = bubble_velocity
+
+# Add random spray variation
+for particle in spray:
+    angle = random(0, 360)
+    speed = random(spray_velocity_min, spray_velocity_max)
+    
+    particle.velocity = base_vel + radial_velocity(angle, speed)
+----
+
+**Result**: Natural-looking spray that follows bubble momentum
+
+=== Best Practices
+
+==== Visual Quality
+
+* 8-12 particles per pop looks natural
+* Lifetime 1.5-2.0 seconds optimal
+* Spray velocity 10-20 units/sec
+
+==== Performance
+
+* Keep max_particles ≤200 for best performance
+* Particle count scales with bubble pops
+* GPU handles updates efficiently
+
+==== Tuning
+
+* Increase spray_velocity for dramatic pops
+* Increase particle_count for denser spray
+* Adjust damping for floaty vs quick falloff
+
+=== Troubleshooting
+
+==== Particles Not Appearing
+
+Check:
+
+* Particle manager initialized?
+* Pop events triggering?
+* Lifetime > 0?
+
+==== Performance Drop
+
+* Reduce max_particles
+* Decrease particle_count per pop
+* Check for particle accumulation (lifetime too long)
+
+==== Unrealistic Motion
+
+* Adjust gravity (-9.8 is realistic)
+* Tune damping (0.90-0.98 range)
+* Verify velocity inheritance from bubbles
+
+=== Future Enhancements
+
+**Planned**:
+
+* Particle collision with sea floor
+* Ripple effects where particles land
+* Varied particle sizes
+* Color variation per particle
+
+**Advanced**:
+
+* Fluid simulation for particle interactions
+* Spray patterns based on bubble velocity
+* Particle trails/motion blur
+* Subsurface scattering for droplets

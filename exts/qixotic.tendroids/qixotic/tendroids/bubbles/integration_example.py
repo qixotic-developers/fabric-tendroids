@@ -9,7 +9,7 @@ Copy these patterns into your existing scene/manager.py.
 # STEP 1: Import GPU bubble system
 # ============================================================================
 
-from qixotic.tendroids.v2.bubbles import create_gpu_bubble_system, BubblePhysicsAdapter
+from qixotic.tendroids.bubbles import create_gpu_bubble_system, BubblePhysicsAdapter
 
 
 # ============================================================================

@@ -8,7 +8,7 @@ Usage in Omniverse Script Editor:
 """
 
 import carb
-from qixotic.tendroids.v2.scene import V2SceneManager
+from qixotic.tendroids.scene import V2SceneManager
 
 
 # Create scene manager

@@ -1,5 +1,5 @@
 r"""
-Performance Diagnostics for Tendroids V2 + Creature
+Performance Diagnostics for Tendroids + Creature
 
 Measures initialization and runtime performance to identify bottlenecks.
 
@@ -9,11 +9,11 @@ Usage in Omniverse Script Editor:
 
 import carb
 import time
-from qixotic.tendroids.v2.scene import V2SceneManager
+from qixotic.tendroids.scene import V2SceneManager
 
 
 carb.log_info("=" * 70)
-carb.log_info("PERFORMANCE DIAGNOSTICS - Tendroids V2 with Creature")
+carb.log_info("PERFORMANCE DIAGNOSTICS - Tendroids with Creature")
 carb.log_info("=" * 70)
 
 # Track timing

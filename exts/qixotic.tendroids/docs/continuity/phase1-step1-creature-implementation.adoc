@@ -7,21 +7,21 @@
 
 Successfully implemented keyboard-controlled creature with simulation physics.
 
-**Final Status**: Fully functional interactive creature with optimized physics and 
+*Final Status*: Fully functional interactive creature with optimized physics and 
 proper integration into Tendroids V2 animation system.
 
-**Control Method**: Keyboard input (polling-based) - allows mouse freedom for 
+*Control Method*: Keyboard input (polling-based) - allows mouse freedom for 
 viewport camera control (orbit, pan, zoom).
 
 == Controls
 
-**Keyboard Controls**:
+*Keyboard Controls*:
 - W/S or Up/Down arrows: Forward/Backward (Z-axis)
 - A/D or Left/Right arrows: Left/Right (X-axis)
 - Space: Move up (Y+)
 - Left Shift: Move down (Y-)
 
-**Mouse (Future Consideration)**:
+*Mouse (Future Consideration)*:
 Could explore alternative input methods like:
 - Gamepad/controller support
 - Mouse with modifier keys (Ctrl+drag, etc.)
@@ -32,43 +32,43 @@ Could explore alternative input methods like:
 
 === New Files
 
-1. **qixotic/tendroids/v2/controllers/creature_controller.py** (176 lines)
+1. *qixotic/tendroids/v2/controllers/creature_controller.py* (176 lines)
    - CreatureController class with physics simulation
    - Mouse input handling (button state working)
    - Simple cylinder mesh creation (cyan colored)
    - Velocity, acceleration, drag simulation
    - Scene boundary enforcement
 
-2. **test_creature_phase1.py** (55 lines)
+2. *test_creature_phase1.py* (55 lines)
    - Quick test script for easy verification
    - Creates 15 tendroids + creature
    - Enables profiling automatically
 
 === Modified Files
 
-1. **qixotic/tendroids/v2/scene/animation_controller.py**
+1. *qixotic/tendroids/v2/scene/animation_controller.py*
    - Added `creature_controller` field to __init__
    - Added `set_creature_controller()` method
    - Added creature update call in `_on_update()`
 
-2. **qixotic/tendroids/v2/scene/manager.py**
+2. *qixotic/tendroids/v2/scene/manager.py*
    - Added `creature_controller` field to __init__
    - Added `_initialize_creature()` method
    - Integrated creature creation in `create_tendroids()`
    - Added cleanup in `clear_tendroids()`
 
-3. **qixotic/tendroids/v2/controllers/__init__.py**
+3. *qixotic/tendroids/v2/controllers/__init__.py*
    - Exported CreatureController class
 
 == Features Implemented
 
-✅ **Physics Simulation**
+✅ *Physics Simulation*
 - Velocity-based movement with acceleration
 - Drag coefficient (0.98) for smooth momentum/drift
 - Acceleration rate: 120 units/sec² (responsive feel)
 - Max speed: 50 units/sec (good maneuverability)
 
-✅ **Keyboard Controls (6-axis movement)**
+✅ *Keyboard Controls (6-axis movement)*
 - Forward/Backward: W/S or arrow keys
 - Left/Right: A/D or arrow keys
 - Up/Down: Space/Left Shift
@@ -76,19 +76,19 @@ Could explore alternative input methods like:
 - Smooth acceleration in all directions
 - Full 3D freedom of movement
 
-✅ **Visual Mesh**
+✅ *Visual Mesh*
 - Simple cylinder placeholder (radius=6, length=12)
 - Cyan color for visibility
 - Horizontal orientation (swimming pose)
 - Positioned at (0, 50, 0) start
 
-✅ **Scene Bounds**
+✅ *Scene Bounds*
 - X: -400 to +400 (matches 800x800 sea floor)
 - Y: 10 to 90 (above floor, below surface)
 - Z: -400 to +400 (matches 800x800 sea floor)
 - Prevents creature from leaving playable area
 
-✅ **Integration**
+✅ *Integration*
 - Seamless integration with animation loop
 - Called after wave update, before deformation
 - Proper cleanup on scene clear/shutdown
@@ -96,18 +96,18 @@ Could explore alternative input methods like:
 
 == Design Decision: Keyboard vs Mouse
 
-**Issue Discovered**: Mouse input conflicts with Omniverse viewport controls
+*Issue Discovered*: Mouse input conflicts with Omniverse viewport controls
 - Mouse movement needed for camera orbit/pan/zoom
 - Mouse buttons used for viewport manipulation
 - Hijacking mouse breaks standard Omniverse workflow
 
-**Solution Implemented**: Keyboard controls (WASD + Space/Shift)
+*Solution Implemented*: Keyboard controls (WASD + Space/Shift)
 - ✅ Standard game-style controls familiar to users
 - ✅ Doesn't interfere with viewport camera
 - ✅ Full 6-axis movement capability
 - ✅ Can use both hands (WASD + mouse camera simultaneously)
 
-**Future Input Options** (if keyboard doesn't feel right):
+*Future Input Options* (if keyboard doesn't feel right):
 - Gamepad/controller support (Xbox/PlayStation controller)
 - Mouse with modifier keys (Ctrl+drag for creature, normal drag for camera)
 - On-screen UI directional pad (click/drag interface)
@@ -115,9 +115,9 @@ Could explore alternative input methods like:
 
 == Current Limitations
 
-✅ **All controls working** - No known limitations at this time
+✅ *All controls working* - No known limitations at this time
 
-**Next priorities**:
+*Next priorities*:
 1. Test gameplay feel with keyboard controls
 2. Implement bubble collision (Step 2)
 3. Add tendroid repulsion (Step 3)

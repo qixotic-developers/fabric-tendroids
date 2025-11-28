@@ -28,6 +28,7 @@ class V2AnimationController:
     self.bubble_manager = None
     self.gpu_bubble_adapter = None
     self.batch_deformer = None
+    self.creature_controller = None  # Interactive creature
     self.update_subscription = None
     self.is_running = False
 
@@ -67,6 +68,12 @@ class V2AnimationController:
     self.batch_deformer = batch_deformer
     if batch_deformer:
       carb.log_info("[GPU] Batch deformation enabled")
+
+  def set_creature_controller(self, creature_controller):
+    """Set creature controller for interactive gameplay."""
+    self.creature_controller = creature_controller
+    if creature_controller:
+      carb.log_info("[Creature] Interactive creature enabled")
 
   def set_fabric_write(self, enabled: bool):
     """Enable/disable Fabric GPU write path."""
@@ -135,8 +142,13 @@ class V2AnimationController:
 
       self._absolute_time += dt
 
+      # Update wave motion
       self.wave_controller.update(dt)
       wave_state = self.wave_controller.get_wave_state()
+
+      # Update interactive creature (Phase 1)
+      if self.creature_controller:
+        self.creature_controller.update(dt)
 
       # GPU path
       if self.gpu_bubble_adapter:

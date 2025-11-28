@@ -40,6 +40,9 @@ class V2SceneManager:
     # Batch deformation
     self.batch_deformer = None
 
+    # Interactive creature (Phase 1)
+    self.creature_controller = None
+
   def _ensure_sea_floor(self, stage):
     """Create sea floor if not present."""
     if not self._sea_floor_created and stage:
@@ -106,6 +109,27 @@ class V2SceneManager:
       carb.log_error(f"[GPU] Failed to initialize batch deformer: {e}")
       self.batch_deformer = None
 
+  def _initialize_creature(self, stage):
+    """Initialize interactive creature controller."""
+    try:
+      from ..controllers.creature_controller import CreatureController
+
+      # Create creature at center of scene, mid-height
+      self.creature_controller = CreatureController(
+        stage=stage,
+        start_position=(0, 50, 0)
+      )
+
+      # Pass to animation controller
+      self.animation_controller.set_creature_controller(self.creature_controller)
+
+      carb.log_info("[Creature] Interactive creature initialized")
+    except Exception as e:
+      carb.log_error(f"[Creature] Failed to initialize: {e}")
+      import traceback
+      traceback.print_exc()
+      self.creature_controller = None
+
   def create_tendroids(
     self,
     count: int = None,
@@ -162,6 +186,9 @@ class V2SceneManager:
 
       # Initialize batch deformation
       self._initialize_batch_deformer()
+
+      # Initialize interactive creature (Phase 1)
+      self._initialize_creature(stage)
 
       carb.log_info(
         f"[V2SceneManager] Created {len(self.tendroids)} tendroids"
@@ -295,6 +322,11 @@ class V2SceneManager:
     if self.batch_deformer:
       self.batch_deformer.destroy()
       self.batch_deformer = None
+
+    # Clean up creature controller
+    if self.creature_controller:
+      self.creature_controller.destroy()
+      self.creature_controller = None
 
     self.tendroids.clear()
     self.tendroid_data.clear()

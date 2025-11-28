@@ -1,0 +1,66 @@
+= CREATURE CONTROLS - Quick Reference
+:date: 2025-11-27
+
+== 🎮 Keyboard Controls
+
+[cols="1,2"]
+|===
+|Key |Action
+
+|**W** or **↑**
+|Move Forward (Z-)
+
+|**S** or **↓**
+|Move Backward (Z+)
+
+|**A** or **←**
+|Move Left (X-)
+
+|**D** or **→**
+|Move Right (X+)
+
+|**Space**
+|Move Up (Y+)
+
+|**Left Shift**
+|Move Down (Y-)
+|===
+
+== 🖱️ Mouse
+
+**Free for camera control!**
+- Left drag: Orbit camera
+- Middle drag: Pan camera
+- Right drag: Zoom camera
+- Scroll wheel: Dolly camera
+
+== 🎯 Physics Behavior
+
+- **Acceleration**: 120 units/sec²
+- **Max Speed**: 50 units/sec
+- **Drag**: 0.98 (gentle drift/momentum)
+- **Momentum**: Creature coasts smoothly when keys released
+
+== 📏 Scene Bounds
+
+- X-axis: -400 to +400 (matches 800x800 sea floor)
+- Y-axis: 10 to 90 (above sea floor, below surface)
+- Z-axis: -400 to +400 (matches 800x800 sea floor)
+
+== 🚀 Quick Start
+
+[source,python]
+----
+# In Omniverse Script Editor
+exec(open(r'C:\Dev\Omniverse\fabric-tendroids\exts\qixotic.tendroids\test_creature_phase1.py').read())
+----
+
+Look for **cyan cylinder** at position (0, 50, 0)
+
+== 💡 Tips
+
+1. **Hold multiple keys** for diagonal movement
+2. **Tap keys lightly** for precise positioning
+3. **Hold keys longer** for high-speed flight
+4. **Release all keys** to drift to a stop
+5. **Use mouse freely** - it won't affect creature!

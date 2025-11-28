@@ -1,4 +1,5 @@
 @startuml tendroids-package-diagram-v2
+!pragma allowmixing
 
 title Tendroids V2 Package Structure - GPU-Accelerated Architecture
 
@@ -15,6 +16,7 @@ title Tendroids V2 Package Structure - GPU-Accelerated Architecture
 
 skinparam packageStyle rectangle
 skinparam linetype ortho
+
 
 package "qixotic.tendroids.v2" {
   
@@ -48,7 +50,6 @@ package "qixotic.tendroids.v2" {
   
   package "config" CONFIG_COLOR {
     class ConfigLoader
-    file "tendroids_config.json"
   }
   
   package "scene" SCENE_COLOR {

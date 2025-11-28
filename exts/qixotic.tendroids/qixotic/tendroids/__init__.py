@@ -28,13 +28,6 @@ from .v2 import (
     V2NumpyTendroid,
 )
 
-# Import C++ extension if available
-try:
-    from . import fast_mesh_updater
-    _has_cpp = True
-except ImportError:
-    _has_cpp = False
-
 __all__ = [
     # Extension
     "TendroidsExtension",
@@ -53,6 +46,3 @@ __all__ = [
     "V2NumpyController",
     "V2NumpyTendroid",
 ]
-
-if _has_cpp:
-    __all__.append("fast_mesh_updater")

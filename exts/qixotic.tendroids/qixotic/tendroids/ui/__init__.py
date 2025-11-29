@@ -7,10 +7,12 @@ Provides compact, slider-based controls for tendroid management.
 from .control_panel import V2ControlPanel
 from .slider_row import create_int_slider_row, create_float_slider_row
 from .bubble_controls import BubbleControls
+from .creature_controls import CreatureControls
 
 __all__ = [
     "V2ControlPanel",
     "create_int_slider_row",
     "create_float_slider_row",
     "BubbleControls",
+    "CreatureControls",
 ]

@@ -136,9 +136,23 @@ class V2SceneManager:
     spawn_area: tuple = None,
     radius_range: tuple = None,
     radial_segments: int = 24,
-    height_segments: int = 48
+    height_segments: int = 48,
+    spawn_creature: bool = True
   ) -> bool:
-    """Create multiple tendroids in the scene."""
+    """
+    Create multiple tendroids in the scene.
+    
+    Args:
+        count: Number of tendroids to create
+        spawn_area: Spawn area dimensions (width, depth)
+        radius_range: Min/max radius range
+        radial_segments: Radial resolution
+        height_segments: Height resolution
+        spawn_creature: Whether to spawn interactive creature (default: True)
+        
+    Returns:
+        True if successful, False otherwise
+    """
     try:
       ctx = omni.usd.get_context()
       if not ctx:

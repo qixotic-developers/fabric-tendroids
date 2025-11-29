@@ -2,7 +2,7 @@
 Tendroids Extension - Main entry point
 
 Omniverse extension for creating and animating Tendroid creatures.
-Uses V2 GPU-accelerated system with wave animation.
+Uses GPU-accelerated system with wave animation.
 """
 
 import carb
@@ -11,8 +11,8 @@ import omni.usd
 import omni.kit.ui
 import omni.kit.app
 import omni.kit.window.extensions
-from .v2.scene.manager import V2SceneManager
-from .v2.ui.control_panel import V2ControlPanel
+from .scene.manager import V2SceneManager
+from .ui.control_panel import V2ControlPanel
 
 
 class TendroidsExtension(omni.ext.IExt):

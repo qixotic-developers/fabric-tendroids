@@ -11,7 +11,7 @@ Usage:
     5. Run stop_test() to clean up
 """
 
-from qixotic.tendroids.v2.scene.manager import V2SceneManager
+from qixotic.tendroids.scene.manager import V2SceneManager
 
 # Global reference for cleanup
 _test_manager = None

@@ -55,7 +55,8 @@ partition "Bubble GPU Setup" {
 :Initialize wave controller;
 :Enable Fabric write path;
 
-repeat :Wait for frame event (60 fps);
+repeat
+  :Wait for frame event (60 fps);
   
   |Wave System|
   :WaveController.update(dt);
@@ -110,7 +111,7 @@ repeat :Wait for frame event (60 fps);
     :Display frame;
   }
 
-repeat while (Animation running?) is (yes)
+repeat while (Animation running?)
 
 |User Interface|
 :User clicks "Stop Animation";
@@ -134,29 +135,23 @@ else (no)
   stop
 endif
 
-note right of "GPU Bubble Physics"
-  **Performance**: ~0.5ms
+note right
+  **GPU Bubble Physics Performance**: ~0.5ms
   - All bubbles in parallel
   - State machine on GPU
   - Wave integration on GPU
-end note
-
-note right of "GPU Deformation"
-  **Performance**: ~1.0ms
+  
+  **GPU Deformation Performance**: ~1.0ms
   - All vertices in parallel
   - Single kernel launch
   - 15 tendroids × 1200 vertices
-end note
-
-note right of "Fabric GPU Write"
-  **Performance**: ~0.8ms
+  
+  **Fabric GPU Write Performance**: ~0.8ms
   - 15 VtArray.Set() calls
   - Direct NumPy→Fabric
   - No tolist() overhead
-end note
-
-note right of "OmniHydra"
-  **Performance**: ~5.7ms
+  
+  **OmniHydra Rendering**: ~5.7ms
   - Largest single cost
   - Zero-copy from Fabric
   - "Deformable" tag required

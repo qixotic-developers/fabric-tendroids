@@ -11,16 +11,18 @@ import omni.ui as ui
 class ActionButtons:
     """Action buttons with scene manager integration."""
     
-    def __init__(self, scene_manager, spawn_controls):
+    def __init__(self, scene_manager, spawn_controls, creature_controls=None):
         """
         Initialize action buttons.
         
         Args:
             scene_manager: V2SceneManager instance
             spawn_controls: SpawnControls for reading parameters
+            creature_controls: CreatureControls for creature spawn setting
         """
         self.scene_manager = scene_manager
         self.spawn_controls = spawn_controls
+        self.creature_controls = creature_controls
         self.status_callback = None  # Callback(str) for status updates
         
     def set_status_callback(self, callback):
@@ -76,6 +78,9 @@ class ActionButtons:
             radial_segs = 24
             height_segs = 48
             
+            # Check if creature should be spawned
+            spawn_creature = self.creature_controls.enabled if self.creature_controls else True
+            
             self._update_status(f"Spawning {sp.count} tendroids...")
             
             success = self.scene_manager.create_tendroids(
@@ -83,12 +88,14 @@ class ActionButtons:
                 spawn_area=(400, 400),  # Default area
                 radius_range=(8.0, 12.0),  # Default radius range
                 radial_segments=radial_segs,
-                height_segments=height_segs
+                height_segments=height_segs,
+                spawn_creature=spawn_creature
             )
             
             if success:
                 actual = self.scene_manager.get_tendroid_count()
-                self._update_status(f"Spawned {actual} tendroids")
+                creature_msg = " + creature" if spawn_creature else ""
+                self._update_status(f"Spawned {actual} tendroids{creature_msg}")
             else:
                 self._update_status("Spawn failed - check console")
                 

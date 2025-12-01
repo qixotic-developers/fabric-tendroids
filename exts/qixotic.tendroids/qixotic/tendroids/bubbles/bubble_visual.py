@@ -20,7 +20,7 @@ class V2BubbleVisual:
     Visual radius matches logic radius with small gap to cylinder wall.
     """
     
-    def __init__(self, stage, path: str = "/World/V2_Bubble"):
+    def __init__(self, stage, path: str = "/World/V2_Bubble", opacity: float = 0.25):
         self._stage = stage
         self._path = path
         self._mesh = None
@@ -28,6 +28,7 @@ class V2BubbleVisual:
         self._scale_op = None
         self._visual_scale = 0.95  # 95% of logic radius for wall gap
         self._base_radius = 1.0   # Mesh created at this radius, scaled dynamically
+        self._opacity = opacity   # Configurable opacity
         
     def create(self, initial_radius: float, start_y: float):
         """Create the visual bubble sphere with vertex-down orientation."""
@@ -50,7 +51,7 @@ class V2BubbleVisual:
         
         # Apply bubble material appearance
         self._mesh.CreateDisplayColorAttr([(0.3, 0.6, 0.9)])
-        self._mesh.CreateDisplayOpacityAttr([0.5])
+        self._mesh.CreateDisplayOpacityAttr([self._opacity])  # Use configured opacity
         
         # Setup transform ops for position and dynamic scaling
         xform = UsdGeom.Xformable(self._mesh.GetPrim())

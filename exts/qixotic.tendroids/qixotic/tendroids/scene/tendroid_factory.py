@@ -84,6 +84,33 @@ class V2TendroidFactory:
         # Use uniform radius for GPU batching optimization
         uniform_radius = (radius_range[0] + radius_range[1]) / 2.0
         
+        # Special case: single tendroid at origin for focused testing
+        if count == 1:
+            radius = uniform_radius
+            aspect_ratio = (aspect_range[0] + aspect_range[1]) / 2.0
+            length = radius * 2.0 * aspect_ratio
+            
+            tendroid_data = V2TendroidBuilder.create_tendroid(
+                stage=stage,
+                name=f"Tendroid_00",
+                position=(0, 0, 0),  # Origin for single tendroid
+                radius=radius,
+                length=length,
+                radial_segments=radial_segments,
+                height_segments=height_segments,
+                parent_path=parent_path,
+                get_height_fn=get_height_fn
+            )
+            
+            if tendroid_data:
+                tendroids.append(tendroid_data)
+                carb.log_info("[V2TendroidFactory] Created single tendroid at origin")
+            else:
+                carb.log_warn("[V2TendroidFactory] Failed to create tendroid at origin")
+            
+            return tendroids
+        
+        # Multiple tendroids: use random placement with interference checking
         for i in range(count):
             radius = uniform_radius
             base_radius = radius * flare_mult

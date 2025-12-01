@@ -190,8 +190,20 @@ class _BubbleState:
             vertical_segments=10,
             vertex_down=True
         )
-        mesh.CreateDisplayColorAttr([self.config.color])
-        mesh.CreateDisplayOpacityAttr([self.config.opacity])
+        
+        # Create and apply proper transparent material
+        from .bubble_material import create_transparent_bubble_material, apply_bubble_material
+        
+        material_path = f"{self.prim_path}_Material"
+        material = create_transparent_bubble_material(
+            stage=self.stage,
+            material_path=material_path,
+            color=self.config.color,
+            opacity=self.config.opacity,
+            metallic=0.0,
+            roughness=0.1
+        )
+        apply_bubble_material(mesh.GetPrim(), material)
         
         xform = UsdGeom.Xformable(mesh.GetPrim())
         xform.ClearXformOpOrder()

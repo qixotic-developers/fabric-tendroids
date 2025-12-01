@@ -13,7 +13,7 @@ class SpawnControls:
     
     def __init__(self):
         """Initialize with default count."""
-        self.count = 15
+        self.count = 1  # Single tendroid for focused testing
     
     def build(self, parent: ui.VStack = None):
         """Build spawn controls UI."""

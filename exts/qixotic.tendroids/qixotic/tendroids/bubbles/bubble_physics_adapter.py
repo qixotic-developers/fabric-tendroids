@@ -96,7 +96,8 @@ class BubblePhysicsAdapter:
             rise_speed=config.rise_speed,
             released_rise_speed=config.released_rise_speed,
             respawn_delay=config.respawn_delay,
-            wave_state=wave_state
+            wave_state=wave_state,
+            max_concurrent_active=config.max_concurrent_active
         )
     
     def get_bubble_positions(self) -> dict:
@@ -153,6 +154,27 @@ class BubblePhysicsAdapter:
             radii_dict[name] = float(radii[bubble_id])
         
         return radii_dict
+    
+    def pop_bubble(self, tendroid_name: str):
+        """
+        Force a bubble to pop immediately.
+        
+        Args:
+            tendroid_name: Name of tendroid whose bubble should pop
+        """
+        if not self.use_gpu or not self.gpu_manager:
+            return
+        
+        bubble_id = self._name_to_id.get(tendroid_name)
+        if bubble_id is None:
+            return
+        
+        # Get current position for pop effect
+        phases, world_positions, _ = self.gpu_manager.get_bubble_states()
+        if phases[bubble_id] > 0:  # Only pop if active
+            # Set phase to 4 (popped)
+            current_y = world_positions[bubble_id][1]
+            self.gpu_manager.update_bubble_state(bubble_id, current_y, 4)
     
     def spawn_bubble(self, tendroid_name: str, tendroid, config):
         """

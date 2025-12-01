@@ -21,11 +21,20 @@ class CreatureControls:
             with ui.VStack(spacing=4, style={"background_color": 0xFF23211F}):
                 ui.Spacer(height=4)
                 
-                # Spawn creature checkbox
-                with ui.HStack(height=20, spacing=8):
+                # Spawn creature toggle
+                with ui.HStack(height=24, spacing=8):
                     ui.Spacer(width=8)
                     ui.Label("Spawn Creature:", width=120)
-                    self._checkbox = ui.CheckBox(width=20)
+                    self._checkbox = ui.CheckBox(
+                        width=40,
+                        height=20,
+                        style={
+                            "border_radius": 10,
+                            "background_color": 0xFF5FB366 if self.enabled else 0xFF3C3C3C,
+                            "border_width": 1,
+                            "border_color": 0xFF555555,
+                        }
+                    )
                     self._checkbox.model.set_value(self.enabled)
                     self._checkbox.model.add_value_changed_fn(
                         lambda m: setattr(self, 'enabled', m.get_value_as_bool())

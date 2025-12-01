@@ -18,7 +18,7 @@
     "metallic": 0.0,
     "min_diameter": 5.0,
     "min_pop_height": 150.0,
-    "opacity": 0.35,
+    "opacity": 0.25,
     "particle_lifetime": 2.0,
     "particle_size": 3.0,
     "particle_speed": 18.0,

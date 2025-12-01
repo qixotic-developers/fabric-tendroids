@@ -41,11 +41,20 @@ class WaveControls:
         with ui.CollapsableFrame("Wave Motion", height=0, collapsed=False):
             with ui.VStack(spacing=4, style={"background_color": 0xFF23211F}):
                 ui.Spacer(height=4)
-                # Enable checkbox
-                with ui.HStack(height=22, spacing=4):
+                # Enable toggle
+                with ui.HStack(height=24, spacing=4):
                     ui.Label("Enable:", width=100, tooltip="Toggle wave motion on/off")
-                    self._enabled_checkbox = ui.CheckBox(width=20, height=20)
                     enabled = self.wave_controller.enabled if self.wave_controller else True
+                    self._enabled_checkbox = ui.CheckBox(
+                        width=40,
+                        height=20,
+                        style={
+                            "border_radius": 10,
+                            "background_color": 0xFF5FB366 if enabled else 0xFF3C3C3C,
+                            "border_width": 1,
+                            "border_color": 0xFF555555,
+                        }
+                    )
                     self._enabled_checkbox.model.set_value(enabled)
                     self._enabled_checkbox.model.add_value_changed_fn(self._on_enabled_changed)
                 

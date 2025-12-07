@@ -36,6 +36,13 @@ jobs:
       - name: Generate site
         run: npx antora antora-playbook.yml
 
+      - name: Debug - List generated files
+        run: |
+          echo "=== Root directory ==="
+          ls -la build/site/
+          echo "=== Looking for index.html ==="
+          find build/site -name "index.html" -type f
+
       - name: Create root redirect
         run: |
           cat > build/site/index.html << 'EOF'
@@ -44,6 +51,7 @@ jobs:
           <head>
               <meta charset="utf-8">
               <meta http-equiv="refresh" content="0; url=tendroids/main/index.html">
+              <link rel="canonical" href="tendroids/main/index.html">
               <title>Redirecting to Tendroids Documentation</title>
           </head>
           <body>
@@ -51,6 +59,8 @@ jobs:
           </body>
           </html>
           EOF
+          echo "=== Created redirect file ==="
+          cat build/site/index.html
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

@@ -56,3 +56,8 @@ TEND sprints follow gemstone naming alphabetically:
 * ...
 
 Capacity: ~40 hours/sprint (4h/day, 5 days/week, 2-week sprints)
+
+== Quick Links
+
+* GitHub Repository: https://github.com/qixotic-developers/fabric-tendroids
+* Jira Project: TEND

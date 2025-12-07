@@ -1,6 +1,6 @@
 site:
   title: Tendroids Project Documentation
-  url: https://qixotic-software.github.io/fabric-tendroids
+  url: https://qixotic-developers.github.io/fabric-tendroids
   start_page: tendroids::index.adoc
 
 content:

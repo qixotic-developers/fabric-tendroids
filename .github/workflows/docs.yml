@@ -6,6 +6,7 @@ on:
     paths:
       - 'exts/qixotic.tendroids/docs/**'
       - '.github/workflows/docs.yml'
+      - 'antora-playbook.yml'
   workflow_dispatch:
 
 permissions:

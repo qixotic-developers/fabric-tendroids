@@ -1,0 +1,13 @@
+* xref:index.adoc[Home]
+
+* Getting Started
+** xref:interactive-creature-design.adoc[Interactive Creature Design]
+** xref:creature-controls.adoc[Creature Controls]
+
+* Development
+** xref:next-session.adoc[Next Session Planning]
+** xref:optimization-analysis.adoc[Optimization Analysis]
+** xref:commit-phase1-step1.adoc[Phase 1 Step 1 Commit]
+
+* Reference
+** xref:asciidoc-syntax.adoc[AsciiDoc Syntax Reference]

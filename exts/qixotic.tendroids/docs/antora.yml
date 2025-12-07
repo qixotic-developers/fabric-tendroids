@@ -1,0 +1,9 @@
+name: tendroids
+title: Tendroids Documentation
+version: main
+nav:
+- modules/ROOT/nav.adoc
+asciidoc:
+  attributes:
+    project-name: Tendroids
+    project-description: Tendroid-Creature Interaction System using Nvidia Omniverse

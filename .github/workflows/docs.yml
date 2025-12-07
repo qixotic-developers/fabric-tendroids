@@ -36,15 +36,33 @@ jobs:
       - name: Generate site
         run: npx antora antora-playbook.yml
 
+      - name: Create root index redirect
+        run: |
+          cat > build/site/index.html << 'EOF'
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+              <meta charset="utf-8">
+              <title>Tendroids Documentation</title>
+              <meta http-equiv="refresh" content="0; url=./tendroids/main/index.html">
+              <link rel="canonical" href="./tendroids/main/index.html">
+              <script>window.location.href='./tendroids/main/index.html';</script>
+          </head>
+          <body>
+              <p>Redirecting to <a href="./tendroids/main/index.html">Tendroids documentation</a>...</p>
+          </body>
+          </html>
+          EOF
+
       - name: Add .nojekyll file
         run: touch build/site/.nojekyll
 
-      - name: Debug - List generated files
+      - name: List files for verification
         run: |
           echo "=== Root directory ==="
           ls -la build/site/
-          echo "=== Index files ==="
-          find build/site -name "index.html" -type f | head -20
+          echo "=== Root index.html content ==="
+          cat build/site/index.html
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

@@ -1,0 +1,4 @@
+= Next Session Planning
+:navtitle: Next Session
+
+include::../NEXT-SESSION-INTERACTIVE-CREATURE.adoc[]

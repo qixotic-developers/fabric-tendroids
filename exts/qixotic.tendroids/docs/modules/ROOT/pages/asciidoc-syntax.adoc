@@ -1,0 +1,4 @@
+= AsciiDoc Syntax Reference
+:navtitle: AsciiDoc Syntax
+
+include::../ASCIIDOC-SYNTAX-REMINDER.adoc[]

@@ -36,6 +36,17 @@ jobs:
       - name: Generate site
         run: npx antora antora-playbook.yml
 
+      - name: Debug - Check for dark mode files
+        run: |
+          echo "=== Checking for dark-mode.css ==="
+          find build/site -name "dark-mode.css" -type f
+          echo "=== Checking _/css directory ==="
+          ls -la build/site/_/css/ || echo "No _/css directory"
+          echo "=== Checking for head meta in HTML ==="
+          grep -r "dark-mode.css" build/site/ || echo "No dark-mode.css reference found"
+          echo "=== First index.html head section ==="
+          find build/site -name "index.html" -type f | head -1 | xargs grep -A 20 "<head>"
+
       - name: Create root index redirect
         run: |
           cat > build/site/index.html << 'EOF'
@@ -56,13 +67,6 @@ jobs:
 
       - name: Add .nojekyll file
         run: touch build/site/.nojekyll
-
-      - name: List files for verification
-        run: |
-          echo "=== Root directory ==="
-          ls -la build/site/
-          echo "=== Root index.html content ==="
-          cat build/site/index.html
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

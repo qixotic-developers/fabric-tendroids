@@ -1,5 +1,5 @@
 site:
-  title: Tendroids Project Documentation
+  title: Fabric Tendroids Documentation
   url: https://qixotic-developers.github.io/fabric-tendroids
   start_page: tendroids::index.adoc
 
@@ -7,12 +7,20 @@ content:
   sources:
   - url: .
     branches: HEAD
-    start_path: exts/qixotic.tendroids/docs
+    start_path: docs
 
 ui:
+  supplemental_files: docs/supplemental_ui
   bundle:
     url: https://gitlab.com/antora/antora-ui-default/-/jobs/artifacts/HEAD/raw/build/ui-bundle.zip?job=bundle-stable
     snapshot: true
+
+asciidoc:
+  attributes:
+    kroki-server-url: https://kroki.io
+    kroki-fetch-diagram: true
+  extensions:
+  - asciidoctor-kroki
 
 output:
   dir: ./build/site

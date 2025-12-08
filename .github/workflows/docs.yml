@@ -1,11 +1,17 @@
-name: Build Documentation
+name: Build and Deploy Docs
 
 on:
   push:
-    branches: [main]
+    branches: [main, master]
     paths:
-      - 'exts/qixotic.tendroids/docs/**'
-      - '.github/workflows/docs.yml'
+      - 'docs/**'
+      - 'antora-playbook.yml'
+      - 'package.json'
+  pull_request:
+    branches: [main, master]
+    paths:
+      - 'docs/**'
+      - 'antora-playbook.yml'
   workflow_dispatch:
 
 permissions:
@@ -29,18 +35,22 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install Antora
-        run: npm i -D @antora/cli@latest @antora/site-generator@latest
+      - name: Install dependencies
+        run: npm install
 
-      - name: Generate site
+      - name: Build Antora docs
         run: npx antora antora-playbook.yml
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: build/site
+          path: ./build/site
 
   deploy:
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

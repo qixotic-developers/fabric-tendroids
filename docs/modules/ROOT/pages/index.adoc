@@ -1,0 +1,63 @@
+= Fabric Tendroids Documentation
+:page-layout: home
+
+Documentation for the Fabric Tendroids Omniverse extension.
+
+== Overview
+
+Fabric Tendroids is an NVIDIA Omniverse extension that creates interactive 3D simulations featuring creature-tendroid interactions with GPU-accelerated physics.
+
+== Key Features
+
+* *Real-time Physics* - GPU-accelerated collision detection and response
+* *Interactive Creatures* - Cylindrical creatures with defensive behaviors
+* *Tendroid System* - Proximity-based physics interactions
+* *Warp Integration* - NVIDIA Warp for GPU computing
+* *USD/Fabric* - Universal Scene Description integration
+
+== Project Structure
+
+[source]
+----
+fabric-tendroids/
+├── exts/
+│   └── qixotic.tendroids/
+│       ├── qixotic/tendroids/    # Main extension code
+│       ├── config/               # Configuration files
+│       └── docs/                 # Additional documentation
+├── docs/                         # Antora documentation
+└── antora-playbook.yml
+----
+
+== Quick Links
+
+* xref:quickstart.adoc[Quick Start Guide] - Get running in minutes
+* xref:installation.adoc[Installation] - Setup instructions
+* xref:architecture.adoc[Architecture] - System design overview
+* xref:api.adoc[API Reference] - Complete API documentation
+
+== Technology Stack
+
+[cols="1,1,2"]
+|===
+|Component |Version |Purpose
+
+|Omniverse Kit |106.x |Application framework
+|USD |24.x |Scene description
+|Warp |1.x |GPU computing
+|Python |3.10 |Extension development
+|===
+
+== System Requirements
+
+=== Hardware
+
+* NVIDIA RTX GPU (Turing or newer)
+* 8GB+ GPU memory recommended
+* 16GB+ system RAM
+
+=== Software
+
+* Windows 10/11 (64-bit)
+* NVIDIA Omniverse
+* NVIDIA Driver 535+

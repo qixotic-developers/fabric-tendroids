@@ -1,0 +1,54 @@
+= Components
+:navtitle: Components
+
+Detailed documentation of Fabric Tendroids components.
+
+== Controllers
+
+=== TendroidAnimationController
+
+Manages tendroid animation and physics updates.
+
+[source,python]
+----
+class TendroidAnimationController:
+    def update(self, dt: float) -> None
+    def check_creature_proximity(self, creature_pos: Vec3) -> bool
+    def apply_avoidance(self, direction: Vec3) -> None
+----
+
+=== CreatureController
+
+Handles creature behavior and movement.
+
+=== InteractionController
+
+Coordinates interactions between creatures and tendroids.
+
+== Helpers
+
+Helper modules contain frequently-changed logic separated from controllers.
+
+=== interaction_helper
+
+Physics calculations and collision detection.
+
+=== animation_helper
+
+Animation curves and timing functions.
+
+== GPU Managers
+
+=== WarpGPUManager
+
+Manages NVIDIA Warp kernels for GPU-accelerated physics.
+
+== Adapters
+
+=== BubblePhysicsAdapter
+
+Adapts bubble physics calculations to the tendroid system.
+
+== Configuration
+
+See xref:configuration.adoc[Configuration] for runtime settings.

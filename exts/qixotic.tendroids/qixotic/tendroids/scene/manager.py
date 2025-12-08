@@ -109,15 +109,27 @@ class V2SceneManager:
       carb.log_error(f"[GPU] Failed to initialize batch deformer: {e}")
       self.batch_deformer = None
 
-  def _initialize_creature(self, stage):
+  def _initialize_creature(self, stage, tendroid_data: list = None):
     """Initialize interactive creature controller."""
     try:
       from ..controllers.creature_controller import CreatureController
 
-      # Create creature at center of scene, mid-height
+      # Determine creature spawn position based on tendroid setup
+      if tendroid_data and len(tendroid_data) == 1:
+        # Single tendroid: spawn creature above it for bubble interaction
+        tendroid = tendroid_data[0]
+        tendroid_length = tendroid.get('length', 160.0)
+        creature_y = tendroid_length + 20.0  # 20 units above tendroid top
+        start_pos = (0, creature_y, 0)
+        carb.log_info(f"[Creature] Single tendroid mode - spawning at y={creature_y:.1f}")
+      else:
+        # Multiple tendroids or no tendroids: default center position
+        start_pos = (0, 50, 0)
+      
+      # Create creature
       self.creature_controller = CreatureController(
         stage=stage,
-        start_position=(0, 50, 0)
+        start_position=start_pos
       )
 
       # Pass to animation controller
@@ -136,9 +148,23 @@ class V2SceneManager:
     spawn_area: tuple = None,
     radius_range: tuple = None,
     radial_segments: int = 24,
-    height_segments: int = 48
+    height_segments: int = 48,
+    spawn_creature: bool = True
   ) -> bool:
-    """Create multiple tendroids in the scene."""
+    """
+    Create multiple tendroids in the scene.
+    
+    Args:
+        count: Number of tendroids to create
+        spawn_area: Spawn area dimensions (width, depth)
+        radius_range: Min/max radius range
+        radial_segments: Radial resolution
+        height_segments: Height resolution
+        spawn_creature: Whether to spawn interactive creature (default: True)
+        
+    Returns:
+        True if successful, False otherwise
+    """
     try:
       ctx = omni.usd.get_context()
       if not ctx:
@@ -188,7 +214,7 @@ class V2SceneManager:
       self._initialize_batch_deformer()
 
       # Initialize interactive creature (Phase 1)
-      self._initialize_creature(stage)
+      self._initialize_creature(stage, self.tendroid_data)
 
       carb.log_info(
         f"[V2SceneManager] Created {len(self.tendroids)} tendroids"

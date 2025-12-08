@@ -1,11 +1,16 @@
-name: Build Documentation
+name: Build and Deploy Docs
 
 on:
   push:
-    branches: [main]
+    branches: [main, master]
     paths:
-      - 'exts/qixotic.tendroids/docs/**'
-      - '.github/workflows/docs.yml'
+      - 'docs/**'
+      - 'antora-playbook.yml'
+      - 'package.json'
+  pull_request:
+    branches: [main, master]
+    paths:
+      - 'docs/**'
       - 'antora-playbook.yml'
   workflow_dispatch:
 
@@ -30,50 +35,22 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install Antora
-        run: npm i -D @antora/cli@latest @antora/site-generator@latest
+      - name: Install dependencies
+        run: npm install
 
-      - name: Generate site
+      - name: Build Antora docs
         run: npx antora antora-playbook.yml
 
-      - name: Debug - Check for dark mode files
-        run: |
-          echo "=== Checking for dark-mode.css ==="
-          find build/site -name "dark-mode.css" -type f
-          echo "=== Checking _/css directory ==="
-          ls -la build/site/_/css/ || echo "No _/css directory"
-          echo "=== Checking for head meta in HTML ==="
-          grep -r "dark-mode.css" build/site/ || echo "No dark-mode.css reference found"
-          echo "=== First index.html head section ==="
-          find build/site -name "index.html" -type f | head -1 | xargs grep -A 20 "<head>"
-
-      - name: Create root index redirect
-        run: |
-          cat > build/site/index.html << 'EOF'
-          <!DOCTYPE html>
-          <html lang="en">
-          <head>
-              <meta charset="utf-8">
-              <title>Tendroids Documentation</title>
-              <meta http-equiv="refresh" content="0; url=./tendroids/main/index.html">
-              <link rel="canonical" href="./tendroids/main/index.html">
-              <script>window.location.href='./tendroids/main/index.html';</script>
-          </head>
-          <body>
-              <p>Redirecting to <a href="./tendroids/main/index.html">Tendroids documentation</a>...</p>
-          </body>
-          </html>
-          EOF
-
-      - name: Add .nojekyll file
-        run: touch build/site/.nojekyll
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: build/site
+          path: ./build/site
 
   deploy:
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

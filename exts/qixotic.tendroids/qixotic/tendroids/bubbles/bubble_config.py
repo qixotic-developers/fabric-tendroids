@@ -21,25 +21,25 @@ class V2BubbleConfig:
                                         # < 1.0 = bubble bigger than bulge (pokes through)
     
     # === Motion ===
-    rise_speed: float = 40.0            # Units per second while inside tendroid (was 60)
-    released_rise_speed: float = 40.0   # Units per second after release
+    rise_speed: float = 15.0            # Units per second while inside tendroid (TESTING: slowed from 40.0)
+    released_rise_speed: float = 20.0   # Units per second after release (TESTING: slowed from 40.0)
     drift_speed: float = 3.0            # Lateral drift speed
     
     # === Pop Timing ===
-    min_pop_height: float = 150.0       # Min height above tendroid before pop
-    max_pop_height: float = 250.0       # Max height above tendroid before pop
+    min_pop_height: float = 200.0       # Min height above tendroid before pop (TESTING: raised from 150.0)
+    max_pop_height: float = 350.0       # Max height above tendroid before pop (TESTING: raised from 250.0)
     
     # === Visual ===
     color: tuple = (0.7, 0.9, 1.0)
-    opacity: float = 0.35
+    opacity: float = 0.25            # Restored to more transparent (was 0.35)
     resolution: int = 16
     
     # === Pop Particles ===
-    particles_per_pop: int = 3           # Reduced from 10 for performance
-    particle_speed: float = 18.0
-    particle_lifetime: float = 1.0       # Reduced from 2.0
-    particle_size: float = 3.0
-    particle_spread: float = 50.0
+    particles_per_pop: int = 12          # Increased from 3 for more spray (TESTING: was 10 production)
+    particle_speed: float = 35.0         # Increased from 18.0 for faster spray
+    particle_lifetime: float = 1.2       # Slightly longer to see farther travel
+    particle_size: float = 1.5           # Reduced from 3.0 for smaller particles
+    particle_spread: float = 80.0        # Increased from 50.0 for wider spray
     
     # === Performance ===
     max_bubbles_per_tendroid: int = 1
@@ -48,7 +48,8 @@ class V2BubbleConfig:
     # === Behavior ===
     hide_until_clear: bool = False      # Show bubble immediately (was True)
     auto_respawn: bool = True           # Auto-spawn new bubble after pop
-    respawn_delay: float = 1.0          # Seconds before respawn
+    respawn_delay: float = 3.0          # Seconds before respawn (TESTING: increased from 1.0)
+    max_concurrent_active: int = 2      # Maximum bubbles rising/exiting/released at once
     
     # === Debug ===
     debug_logging: bool = False

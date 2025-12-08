@@ -1,0 +1,97 @@
+= API Reference
+:navtitle: API Reference
+
+Complete API documentation for Fabric Tendroids.
+
+== Extension API
+
+=== qixotic.tendroids
+
+Main extension module.
+
+[source,python]
+----
+from qixotic.tendroids import TendroidExtension
+
+# Extension is automatically initialized by Omniverse
+----
+
+== Controller API
+
+=== TendroidAnimationController
+
+[source,python]
+----
+class TendroidAnimationController:
+    """Manages tendroid animation and physics."""
+    
+    def __init__(self, stage: Usd.Stage) -> None:
+        """Initialize the controller with a USD stage."""
+        
+    def update(self, dt: float) -> None:
+        """Update all tendroids for the given time delta."""
+        
+    def add_tendroid(self, prim_path: str) -> None:
+        """Register a tendroid prim for animation."""
+        
+    def remove_tendroid(self, prim_path: str) -> None:
+        """Unregister a tendroid prim."""
+----
+
+=== CreatureController
+
+[source,python]
+----
+class CreatureController:
+    """Manages creature behavior and interactions."""
+    
+    def __init__(self, stage: Usd.Stage) -> None:
+        """Initialize the controller."""
+        
+    def get_position(self) -> Vec3:
+        """Get the current creature position."""
+        
+    def set_position(self, pos: Vec3) -> None:
+        """Set the creature position."""
+----
+
+== Helper Functions
+
+=== interaction_helper
+
+[source,python]
+----
+def calculate_xz_distance(pos1: Vec3, pos2: Vec3) -> float:
+    """Calculate horizontal distance ignoring Y component."""
+    
+def check_proximity(
+    creature_pos: Vec3, 
+    tendroid_pos: Vec3, 
+    threshold: float
+) -> bool:
+    """Check if creature is within detection range."""
+----
+
+== GPU Kernels
+
+=== Warp Kernels
+
+[source,python]
+----
+@wp.kernel
+def proximity_check_kernel(
+    creature_pos: wp.vec3,
+    tendroid_positions: wp.array(dtype=wp.vec3),
+    results: wp.array(dtype=wp.int32)
+) -> None:
+    """GPU kernel for parallel proximity checks."""
+----
+
+== Events
+
+=== Extension Events
+
+* `on_startup` - Extension initialization
+* `on_shutdown` - Extension cleanup
+* `on_stage_opened` - New stage loaded
+* `on_update` - Per-frame update

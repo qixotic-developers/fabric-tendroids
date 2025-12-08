@@ -1,0 +1,141 @@
+= Bug Fixes - Interaction System
+:toc:
+
+== Issues Reported
+
+1. **No reaction when creature approaches** - Tendroid doesn't bend
+2. **Bubbles stop but no avoidance** - Bubble suppression works but no visual response
+3. **Repulsion pushes wrong direction** - Creature pushed forward instead of backward
+
+== Root Causes
+
+=== Bug 1 & 2: Target Angle Calculation
+
+**Problem:**
+```python
+distance_error = 15 - 50 = -35  # When at detection range
+target_angle = max(0.0, -35 * 2.0) = 0°  # Clamped to zero!
+```
+
+The target angle was 0° when creature was far away, so tendroid never bent!
+
+**Fix:**
+```python
+# Calculate closeness as percentage within detection zone
+# 0.0 = at detection edge, 1.0 = at contact
+closeness_factor = 1.0 - ((distance - contact_distance) / 
+                          (detection_start_distance - contact_distance))
+
+target_angle = closeness_factor * max_avoidance_angle
+```
+
+**Now:**
+- At 50 units: closeness = 0.0, target = 0° (no bend yet)
+- At 30 units: closeness = 0.5, target = 12.5° (half bend)
+- At 10 units: closeness = 1.0, target = 25° (full bend)
+
+=== Bug 3: Repulsion Direction Inverted
+
+**Problem:**
+```python
+horiz_dir_x = 1.0  # Points FROM tendroid TO creature
+repulsion_dir = -horiz_dir_x = -1.0  # Negated! Points TOWARD tendroid
+velocity += repulsion * dt  # Pulls creature toward tendroid!
+```
+
+**Fix:**
+```python
+# DO NOT negate - push in same direction as horiz_dir (away from tendroid)
+repulsion_dir = Gf.Vec3f(horiz_dir_x, 0.0, horiz_dir_z)
+velocity += repulsion * dt  # Now pushes creature away!
+```
+
+**Example:**
+- Tendroid at (0, 0, 0)
+- Creature at (20, 0, 0) - to the right
+- horiz_dir = (1, 0, 0) - points right (toward creature)
+- repulsion_dir = (1, 0, 0) - pushes right (away from tendroid) ✅
+- Old: repulsion_dir = (-1, 0, 0) - pushes left (toward tendroid) ❌
+
+== Additional Changes
+
+=== Simplified Distance Measurement
+
+**Removed:** Leading edge calculation (was causing issues when creature stationary)
+**Now using:** Creature center to tendroid center (simpler, more reliable)
+
+**Future:** Will add leading edge back once basic interaction is solid
+
+=== Enhanced Logging
+
+Added detailed logging with throttling:
+
+```
+[Interaction] Tendroid_01 suppressed bubble (creature within 45.3 units)
+[Avoidance] Tendroid_01: dist=30.2, target=15.0°, current=12.3°, closeness=0.60
+[Repulsion] Tendroid_01: penetration=2.5, force=25.0, dir=(0.87, 0, 0.50)
+[Shock] Tendroid_01 shocked creature! (distance: 9.8, contact: 10.0)
+```
+
+Logs every 30 frames (0.5 sec) to avoid spam.
+
+=== Tuning Adjustments
+
+```python
+# Increased from 20 to 30 deg/sec for more responsive feel
+avoidance_speed = 30.0
+
+# Doubled from 50 to 100 for stronger barrier
+repulsion_strength = 100.0
+
+# Doubled from 5 to 10 for earlier repulsion activation
+repulsion_max_distance = 10.0
+```
+
+== Expected Behavior Now
+
+=== Approach Sequence
+
+1. **At 50 units**: Bubble pops, log message, target = 0°
+2. **At 40 units**: Target = 6° (25% closeness), starts bending
+3. **At 30 units**: Target = 12.5° (50%), noticeable bend
+4. **At 20 units**: Target = 19° (75%), strong bend
+5. **At 12 units**: Repulsion force begins (within contact + buffer + range)
+6. **At 10 units**: Target = 25° (100%), max bend + stronger repulsion
+7. **At contact**: Shock visual + max repulsion pushes creature back
+
+=== Multiple Tendroids
+
+Forces accumulate correctly:
+```
+Tendroid A: repulsion = (50, 0, 0)  # Push right
+Tendroid B: repulsion = (-30, 0, 0) # Push left
+Combined: (20, 0, 0)  # Net push right
+```
+
+== Testing Checklist
+
+- [ ] Tendroid bends when creature within 50 units
+- [ ] Angle increases smoothly as creature approaches
+- [ ] Reaches maximum bend (25°) near contact
+- [ ] Bubble disappears on approach
+- [ ] Creature pushed AWAY when overlapping
+- [ ] Cannot pass through tendroid
+- [ ] Shock flash appears on contact
+- [ ] Multiple tendroids push correctly
+
+== Files Modified
+
+1. `scene/interaction_helper.py` - Complete rewrite with bug fixes
+   - Fixed target angle calculation
+   - Fixed repulsion direction
+   - Simplified to use center distance
+   - Added detailed logging
+
+## Rollback if Needed
+
+```bash
+git checkout HEAD -- exts/qixotic.tendroids/qixotic/tendroids/scene/interaction_helper.py
+```
+
+Or revert to previous commit if issues persist.

@@ -1,0 +1,28 @@
+= Quick Start
+:navtitle: Quick Start
+
+Get Fabric Tendroids running in minutes.
+
+== Prerequisites
+
+* NVIDIA Omniverse installed
+* RTX GPU with 8GB+ VRAM
+* Python 3.10+
+
+== Installation
+
+. Clone the repository
+. Open Omniverse and add the extension path
+. Enable the `qixotic.tendroids` extension
+
+== First Run
+
+. Create a new stage in Omniverse
+. The extension will initialize automatically
+. Use the extension panel to add creatures and tendroids
+
+== Next Steps
+
+* xref:installation.adoc[Detailed Installation]
+* xref:architecture.adoc[Architecture Overview]
+* xref:configuration.adoc[Configuration Options]

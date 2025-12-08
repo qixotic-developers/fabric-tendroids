@@ -174,7 +174,8 @@ class BubbleGPUManager:
         rise_speed: float,
         released_rise_speed: float,
         respawn_delay: float,
-        wave_state: dict = None
+        wave_state: dict = None,
+        max_concurrent_active: int = None
     ):
         """
         Update all bubble physics in parallel on GPU.
@@ -185,6 +186,7 @@ class BubbleGPUManager:
             released_rise_speed: Free-float speed
             respawn_delay: Seconds until respawn after pop
             wave_state: Optional wave controller state
+            max_concurrent_active: Optional limit on concurrent active bubbles
         """
         if self.active_count == 0:
             return
@@ -241,6 +243,50 @@ class BubbleGPUManager:
             ],
             device=self.device
         )
+        
+        # Enforce concurrent bubble limit if specified
+        if max_concurrent_active is not None and max_concurrent_active > 0:
+            self._enforce_concurrent_limit(max_concurrent_active, respawn_delay)
+    
+    def _enforce_concurrent_limit(self, max_concurrent: int, respawn_delay: float):
+        """
+        Limit number of concurrent active bubbles (phases 1, 2, 3).
+        
+        If more than max_concurrent bubbles are active, delay the youngest
+        bubbles by resetting their respawn timers.
+        
+        Args:
+            max_concurrent: Maximum number of active bubbles allowed
+            respawn_delay: Delay value to set for bubbles over limit
+        """
+        phases = self.phases_gpu.numpy()
+        ages = self.ages_gpu.numpy()
+        
+        # Find all active bubbles (rising=1, exiting=2, released=3)
+        active_mask = (phases == 1) | (phases == 2) | (phases == 3)
+        active_indices = np.where(active_mask)[0]
+        
+        # If under limit, nothing to do
+        if len(active_indices) <= max_concurrent:
+            return
+        
+        # Sort by age (youngest first) - we want to keep oldest bubbles active
+        sorted_indices = active_indices[np.argsort(ages[active_indices])]
+        
+        # Keep the oldest max_concurrent bubbles, force rest back to popped state
+        bubbles_to_delay = sorted_indices[:len(sorted_indices) - max_concurrent]
+        
+        if len(bubbles_to_delay) > 0:
+            # Update phases and respawn timers
+            respawn_timers = self.respawn_timers_gpu.numpy()
+            
+            for idx in bubbles_to_delay:
+                phases[idx] = 4  # Set to popped
+                respawn_timers[idx] = respawn_delay  # Reset respawn timer
+            
+            # Upload changes back to GPU
+            self.phases_gpu = wp.array(phases, dtype=int, device=self.device)
+            self.respawn_timers_gpu = wp.array(respawn_timers, dtype=float, device=self.device)
     
     def get_bubble_states(self) -> tuple:
         """

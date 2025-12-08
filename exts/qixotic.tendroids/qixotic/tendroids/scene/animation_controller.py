@@ -146,20 +146,27 @@ class V2AnimationController:
       self.wave_controller.update(dt)
       wave_state = self.wave_controller.get_wave_state()
 
-      # Update interactive creature (Phase 1)
-      if self.creature_controller:
-        self.creature_controller.update(dt)
-
       # GPU path
       if self.gpu_bubble_adapter:
         self._update_gpu_path(dt, wave_state)
       # CPU fallback
       elif self.bubble_manager:
         self.bubble_manager.update(dt, self.tendroids, self.wave_controller)
+        # Update interactive creature (Phase 1) - CPU path
+        if self.creature_controller:
+          bubble_positions = self.bubble_manager.get_bubble_positions()
+          bubble_radii = self.bubble_manager.get_bubble_radii()
+          collision_data = self.creature_controller.update(dt, bubble_positions, bubble_radii, wave_state)
+          # Handle collisions (extract tendroid name from tuple)
+          for tendroid_name, collision_dir in collision_data:
+            self.bubble_manager.pop_bubble(tendroid_name)
       # No bubbles - wave only
       else:
         for tendroid in self.tendroids:
           tendroid.apply_wave_only_with_state(wave_state)
+        # Update interactive creature (Phase 1) - no bubbles
+        if self.creature_controller:
+          self.creature_controller.update(dt, wave_state=wave_state)
 
     except Exception as e:
       carb.log_error(f"[V2AnimationController] Update error: {e}")
@@ -199,10 +206,43 @@ class V2AnimationController:
     else:
       self._apply_deformations_gpu(bubble_data, wave_state)
 
-    # 5. Update visuals using GPU state
+    # 5. Update interactive creature with bubble collision detection
+    if self.creature_controller:
+      # Extract positions and radii for active bubbles
+      bubble_positions = {}
+      bubble_radii = {}
+      for name, data in bubble_data.items():
+        if data['phase'] > 0:  # Active bubble
+          bubble_positions[name] = data['position']
+          bubble_radii[name] = data['radius']
+      
+      # Update creature and get list of popped bubbles with collision data
+      collision_data = self.creature_controller.update(dt, bubble_positions, bubble_radii, wave_state)
+      
+      # Trigger pop for collided bubbles with particle effects
+      for tendroid_name, collision_dir in collision_data:
+        # Get bubble data before popping for particle creation
+        if tendroid_name in bubble_data:
+          bubble_pos = bubble_data[tendroid_name]['position']
+          
+          # Create pop particle spray (convert numpy types to Python floats)
+          if self.bubble_manager and self.bubble_manager.particle_manager:
+            self.bubble_manager.particle_manager.create_pop_spray(
+              pop_position=(
+                float(bubble_pos[0]),
+                float(bubble_pos[1]),
+                float(bubble_pos[2])
+              ),
+              bubble_velocity=[0.0, 0.0, 0.0]  # GPU doesn't track velocity yet
+            )
+          
+          # Set bubble to popped state
+          self.gpu_bubble_adapter.pop_bubble(tendroid_name)
+
+    # 6. Update visuals using GPU state
     self._update_visuals_gpu(bubble_data)
 
-    # 6. Update particle system
+    # 7. Update particle system
     if self.bubble_manager and self.bubble_manager.particle_manager:
       self.bubble_manager.particle_manager.update(dt)
 

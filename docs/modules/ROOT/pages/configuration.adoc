@@ -1,0 +1,97 @@
+= Configuration
+:navtitle: Configuration
+
+Runtime configuration options for Fabric Tendroids.
+
+== Configuration Files
+
+Configuration files are located in the `config/` directory.
+
+=== extension.toml
+
+Main extension configuration.
+
+[source,toml]
+----
+[settings]
+# Detection range for creature proximity (meters)
+detection_range = 2.0
+
+# Cooldown time between shock interactions (seconds)
+shock_cooldown = 1.5
+
+# Enable debug visualization
+debug_mode = false
+----
+
+== Runtime Settings
+
+=== Physics Settings
+
+[cols="1,1,2"]
+|===
+|Setting |Default |Description
+
+|`detection_range`
+|2.0
+|Distance at which tendroids detect creatures (XZ-plane)
+
+|`avoidance_strength`
+|1.0
+|Multiplier for bend-away response
+
+|`shock_cooldown`
+|1.5
+|Seconds between shock interactions
+
+|`collision_threshold`
+|0.5
+|Contact distance for shock trigger
+|===
+
+=== Animation Settings
+
+[cols="1,1,2"]
+|===
+|Setting |Default |Description
+
+|`wave_speed`
+|1.0
+|Speed of wave animation
+
+|`bend_smoothing`
+|0.1
+|Smoothing factor for bend transitions
+
+|`recovery_rate`
+|2.0
+|Speed of return to neutral position
+|===
+
+== Environment Variables
+
+[source,bash]
+----
+# Enable verbose logging
+export TENDROIDS_DEBUG=1
+
+# Override detection range
+export TENDROIDS_DETECTION_RANGE=3.0
+----
+
+== Programmatic Configuration
+
+[source,python]
+----
+from qixotic.tendroids.config import TendroidConfig
+
+config = TendroidConfig()
+config.detection_range = 2.5
+config.shock_cooldown = 2.0
+config.apply()
+----
+
+== See Also
+
+* xref:architecture.adoc[Architecture]
+* xref:api.adoc[API Reference]

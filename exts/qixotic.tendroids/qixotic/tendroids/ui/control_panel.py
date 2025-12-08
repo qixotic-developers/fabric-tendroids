@@ -12,6 +12,7 @@ from ..scene.manager import V2SceneManager
 from .spawn_controls import SpawnControls
 from .wave_controls import WaveControls
 from .bubble_controls import BubbleControls
+from .creature_controls import CreatureControls
 from .action_buttons import ActionButtons
 
 
@@ -36,9 +37,11 @@ class V2ControlPanel:
         self.spawn_controls = SpawnControls()
         self.wave_controls = WaveControls()
         self.bubble_controls = BubbleControls()
+        self.creature_controls = CreatureControls()
         self.action_buttons = ActionButtons(
             self.scene_manager,
-            self.spawn_controls
+            self.spawn_controls,
+            self.creature_controls
         )
         
         carb.log_info("[V2ControlPanel] Initialized")
@@ -80,6 +83,9 @@ class V2ControlPanel:
                     
                     # Spawn settings
                     self.spawn_controls.build()
+                    
+                    # Creature settings
+                    self.creature_controls.build()
                     
                     # Wave motion
                     self._bind_wave_controller()

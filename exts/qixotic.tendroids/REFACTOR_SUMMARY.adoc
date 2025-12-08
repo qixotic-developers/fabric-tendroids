@@ -1,0 +1,220 @@
+= Phase 1 Step 3 - Interaction Refactor Summary
+:toc:
+:toclevels: 3
+
+== Changes Made
+
+=== Files Modified
+
+1. **animation_controller.py** - Replaced `_update_tendroid_creature_interactions()` method
+   - Old: 135 lines of inline logic
+   - New: 75 lines using helper class
+   - Cleaner separation of concerns
+
+2. **interaction_helper.py** - NEW FILE
+   - Contains `TendroidCreatureInteraction` class
+   - Encapsulates all interaction physics and logic
+   - Easier to test and tune parameters
+
+3. **INTERACTION_PARAMS.md** - NEW DOCUMENTATION
+   - Tracks configuration parameters  
+   - Documents each issue and fix
+   - Implementation checklist
+
+=== Key Improvements
+
+==== 1. Distance from Leading Edge ✅
+**Before**: Distance measured from creature center +
+**After**: Distance measured from front of creature (6 units ahead)
+
+```python
+leading_edge = calculate_leading_edge(creature_pos, creature_vel, creature_length)
+```
+
+**Effect**: Tendroid reacts ~6 units earlier, giving more warning time
+
+==== 2. Gradual Avoidance Movement ✅  
+**Before**: Rapid acceleration to max bend +
+**After**: Smooth proportional control to target angle
+
+```python
+target_angle = distance_error * avoidance_proportional_gain
+bend_rate = avoidance_speed + abs(approach_velocity) * 0.5
+```
+
+**Effect**: Smooth bending motion that tracks creature approach
+
+==== 3. Maintain Constant Distance ✅
+**Before**: Just bends, no distance target +
+**After**: Proportional control maintains `target_maintain_distance`
+
+```python
+distance_error = target_maintain_distance - distance_from_edge
+target_angle = min(max_avoidance_angle, distance_error * proportional_gain)
+```
+
+**Effect**: Tendroid actively maintains 15-unit buffer distance
+
+==== 4. Bubble Suppression ✅
+**Before**: Only popped bubble on first frame +
+**After**: Continuous suppression in interaction zone
+
+```python
+if distance_from_edge <= detection_start_distance:
+    result['bubble_suppressed'] = True
+    if first_entry:
+        gpu_bubble_adapter.pop_bubble(tendroid.name)
+```
+
+**Effect**: No bubbles rise during creature approach
+
+==== 5. Prevent Penetration ✅  
+**Before**: Only shock force (with cooldown) +
+**After**: Continuous repulsion force when overlapping
+
+```python
+penetration_depth = (contact_distance + buffer) - distance
+repulsion_force = repulsion_strength * (penetration_depth / max_distance)
+```
+
+**Effect**: Creature cannot pass through tendroid
+
+==== 6. Shock Translation Only ✅
+**Before**: Already correct +
+**After**: No changes needed
+
+```python
+self.creature_controller.velocity += shock_direction * shock_impulse
+```
+
+**Effect**: Creature pushed back without rotation
+
+==== 7. Bubble Path Tracking ⏸️
+**Before**: Bubbles don't follow bent centerline +
+**After**: DEFERRED - requires bubble position calculation update
+
+**Status**: To be implemented after basic interaction is stable
+
+== Configuration Parameters
+
+=== Interaction Zones
+```python
+detection_start_distance = 50.0    # Start reacting
+target_maintain_distance = 15.0    # Try to keep this far
+contact_buffer = 2.0               # Safety beyond radii sum
+```
+
+=== Avoidance Tuning
+```python
+avoidance_speed = 20.0                # Base bend rate (deg/sec)
+avoidance_proportional_gain = 2.0    # Distance error multiplier
+```
+
+=== Repulsion Force
+```python
+repulsion_strength = 50.0          # Max force
+repulsion_max_distance = 5.0       # Range
+```
+
+=== Shock
+```python
+shock_impulse = 25.0               # Pushback strength  
+shock_cooldown = 1.5               # Seconds between
+shock_duration = 0.3               # Visual flash time
+```
+
+== Testing Checklist
+
+=== Basic Functionality
+- [ ] Tendroid reacts when creature approaches
+- [ ] Avoidance angle increases gradually (not instant)
+- [ ] Tendroid maintains roughly constant distance
+- [ ] Bubble disappears when creature enters zone
+- [ ] Multiple tendroids can interact simultaneously
+
+=== Distance Measurement
+- [ ] Reaction starts earlier than before (leading edge)
+- [ ] Reaction distance roughly 56 units from tendroid center (50 + 6 leading edge)
+- [ ] Test with creature moving in different directions
+
+=== Gradual Movement
+- [ ] Slow approach → slow bend
+- [ ] Fast approach → faster bend (but still smooth)
+- [ ] No sudden jumps to max angle
+- [ ] Smooth recovery when creature backs away
+
+=== Distance Maintenance
+- [ ] Tendroid stops bending at ~15 units from edge
+- [ ] Angle adjusts to maintain distance as creature circles
+- [ ] If creature gets closer, angle increases
+- [ ] If creature backs up, angle decreases
+
+=== Bubble Suppression
+- [ ] Rising bubble pops when creature enters zone
+- [ ] No new bubbles created while creature nearby
+- [ ] Bubbles resume after creature leaves
+- [ ] Multiple tendroids suppress independently
+
+=== Penetration Prevention
+- [ ] Creature slows down as it approaches contact
+- [ ] Creature bounces back if pushed into tendroid
+- [ ] Works even during shock cooldown
+- [ ] Multiple tendroids create combined repulsion
+
+=== Shock Behavior
+- [ ] Orange flash on contact
+- [ ] Creature pushed away horizontally
+- [ ] No rotation of creature
+- [ ] 1.5 second cooldown between shocks
+- [ ] Visual timing matches 0.3 second duration
+
+=== Edge Cases
+- [ ] Creature stationary near tendroid
+- [ ] Creature moving parallel to tendroid
+- [ ] Creature moving away from tendroid
+- [ ] Very slow approach (<1 unit/sec)
+- [ ] Very fast approach (>50 units/sec)
+- [ ] Creature between multiple tendroids
+
+== Known Issues / TODO
+
+=== Issue #7 - Bubble Path (Deferred)
+Bubbles rising in bent tendroid will poke through the side.
+
+**Fix Required**: Calculate horizontal offset based on Y-position and avoidance angle, apply to bubble position.
+
+**Implementation**: Update bubble position calculation in `_update_visuals_gpu()` to account for `tendroid.avoidance_angle` and `avoidance_dir_x/z`.
+
+**Priority**: LOW - Wait until basic interaction is stable and tested.
+
+=== Possible Enhancements
+
+1. **Adaptive Detection Range**: Larger detection range for faster-moving creatures
+2. **Smooth Attack Angle**: Interpolate avoidance direction for smoother visuals
+3. **Group Behavior**: Coordinated response from nearby tendroids
+4. **Sound Effects**: Audio feedback for approach/contact/shock
+5. **Visual Tell**: Tendroid color change when aware of creature
+
+== Performance Notes
+
+- Leading edge calculation adds minimal overhead (2 vector ops)
+- Interaction helper class initialized once, reused each frame
+- No additional GPU operations (all CPU-side logic)
+- Repulsion force accumulated efficiently (single final application)
+- Logging throttled to 1Hz to avoid spam
+
+== Rollback Instructions
+
+If issues occur, revert to previous version:
+
+```bash
+git checkout HEAD~1 -- exts/qixotic.tendroids/qixotic/tendroids/scene/animation_controller.py
+rm exts/qixotic.tendroids/qixotic/tendroids/scene/interaction_helper.py
+```
+
+Previous behavior:
+- Distance from center
+- Rapid bend to max
+- No distance maintenance
+- Single bubble pop
+- Shock-only collision response

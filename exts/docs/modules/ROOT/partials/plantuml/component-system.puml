@@ -1,0 +1,33 @@
+@startuml
+!include <C4/C4_Component>
+
+Container_Boundary(app, "geo-sub Application") {
+    Component(main, "Main", "C++", "Application entry point and window management")
+    Component(renderer, "SampleRenderer", "C++/CUDA", "OptiX rendering pipeline orchestration")
+    Component(mesh, "Mesh System", "C++", "Icosahedron and subdivision")
+    Component(window, "Window System", "C++/OpenGL", "Display and interaction")
+}
+
+Container_Boundary(cuda, "CUDA Device") {
+    Component(ptx, "Device Programs", "CUDA/PTX", "Ray generation, intersection, shading")
+    Component(buffers, "GPU Buffers", "CUDA Memory", "Vertex, index, and framebuffer data")
+}
+
+Container_Boundary(libs, "External Libraries") {
+    Component(optix, "OptiX SDK", "9.0.0", "Ray tracing framework")
+    Component(gdt, "GDT", "Math Library", "Vector and matrix operations")
+    Component(glfw, "GLFW", "3.3.9", "Windowing and input")
+}
+
+Rel(main, window, "Creates and manages")
+Rel(main, mesh, "Initializes")
+Rel(main, renderer, "Delegates rendering")
+Rel(renderer, optix, "Uses for ray tracing")
+Rel(renderer, ptx, "Loads and executes")
+Rel(renderer, buffers, "Manages")
+Rel(ptx, buffers, "Reads/writes")
+Rel(mesh, gdt, "Uses for math")
+Rel(window, glfw, "Built on")
+Rel(window, renderer, "Gets pixels from")
+
+@enduml

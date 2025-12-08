@@ -1,0 +1,108 @@
+= System Architecture
+:navtitle: Architecture
+
+Overview of the geo-sub-optix application architecture.
+
+== Architecture Layers
+
+The application implements a classic ray tracing pipeline using NVIDIA's OptiX with CUDA acceleration.
+
+=== Application Layer
+
+Main Entry Point (`main.cpp`)::
+Initializes the application, creates window, sets up camera, enters rendering loop.
+
+Window Management (`SampleWindow`)::
+Extends GLFCameraWindow for camera control and OpenGL framebuffer display.
+
+Camera System::
+Simple camera model with position (`from`), look-at (`at`), and up vector.
+
+=== Rendering Pipeline Layer
+
+SampleRenderer responsibilities:
+
+* OptiX context and device initialization
+* Module creation from PTX code
+* Program group setup (raygen, miss, hitgroup)
+* Pipeline assembly and compilation
+* Shader Binding Table (SBT) construction
+* Acceleration structure building
+* Frame rendering and pixel download
+
+OptiX Pipeline Stages:
+
+. *Ray Generation* - Camera rays for each pixel
+. *Traversal* - Hardware-accelerated BVH traversal
+. *Intersection* - Triangle-ray intersection
+. *Closest Hit* - Shading for visible surfaces
+. *Miss* - Background color
+
+=== Geometric Processing Layer
+
+IcosahedronTriangleMesh::
+Triangle mesh with `vertex`, `index`, and `color` data.
+
+Subdivision System::
+Strategy pattern for mesh refinement:
+
+* `SubdividerBase` - Abstract interface
+* `Subdivider0-3A` - Concrete implementations
+
+=== Device Layer (CUDA/OptiX)
+
+Launch Parameters (`LaunchParams`)::
+Frame buffer, dimensions, camera vectors, traversable handle.
+
+Ray Generation Program::
+Generates rays from camera through pixels, calls `optixTrace`.
+
+Closest Hit Program::
+Retrieves triangle data, computes normal, calculates lighting.
+
+Miss Program::
+Gradient background for rays missing geometry.
+
+== Data Flow
+
+[source]
+----
+User Input → Camera Update
+    ↓
+Icosahedron → Subdivision → Triangle Mesh
+    ↓
+GPU Upload → Acceleration Structure (BVH)
+    ↓
+OptiX Kernel → Ray Gen → Traversal → Hit/Miss
+    ↓
+Framebuffer → Download → OpenGL Display
+----
+
+== Memory Management
+
+=== CUDABuffer Wrapper
+
+* `alloc()` - Allocate GPU memory
+* `upload()` - CPU to GPU transfer
+* `download()` - GPU to CPU transfer
+* `free()` - Release memory
+
+=== Buffer Types
+
+* `vertexBuffer` - Vertex positions
+* `indexBuffer` - Triangle indices
+* `colorBuffer` - Framebuffer pixels
+* `launchParamsBuffer` - Launch parameters
+* `asBuffer` - Acceleration structure
+
+== PTX Compilation
+
+[source]
+----
+devicePrograms.cu  →  nvcc -ptx  →  .ptx
+    →  bin2c  →  embedded C array
+    →  Linked into exe
+    →  OptiX JIT  →  GPU code
+----
+
+The PTX is embedded as `embedded_ptx_code`, making the executable self-contained.

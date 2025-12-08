@@ -1,0 +1,39 @@
+@startuml
+participant SampleWindow as window
+participant SampleRenderer as renderer
+participant "OptiX" as optix
+participant "Device Programs" as device
+
+window -> window : render()
+
+alt camera changed
+    window -> renderer : setCamera(camera)
+end
+
+window -> renderer : render()
+
+renderer -> renderer : update launchParams
+renderer -> optix : optixLaunch(pipeline, params)
+
+optix -> device : __raygen__renderFrame()
+
+loop for each pixel
+    device -> optix : optixTrace(ray)
+    
+    alt ray hits triangle
+        optix -> device : __closesthit__radiance()
+        device -> device : compute shading
+    else ray misses
+        optix -> device : __miss__radiance()
+        device -> device : gradient background
+    end
+    
+    device -> device : write to colorBuffer
+end
+
+optix --> renderer : launch complete
+
+window -> renderer : downloadPixels(pixels)
+window -> window : draw() via OpenGL
+
+@enduml

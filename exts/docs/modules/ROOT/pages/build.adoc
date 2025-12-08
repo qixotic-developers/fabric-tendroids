@@ -1,0 +1,127 @@
+= Build Instructions
+:navtitle: Build Instructions
+
+Complete build instructions for the geo-sub-optix application.
+
+== Prerequisites
+
+=== Required Software
+
+[cols="2,1,3"]
+|===
+|Software |Version |Download
+
+|CMake |3.18+ |https://cmake.org/download/
+|CUDA Toolkit |13.0 |https://developer.nvidia.com/cuda-downloads
+|OptiX SDK |9.0.0 |https://developer.nvidia.com/optix
+|Visual Studio |2022 |https://visualstudio.microsoft.com/
+|===
+
+=== Installation Paths
+
+The build expects NVIDIA software at default locations:
+
+* *CUDA*: `C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.0`
+* *OptiX*: `C:\ProgramData\NVIDIA Corporation\OptiX SDK 9.0.0`
+
+== Building with CMake
+
+=== Configure
+
+[source,bash]
+----
+cd C:\Dev\geo-sub\geo-sub-optix-make
+
+# Configure with Visual Studio 2022
+cmake -B build -G "Visual Studio 17 2022" -A x64
+----
+
+=== Build Release
+
+[source,bash]
+----
+cmake --build build --config Release
+----
+
+WARNING: Debug builds encounter OptiX LLVM out-of-memory errors. Use Release.
+
+=== Run
+
+[source,bash]
+----
+.\build\bin\Release\geo-sub.exe
+----
+
+Expected output:
+
+[source]
+----
+#osc: initializing optix...
+#osc: found 1 CUDA devices
+#osc: successfully initialized optix... yay!
+#osc: running on device: NVIDIA GeForce RTX 4090
+----
+
+== Building with CLion
+
+. Open project folder in CLion
+. Select `Release` configuration
+. Click hammer icon or `Ctrl+F9`
+. Run with green play button
+
+== Building with Visual Studio
+
+. Open `build\geo-sub-optix.sln`
+. Set configuration to `Release` / `x64`
+. Right-click `geo-sub` → `Set as Startup Project`
+. Press `F5` to build and run
+
+== CMake Options
+
+=== Custom OptiX Path
+
+[source,bash]
+----
+cmake -B build -DOptiX_INSTALL_DIR="D:/SDKs/OptiX 9.0.0"
+----
+
+=== CUDA Architectures
+
+[source,cmake]
+----
+# In CMakeLists.txt
+set(CMAKE_CUDA_ARCHITECTURES "75;86")  # RTX 20/30/40 series
+----
+
+== Troubleshooting
+
+=== OptiX Module Creation Fails
+
+[source]
+----
+LLVM ERROR: out of memory
+----
+
+*Solution*: Use Release build. Debug builds have known OptiX JIT issues.
+
+=== CUDA Toolkit Not Found
+
+*Solution*: Install CUDA 13.0 to default path and restart CMake.
+
+=== PTX Compilation Errors
+
+[source]
+----
+Cannot open include file: 'optix_device.h'
+----
+
+*Solution*: Verify OptiX_INSTALL_DIR points to correct location.
+
+== Clean Build
+
+[source,bash]
+----
+rmdir /s /q build
+cmake -B build -G "Visual Studio 17 2022" -A x64
+cmake --build build --config Release
+----

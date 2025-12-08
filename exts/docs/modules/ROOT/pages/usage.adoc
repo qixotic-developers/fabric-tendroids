@@ -1,0 +1,116 @@
+= Usage Guide
+:navtitle: Usage Guide
+
+How to run and interact with the geo-sub-optix application.
+
+== Running the Application
+
+[source,bash]
+----
+.\build\bin\Release\geo-sub.exe
+----
+
+=== Expected Console Output
+
+[source]
+----
+#osc: initializing optix...
+#osc: found 1 CUDA devices
+#osc: successfully initialized optix... yay!
+#osc: running on device: NVIDIA GeForce RTX 4090
+#osc: Optix 7 Sample fully set up
+----
+
+=== Visual Output
+
+* Subdivided icosahedron (spherical approximation)
+* Green mesh with gray back-faces
+* Gradient background
+* Real-time rendering at 60+ FPS
+
+== Interactive Controls
+
+=== Camera Controls
+
+[cols="1,3"]
+|===
+|Control |Action
+
+|*Left Mouse Drag*
+|Rotate camera (orbit around object)
+
+|*Right Mouse Drag*
+|Dolly (zoom in/out)
+
+|*Middle Mouse Drag*
+|Pan (move view laterally)
+
+|*Mouse Wheel*
+|Alternative zoom control
+|===
+
+=== Camera Behavior
+
+Orbit (Left Mouse)::
+Rotates camera around the icosahedron, maintains distance.
+
+Dolly (Right Mouse)::
+Moves camera along view direction. Drag up to zoom in.
+
+Pan (Middle Mouse)::
+Moves camera and look-at point together, parallel to screen.
+
+== Modifying the Application
+
+=== Subdivision Level
+
+Edit `main.cpp` to change mesh detail:
+
+[source,cpp]
+----
+// Create subdivider and apply
+auto subdivider = std::make_unique<Subdivider1A>();
+mesh = subdivider->subdivide(mesh);  // Level 1
+mesh = subdivider->subdivide(mesh);  // Level 2
+mesh = subdivider->subdivide(mesh);  // Level 3 (more detail)
+----
+
+=== Mesh Color
+
+Modify the mesh color in `main.cpp`:
+
+[source,cpp]
+----
+mesh.color = vec3f(0.f, 1.f, 0.f);  // Green
+mesh.color = vec3f(1.f, 0.f, 0.f);  // Red
+mesh.color = vec3f(0.2f, 0.4f, 0.8f);  // Blue
+----
+
+=== Window Size
+
+Change initial window dimensions:
+
+[source,cpp]
+----
+const vec2i fbSize(1200, 1024);  // Width x Height
+----
+
+== Troubleshooting
+
+=== Black Screen
+
+* Verify GPU drivers are up to date
+* Check console for OptiX errors
+* Ensure RTX GPU is being used (not integrated graphics)
+
+=== Low Frame Rate
+
+* Close other GPU-intensive applications
+* Reduce subdivision levels
+* Check GPU utilization with `nvidia-smi`
+
+=== Application Crash
+
+* Check console output for error messages
+* Verify CUDA and OptiX versions match requirements
+* Rebuild in Release configuration

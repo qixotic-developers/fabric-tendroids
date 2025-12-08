@@ -1,0 +1,4 @@
+= Migration Guide
+:navtitle: Migration
+
+include::../../MIGRATION.adoc[]

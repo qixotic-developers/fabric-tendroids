@@ -1,0 +1,93 @@
+= UML Diagrams
+:navtitle: UML Diagrams
+:icons: font
+
+Architectural diagrams for geo-sub-optix rendered with PlantUML.
+
+== Package Overview
+
+Shows the top-level organization of the codebase.
+
+[plantuml,package-overview,svg]
+....
+include::partial$plantuml/package-overview.puml[]
+....
+
+== Component Diagrams
+
+=== System Components
+
+The geo-sub-optix system consists of these major components:
+
+[plantuml,component-system,svg]
+....
+include::partial$plantuml/component-system.puml[]
+....
+
+== Class Diagrams
+
+=== Core Application Classes
+
+Main application classes and their relationships.
+
+[plantuml,class-core,svg]
+....
+include::partial$plantuml/class-core.puml[]
+....
+
+=== Subdivision Class Hierarchy
+
+The subdivision strategy pattern implementation.
+
+[plantuml,class-subdivision,svg]
+....
+include::partial$plantuml/class-subdivision.puml[]
+....
+
+== Sequence Diagrams
+
+=== Initialization Sequence
+
+Complete initialization sequence from program start to ready-to-render state.
+
+[plantuml,seq-initialization,svg]
+....
+include::partial$plantuml/seq-initialization.puml[]
+....
+
+=== Frame Rendering Sequence
+
+Detailed sequence of operations for rendering a single frame.
+
+[plantuml,seq-rendering,svg]
+....
+include::partial$plantuml/seq-rendering.puml[]
+....
+
+== State Diagrams
+
+=== SampleRenderer State Machine
+
+Lifecycle states of the SampleRenderer component.
+
+[plantuml,state-renderer,svg]
+....
+include::partial$plantuml/state-renderer.puml[]
+....
+
+== Data Flow
+
+=== Rendering Pipeline
+
+[source]
+----
+CPU                          GPU
+────                         ───
+Camera params    ──────►    LaunchParams
+Mesh data        ──────►    Vertex/Index buffers
+                            BVH traversal
+                            Ray-triangle intersection
+                            Shading
+Pixel array      ◄──────    Framebuffer
+OpenGL display
+----

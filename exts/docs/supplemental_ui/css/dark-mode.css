@@ -1,0 +1,267 @@
+/* Geo-Sub OptiX Dark Mode - Nvidia-inspired theme */
+/* Version 4 - Fixed listing blocks, removed nav interference */
+
+:root {
+  --dark-bg-primary: #1a1a1a;
+  --dark-bg-secondary: #242424;
+  --dark-bg-tertiary: #2d2d2d;
+  --dark-text-primary: #f5f5f5;
+  --dark-text-secondary: #c0c0c0;
+  --dark-accent: #76b900;
+  --dark-accent-hover: #8ecf00;
+  --dark-border: #3d3d3d;
+  --dark-code-bg: #1e1e1e;
+  --dark-link: #76b900;
+  --dark-link-hover: #8ecf00;
+}
+
+/* Dark mode toggle button */
+.dark-mode-toggle {
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: 1.2rem;
+  padding: 0.25rem 0.5rem;
+  margin-left: 0.5rem;
+  transition: all 0.2s ease;
+}
+
+.dark-mode-toggle:hover {
+  opacity: 0.8;
+}
+
+/* === DARK MODE STYLES === */
+html.dark-mode {
+  color-scheme: dark;
+}
+
+html.dark-mode body {
+  background: var(--dark-bg-primary);
+  color: var(--dark-text-primary);
+}
+
+/* Main content - high contrast text */
+html.dark-mode .doc,
+html.dark-mode .doc p,
+html.dark-mode .doc li,
+html.dark-mode .doc td,
+html.dark-mode .doc dd,
+html.dark-mode .doc dt {
+  color: var(--dark-text-primary);
+}
+
+html.dark-mode .navbar {
+  background: var(--dark-bg-secondary);
+}
+
+html.dark-mode .nav-panel-menu {
+  background: var(--dark-bg-secondary);
+}
+
+html.dark-mode .nav-panel-explore,
+html.dark-mode .toolbar {
+  background: var(--dark-bg-tertiary);
+}
+
+html.dark-mode .doc {
+  background: var(--dark-bg-primary);
+}
+
+html.dark-mode .doc h1,
+html.dark-mode .doc h2,
+html.dark-mode .doc h3,
+html.dark-mode .doc h4,
+html.dark-mode .doc h5,
+html.dark-mode .doc h6 {
+  color: #ffffff;
+}
+
+html.dark-mode a {
+  color: var(--dark-link);
+}
+
+html.dark-mode a:hover {
+  color: var(--dark-link-hover);
+}
+
+/* Nav menu - colors only, no behavior changes */
+html.dark-mode .nav-menu {
+  background: var(--dark-bg-secondary);
+}
+
+html.dark-mode .nav-link,
+html.dark-mode .nav-text {
+  color: var(--dark-text-secondary);
+}
+
+html.dark-mode .nav-item.is-active > .nav-link,
+html.dark-mode .nav-item.is-current-page > .nav-link {
+  color: var(--dark-accent);
+}
+
+/* CRITICAL: Ensure nav-toggle remains fully functional */
+html.dark-mode .nav-toggle {
+  pointer-events: auto !important;
+  cursor: pointer !important;
+}
+
+html.dark-mode .nav-toggle::before {
+  border-color: var(--dark-text-secondary) !important;
+  border-style: solid;
+  border-width: 0 0 2px 2px;
+}
+
+html.dark-mode .nav-item.is-active > .nav-toggle::before {
+  border-color: var(--dark-accent) !important;
+}
+
+/* Code blocks - ALL variants */
+html.dark-mode pre,
+html.dark-mode code,
+html.dark-mode .listingblock pre,
+html.dark-mode .literalblock pre,
+html.dark-mode .listingblock pre code,
+html.dark-mode .literalblock pre code {
+  background: var(--dark-code-bg) !important;
+  color: #e0e0e0 !important;
+}
+
+/* Listing block container */
+html.dark-mode .listingblock,
+html.dark-mode .literalblock {
+  background: var(--dark-code-bg);
+}
+
+html.dark-mode .listingblock .content,
+html.dark-mode .literalblock .content {
+  background: var(--dark-code-bg);
+  color: #e0e0e0;
+}
+
+html.dark-mode .listingblock .title,
+html.dark-mode .literalblock .title {
+  color: var(--dark-text-secondary);
+}
+
+/* Inline code */
+html.dark-mode :not(pre) > code {
+  background: var(--dark-bg-tertiary) !important;
+  color: #e0e0e0 !important;
+  padding: 0.1em 0.3em;
+  border-radius: 3px;
+}
+
+/* Tables */
+html.dark-mode table {
+  border-color: var(--dark-border);
+}
+
+html.dark-mode th {
+  background: var(--dark-bg-tertiary);
+  color: var(--dark-text-primary);
+}
+
+html.dark-mode td {
+  border-color: var(--dark-border);
+  color: var(--dark-text-primary);
+}
+
+html.dark-mode tr:nth-child(even) {
+  background: var(--dark-bg-secondary);
+}
+
+/* Admonition blocks */
+html.dark-mode .admonitionblock {
+  background: var(--dark-bg-secondary);
+  border-color: var(--dark-border);
+}
+
+html.dark-mode .admonitionblock.note {
+  border-left-color: var(--dark-accent);
+}
+
+/* Sidebar / TOC */
+html.dark-mode .toc,
+html.dark-mode .toc-sidebar,
+html.dark-mode .aside {
+  background: var(--dark-bg-primary);
+}
+
+html.dark-mode .toc-title,
+html.dark-mode .toc h3,
+html.dark-mode .aside h3,
+html.dark-mode .toc-sidebar h3 {
+  color: var(--dark-text-primary) !important;
+}
+
+html.dark-mode .toc-menu a {
+  color: var(--dark-text-secondary);
+}
+
+html.dark-mode .toc-menu a:hover,
+html.dark-mode .toc-menu a.is-active {
+  color: var(--dark-accent);
+}
+
+/* Footer */
+html.dark-mode .footer {
+  background: var(--dark-bg-secondary);
+  color: var(--dark-text-secondary);
+}
+
+/* Search */
+html.dark-mode #search-input {
+  background: var(--dark-bg-tertiary);
+  border-color: var(--dark-border);
+  color: var(--dark-text-primary);
+}
+
+/* Images - white background for diagrams */
+html.dark-mode .imageblock img,
+html.dark-mode .image img,
+html.dark-mode img.image,
+html.dark-mode .doc img {
+  background: #ffffff;
+  padding: 8px;
+  border-radius: 4px;
+}
+
+/* Scrollbar */
+/* Images - white background for visibility */
+html.dark-mode .imageblock img,
+html.dark-mode .image img,
+html.dark-mode img.image,
+html.dark-mode .doc img {
+  background: #ffffff;
+  padding: 8px;
+  border-radius: 4px;
+}
+
+/* SVG diagrams */
+html.dark-mode .imageblock svg,
+html.dark-mode object[type="image/svg+xml"],
+html.dark-mode .doc svg {
+  background: #ffffff;
+  padding: 8px;
+  border-radius: 4px;
+}
+
+/* Scrollbar styling for dark mode */
+html.dark-mode ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+html.dark-mode ::-webkit-scrollbar-track {
+  background: var(--dark-bg-secondary);
+}
+
+html.dark-mode ::-webkit-scrollbar-thumb {
+  background: var(--dark-border);
+  border-radius: 4px;
+}
+
+html.dark-mode ::-webkit-scrollbar-thumb:hover {
+  background: var(--dark-accent);
+}

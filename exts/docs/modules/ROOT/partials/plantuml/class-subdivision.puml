@@ -1,0 +1,61 @@
+@startuml
+abstract class Subdivider {
+    # vertices: vector<vec3i>
+    # indexes: vector<long>
+    # newIndex: unsigned long
+    # startPoint: unsigned long
+    + Subdivider()
+    + {abstract} ~Subdivider()
+    + subdivide(triangle, vertexList, xfm): vector<vec3i>
+    # pointExists(vec, vecs): long
+    # {static} halfPoint(p1, p2): vec3f
+    # {static} thirdPoints(p1, p2): pair<vec3f>
+    # {static} fourthPoints(p1, p2): vector<vec3f>
+    # {static} centroid(p1, p2, p3): vec3f
+    # checkForDuplicates(vertexList, newVertex)
+    - {abstract} addNewVertices(triangle, vertexList, xfm)
+    - {abstract} createNewTriangles(triangle, vertexList): vector<vec3i>
+}
+
+class Subdivider0 {
+    - addNewVertices()
+    - createNewTriangles(): vector<vec3i>
+}
+
+class Subdivider1A {
+    - addNewVertices()
+    - createNewTriangles(): vector<vec3i>
+}
+
+class Subdivider1B {
+    - addNewVertices()
+    - createNewTriangles(): vector<vec3i>
+}
+
+class Subdivider2A {
+    - addNewVertices()
+    - createNewTriangles(): vector<vec3i>
+}
+
+class Subdivider3A {
+    - addNewVertices()
+    - createNewTriangles(): vector<vec3i>
+}
+
+Subdivider <|-- Subdivider0
+Subdivider <|-- Subdivider1A
+Subdivider <|-- Subdivider1B
+Subdivider <|-- Subdivider2A
+Subdivider <|-- Subdivider3A
+
+note top of Subdivider
+    Template Method Pattern
+    subdivide() orchestrates the process
+end note
+
+note bottom of Subdivider0
+    Simple Edge Midpoint
+    Creates 4 triangles per input
+end note
+
+@enduml

@@ -1,0 +1,34 @@
+@startuml
+participant "main()" as main
+participant IcosahedronTriangleMesh as mesh
+participant SampleWindow as window
+participant SampleRenderer as renderer
+
+main -> mesh ** : create
+main -> mesh : addIcosahedron(center, size)
+
+mesh -> renderer : subdivide(subdividers, triangles, vertices)
+note right: Subdivider0 x3, Subdivider3A x1
+
+renderer --> mesh : refined triangles (~5000+)
+
+main -> window ** : SampleWindow(title, mesh, camera)
+
+window -> renderer ** : SampleRenderer(mesh)
+
+renderer -> renderer : initOptix()
+renderer -> renderer : createContext()
+renderer -> renderer : createModule()
+renderer -> renderer : createRaygenPrograms()
+renderer -> renderer : createMissPrograms()
+renderer -> renderer : createHitgroupPrograms()
+renderer -> renderer : buildAccel(mesh)
+renderer -> renderer : createPipeline()
+renderer -> renderer : buildSBT()
+
+renderer --> window : renderer ready
+
+main -> window : run()
+note right: Enter GLFW event loop
+
+@enduml

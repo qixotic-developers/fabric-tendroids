@@ -1,0 +1,30 @@
+@startuml
+[*] --> Uninitialized
+
+state Uninitialized {
+    [*] --> InitOptiX
+    InitOptiX --> CreateContext
+    CreateContext --> CreateModule
+    CreateModule --> CreatePrograms
+    CreatePrograms --> BuildAccel
+    BuildAccel --> CreatePipeline
+    CreatePipeline --> BuildSBT
+    BuildSBT --> [*]
+}
+
+Uninitialized --> Ready : init complete
+
+state Ready {
+    [*] --> Idle
+    Idle --> Rendering : render()
+    Idle --> CameraUpdate : setCamera()
+    Idle --> Resizing : resize()
+    
+    Rendering --> Idle : frame done
+    CameraUpdate --> Idle
+    Resizing --> Idle
+}
+
+Ready --> [*] : destructor
+
+@enduml

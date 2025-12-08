@@ -1,0 +1,94 @@
+/* Dark Mode Override for Antora */
+:root {
+  --color-background: #1e1e1e;
+  --color-text: #e0e0e0;
+  --color-heading: #ffffff;
+  --color-link: #4fc3f7;
+  --color-link-hover: #29b6f6;
+  --color-code-background: #2d2d2d;
+  --color-nav-background: #252525;
+  --color-toolbar-background: #2a2a2a;
+}
+
+body {
+  background-color: var(--color-background) !important;
+  color: var(--color-text) !important;
+}
+
+.doc h1, .doc h2, .doc h3, .doc h4, .doc h5, .doc h6 {
+  color: var(--color-heading) !important;
+}
+
+.doc a {
+  color: var(--color-link) !important;
+}
+
+.doc a:hover {
+  color: var(--color-link-hover) !important;
+}
+
+.doc pre,
+.doc code {
+  background-color: var(--color-code-background) !important;
+  color: var(--color-text) !important;
+}
+
+.nav-container {
+  background-color: var(--color-nav-background) !important;
+}
+
+.nav-menu {
+  background-color: var(--color-nav-background) !important;
+}
+
+.toolbar {
+  background-color: var(--color-toolbar-background) !important;
+}
+
+.nav-link {
+  color: var(--color-text) !important;
+}
+
+.nav-link:hover {
+  color: var(--color-link) !important;
+}
+
+article.doc {
+  background-color: var(--color-background) !important;
+  color: var(--color-text) !important;
+}
+
+table.tableblock {
+  background-color: var(--color-code-background) !important;
+}
+
+table.tableblock th,
+table.tableblock td {
+  border-color: #444 !important;
+  color: var(--color-text) !important;
+}
+
+.nav-panel-explore {
+  background-color: var(--color-nav-background) !important;
+}
+
+.nav-panel-explore .context {
+  color: var(--color-text) !important;
+}
+
+.admonitionblock.note .icon {
+  background-color: #29b6f6 !important;
+}
+
+.admonitionblock.tip .icon {
+  background-color: #66bb6a !important;
+}
+
+.admonitionblock.important .icon,
+.admonitionblock.warning .icon {
+  background-color: #ffa726 !important;
+}
+
+.admonitionblock.caution .icon {
+  background-color: #ef5350 !important;
+}

@@ -1,7 +1,7 @@
 site:
-  title: Fabric Tendroids Documentation
-  url: https://qixotic-developers.github.io/fabric-tendroids
-  start_page: tendroids::index.adoc
+  title: Geo-Sub OptiX Documentation
+  url: https://qixotic-developers.github.io/geo-sub-optix
+  start_page: geo-sub::index.adoc
 
 content:
   sources:
@@ -10,10 +10,10 @@ content:
     start_path: docs
 
 ui:
+  supplemental_files: docs/supplemental_ui
   bundle:
     url: https://gitlab.com/antora/antora-ui-default/-/jobs/artifacts/HEAD/raw/build/ui-bundle.zip?job=bundle-stable
     snapshot: true
-  supplemental_files: docs/supplemental_ui
 
 asciidoc:
   attributes:

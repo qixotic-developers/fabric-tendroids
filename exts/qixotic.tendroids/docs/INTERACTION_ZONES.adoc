@@ -1,0 +1,214 @@
+= Interaction Zone Diagram
+:toc:
+
+== Visual Layout
+
+```
+                    CREATURE (moving right →)
+                    Center: X
+                    Radius: 6
+                    Length: 12
+    
+    Leading Edge Calculation:
+    ←─────6─────→X←─────6─────→
+    (back)    (center)    (front/leading edge)
+    
+    
+    INTERACTION ZONES (from tendroid center):
+    
+    Zone 4: FAR AWAY (>56 units)
+    No interaction, tendroid at rest
+                                        ○ Tendroid (radius ~4)
+    
+    
+    Zone 3: DETECTION START (~50-56 units from leading edge)
+    = 56 units from tendroid center
+    Tendroid becomes aware, starts tracking
+    Bubbles pop and stop spawning
+                        ┌──────────────────┐
+                        │  Detection Zone  │
+                        └──────────────────┘
+                                        ○ Tendroid
+    
+    
+    Zone 2: AVOIDANCE ACTIVE (15-56 units from leading edge)
+    = 21-56 units from tendroid center
+    Tendroid bends away progressively
+    Target: maintain 15 units from leading edge
+                   ╱
+                  ╱
+                 ╱ Tendroid bending
+                ○  away from creature
+    
+    
+    Zone 1: CLOSE APPROACH (2-15 units from leading edge)
+    = 8-21 units from tendroid center
+    Maximum avoidance angle (25°)
+    Strong repulsion force beginning
+                   ╱╱
+                  ╱╱╱
+                 ╱╱╱╱ Max bend
+                ○
+
+    
+    Zone 0: CONTACT (0-2 units from leading edge)
+    = 4-8 units from tendroid center
+    Shock visual + shock impulse
+    Maximum repulsion force
+    Cooldown: 1.5 seconds
+                   ╱╱
+        SHOCK!    ╱╱╱  
+        ⚡ →     ╱╱╱╱
+                ○
+```
+
+== Distance Calculations
+
+=== From Tendroid Center to Leading Edge
+
+```
+Creature at tendroid center (0 distance):
+- Leading edge is 6 units in front
+- Distance from leading edge = 6 units
+- Status: CONTACT (shock + max repulsion)
+
+Creature at 10 units from tendroid:
+- Leading edge is at 10 - 6 = 4 units  
+- Distance from leading edge = 4 units
+- Status: CLOSE APPROACH (max bend + repulsion)
+
+Creature at 25 units from tendroid:
+- Leading edge is at 25 - 6 = 19 units
+- Distance from leading edge = 19 units
+- Status: AVOIDANCE (moderate bend)
+
+Creature at 60 units from tendroid:
+- Leading edge is at 60 - 6 = 54 units
+- Distance from leading edge = 54 units
+- Status: DETECTION (slight bend, bubble suppressed)
+
+Creature at 70 units from tendroid:
+- Leading edge is at 70 - 6 = 64 units
+- Distance from leading edge = 64 units
+- Status: FAR AWAY (no interaction)
+```
+
+=== Effective Detection Range
+
+Old system (from center):
+- Detection at 50 units from center
+- Contact at ~10 units (creature_radius + tendroid_radius)
+- Interaction range: 40 units
+
+New system (from leading edge):
+- Detection at 50 units from leading edge
+- = 56 units from tendroid center
+- Contact at 10 units from center (4 from edge)
+- Interaction range: 46 units
+- **6 unit improvement** in early warning
+
+== Avoidance Behavior
+
+=== Proportional Control
+
+```
+target_angle = distance_error * gain
+
+Where:
+  distance_error = target_distance - current_distance
+  target_distance = 15 units (from leading edge)
+  gain = 2.0 (degrees per unit error)
+
+Examples:
+  At 50 units: error = -35, target = 0° (no bend needed yet)
+  At 20 units: error = -5, target = 10° (moderate bend)
+  At 15 units: error = 0, target = 0° (perfect distance, no change)
+  At 10 units: error = +5, target = 10° (increase bend)
+  At 5 units: error = +10, target = 20° (strong bend)
+  At 2 units: error = +13, target = 25° (max bend, capped)
+```
+
+=== Bend Rate
+
+```
+bend_rate = base_speed + approach_speed * 0.5
+
+Where:
+  base_speed = 20 deg/sec (minimum rate)
+  approach_speed = creature velocity toward tendroid
+  
+Examples:
+  Slow approach (5 units/sec): rate = 20 + 2.5 = 22.5 deg/sec
+  Medium approach (20 units/sec): rate = 20 + 10 = 30 deg/sec
+  Fast approach (50 units/sec): rate = 20 + 25 = 45 deg/sec
+  
+Time to max bend (25°):
+  Slow: 25 / 22.5 = 1.1 seconds
+  Medium: 25 / 30 = 0.8 seconds
+  Fast: 25 / 45 = 0.6 seconds
+```
+
+== Repulsion Force
+
+```
+penetration_depth = (contact_distance + buffer) - current_distance
+
+repulsion_magnitude = min(
+    max_strength,
+    max_strength * (penetration_depth / max_distance)
+)
+
+Where:
+  contact_distance = 10 units (6 + 4, radii sum)
+  buffer = 2 units (safety margin)
+  max_strength = 50 units/sec²
+  max_distance = 5 units (full force range)
+
+Examples:
+  At 12 units: penetration = 0, repulsion = 0
+  At 10 units: penetration = 2, repulsion = 20 (40% of max)
+  At 8 units: penetration = 4, repulsion = 40 (80% of max)
+  At 6 units: penetration = 6, repulsion = 50 (capped at max)
+```
+
+== Multi-Tendroid Scenarios
+
+=== Creature Between Two Tendroids
+
+```
+    Tendroid A          Creature          Tendroid B
+         ○        ←──── X ────→               ○
+        ╱╱                                   ╲╲
+       ╱╱╱                                   ╲╲╲
+      
+    Repulsion A        Combined         Repulsion B
+    ←─────────        ←────→            ─────────→
+    
+    Result: Forces cancel, creature stops between them
+```
+
+=== Creature Passing Through Field
+
+```
+    ○  ○  ○  ○  ○  ○  ○  ○
+    
+         ↓  ↓  ↓  ↓
+        Creature path
+         ↓  ↓  ↓  ↓
+    
+    Each tendroid reacts independently:
+    - Those ahead: bend in anticipation
+    - Those alongside: maximum bend
+    - Those behind: recover
+```
+
+== Tuning Guide
+
+To adjust interaction "feel":
+
+**Earlier detection**: Increase `detection_start_distance`
+**Tighter tracking**: Decrease `target_maintain_distance`  
+**Faster bends**: Increase `avoidance_speed`
+**Stronger response**: Increase `avoidance_proportional_gain`
+**Harder barrier**: Increase `repulsion_strength`
+**Softer barrier**: Decrease `contact_buffer`

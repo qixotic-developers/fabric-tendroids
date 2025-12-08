@@ -1,0 +1,56 @@
+= Installation
+:navtitle: Installation
+
+Detailed installation instructions for Fabric Tendroids.
+
+== System Requirements
+
+=== Hardware
+
+* NVIDIA RTX GPU (Turing architecture or newer)
+* Minimum 8GB GPU memory
+* 16GB system RAM
+* SSD recommended
+
+=== Software
+
+* Windows 10/11 (64-bit)
+* NVIDIA Omniverse Launcher
+* NVIDIA Driver 535 or later
+
+== Installation Steps
+
+=== 1. Clone the Repository
+
+[source,bash]
+----
+git clone https://github.com/qixotic-developers/fabric-tendroids.git
+cd fabric-tendroids
+----
+
+=== 2. Add Extension Path in Omniverse
+
+. Open Omniverse Code or Create
+. Go to Window → Extensions
+. Click the gear icon (Settings)
+. Add path to `fabric-tendroids/exts`
+
+=== 3. Enable the Extension
+
+. Search for "qixotic.tendroids" in Extensions
+. Toggle the extension ON
+. The extension will initialize
+
+== Verification
+
+Once installed, you should see the Tendroids panel in the Omniverse UI.
+
+== Troubleshooting
+
+=== Extension Not Found
+
+Ensure the extension path points to the `exts` directory, not the root.
+
+=== GPU Errors
+
+Verify your GPU driver is up to date and supports CUDA 12+.

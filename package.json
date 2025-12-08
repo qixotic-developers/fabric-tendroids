@@ -1,0 +1,15 @@
+{
+  "name": "fabric-tendroids-docs",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Documentation for Fabric Tendroids",
+  "scripts": {
+    "docs:build": "antora antora-playbook.yml",
+    "docs:preview": "antora antora-playbook.yml && npx http-server build/site -o"
+  },
+  "devDependencies": {
+    "@antora/cli": "^3.1.0",
+    "@antora/site-generator": "^3.1.0",
+    "asciidoctor-kroki": "^0.18.0"
+  }
+}

@@ -1,0 +1,78 @@
+= System Architecture
+:navtitle: Architecture
+
+Overview of the Fabric Tendroids system architecture.
+
+== Architecture Layers
+
+=== Extension Layer
+
+The Omniverse extension provides the entry point and lifecycle management.
+
+* Extension initialization and shutdown
+* UI panel integration
+* Event subscription handling
+
+=== Controller Layer
+
+Controllers orchestrate the main simulation components.
+
+* `TendroidAnimationController` - Manages tendroid animations
+* `CreatureController` - Handles creature behavior
+* `InteractionController` - Coordinates creature-tendroid interactions
+
+=== Physics Layer
+
+GPU-accelerated physics using NVIDIA Warp.
+
+* Collision detection (XZ-plane distance calculations)
+* Proximity-based avoidance behaviors
+* Shock feedback on contact
+
+=== USD/Fabric Layer
+
+Scene description and real-time data access.
+
+* USD prims for geometry
+* Fabric for high-performance attribute access
+* Material bindings and visual properties
+
+== Data Flow
+
+[source]
+----
+User Input / Simulation Tick
+        ↓
+Extension Event Handler
+        ↓
+Controller Update Loop
+        ↓
+Warp GPU Kernels
+        ↓
+USD/Fabric Updates
+        ↓
+Viewport Render
+----
+
+== Key Components
+
+=== Tendroids
+
+Cylindrical objects that detect and respond to creature proximity.
+
+* Independent detection per tendroid
+* Bend-away defensive behavior
+* Cooldown mechanism for shock interactions
+
+=== Creatures
+
+Interactive entities that navigate the scene.
+
+* Cylindrical collision bounds
+* Proximity triggers for tendroid responses
+* Player-controlled movement
+
+== See Also
+
+* xref:components.adoc[Component Details]
+* xref:api.adoc[API Reference]

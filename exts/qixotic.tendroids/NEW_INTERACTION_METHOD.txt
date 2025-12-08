@@ -1,0 +1,84 @@
+  def _update_tendroid_creature_interactions(self, dt: float):
+    """
+    Update tendroid avoidance and shock based on creature proximity.
+    
+    REFACTORED to fix 7 interaction issues:
+    1. Distance measured from leading edge of creature
+    2. Gradual bend rate that maintains constant distance
+    3. Proportional control to target specific distance
+    4. Bubble suppression in interaction zone  
+    5. Continuous repulsion prevents penetration
+    6. Shock with translation-only pushback
+    7. Bubble path tracking (TODO - deferred)
+    
+    Args:
+        dt: Time delta in seconds
+    """
+    if not self.creature_controller:
+      return
+    
+    if not self.tendroids:
+      return
+    
+    from pxr import Gf
+    from .interaction_helper import TendroidCreatureInteraction
+    
+    # Initialize interaction manager if needed
+    if not hasattr(self, '_interaction_manager'):
+      self._interaction_manager = TendroidCreatureInteraction()
+    
+    # Get creature state
+    creature_pos = self.creature_controller.position
+    creature_vel = self.creature_controller.velocity
+    creature_radius = self.creature_controller.creature_radius
+    creature_length = self.creature_controller.creature_length
+    
+    # Update shock timers for ALL tendroids every frame
+    for tendroid in self.tendroids:
+      tendroid.update_shock_timers(dt)
+    
+    # Track which tendroids are suppressing bubbles
+    suppressing_tendroids = []
+    
+    # Accumulate repulsion forces from all tendroids
+    total_repulsion = Gf.Vec3f(0, 0, 0)
+    shock_applied = False
+    
+    # Check each tendroid for creature proximity
+    for tendroid in self.tendroids:
+      result = self._interaction_manager.update_interaction(
+        tendroid=tendroid,
+        creature_pos=creature_pos,
+        creature_vel=creature_vel,
+        creature_radius=creature_radius,
+        creature_length=creature_length,
+        dt=dt,
+        gpu_bubble_adapter=self.gpu_bubble_adapter
+      )
+      
+      # Accumulate repulsion forces
+      total_repulsion += result['repulsion_force']
+      
+      # Track bubble suppression
+      if result['bubble_suppressed']:
+        suppressing_tendroids.append(tendroid.name)
+      
+      # Apply shock visual if triggered
+      if result['shock_triggered'] and not shock_applied:
+        self.creature_controller.apply_shock_color(
+          shock_color=(1.0, 0.3, 0.1),  # Bright orange
+          shock_duration=0.3
+        )
+        shock_applied = True
+    
+    # Apply accumulated repulsion force to creature
+    if total_repulsion.GetLength() > 0.01:
+      self.creature_controller.velocity += total_repulsion * dt
+    
+    # Log bubble suppression status
+    if suppressing_tendroids:
+      if self._frame_count % 60 == 0:  # Log once per second
+        carb.log_info(
+          f"[Interaction] {len(suppressing_tendroids)} tendroids suppressing bubbles: "
+          f"{', '.join(suppressing_tendroids[:3])}{'...' if len(suppressing_tendroids) > 3 else ''}"
+        )

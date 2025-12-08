@@ -14,6 +14,11 @@ ui:
   bundle:
     url: https://gitlab.com/antora/antora-ui-default/-/jobs/artifacts/HEAD/raw/build/ui-bundle.zip?job=bundle-stable
     snapshot: true
+  supplemental_files: exts/qixotic.tendroids/docs/supplemental_ui
+
+urls:
+  html_extension_style: indexify
+  redirect_facility: static
 
 asciidoc:
   attributes:

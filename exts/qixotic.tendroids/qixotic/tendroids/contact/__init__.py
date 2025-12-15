@@ -2,14 +2,15 @@
 Contact Handling Package
 
 Provides PhysX contact event subscription, filtering, repulsion
-force calculations, color effects, and input lock management
-for creature-tendroid interactions.
+force calculations, color effects, input lock management,
+and approach tracking for creature-tendroid interactions.
 
 Implements TEND-24: Subscribe to PhysX contact events.
 Implements TEND-25: Implement repulsion force along surface normal.
 Implements TEND-26: Implement shock color change effect.
 Implements TEND-27: Implement color fade during recovery.
 Implements LTEND-28: Disable keyboard controls during repel.
+Implements TEND-29: Track approach_minimum during creature movement.
 """
 
 from .contact_handler import ContactHandler, ContactEvent
@@ -64,6 +65,24 @@ from .input_lock_helpers import (
     should_apply_keyboard,
     get_lock_reason_name,
 )
+from .approach_tracker_helpers import (
+    RecoveryPhase,
+    TendroidSurfacePoint,
+    ApproachTrackerStatus,
+    calculate_distance_to_surface,
+    calculate_signed_distance_to_surface,
+    start_tracking,
+    update_distance,
+    check_threshold_crossed,
+    complete_recovery,
+    reset_tracker,
+    update_surface_point,
+    create_surface_point_from_contact,
+    get_recovery_progress,
+    is_tracking_active,
+    is_recovery_complete,
+    get_phase_name,
+)
 
 __all__ = [
     # Contact handler
@@ -115,4 +134,21 @@ __all__ = [
     'is_input_locked',
     'should_apply_keyboard',
     'get_lock_reason_name',
+    # Approach tracking (TEND-29)
+    'RecoveryPhase',
+    'TendroidSurfacePoint',
+    'ApproachTrackerStatus',
+    'calculate_distance_to_surface',
+    'calculate_signed_distance_to_surface',
+    'start_tracking',
+    'update_distance',
+    'check_threshold_crossed',
+    'complete_recovery',
+    'reset_tracker',
+    'update_surface_point',
+    'create_surface_point_from_contact',
+    'get_recovery_progress',
+    'is_tracking_active',
+    'is_recovery_complete',
+    'get_phase_name',
 ]

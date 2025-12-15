@@ -1,0 +1,234 @@
+= Proximity Kernel Implementation
+:toc: auto
+:toclevels: 3
+:source-highlighter: highlight.js
+
+== Overview
+
+TEND-16 implements the GPU-accelerated proximity detection kernel for single tendroid interaction.
+This kernel provides O(1) neighbor queries using Warp's HashGrid, with specialized horizontal
+distance calculation and zone-based force output.
+
+== Architecture
+
+=== Components
+
+[cols="1,3"]
+|===
+|Component |Purpose
+
+|`SingleTendroidProximity`
+|Controller class orchestrating kernel launches and result retrieval
+
+|`proximity_check_kernel`
+|Main detection kernel using hash grid queries
+
+|`horizontal_distance_kernel`
+|Computes XZ-plane distance to tendroid surface
+
+|`compute_repulsion_force_kernel`
+|Calculates force vectors with smooth falloff
+
+|`compute_zone_based_force_kernel`
+|Zone-aware force computation using approach parameters
+|===
+
+=== Data Flow
+
+[source]
+----
+Creature Position(s) → GPU Array
+        ↓
+horizontal_distance_kernel
+        ↓
+Surface Distance + Direction Vector
+        ↓
+compute_zone_based_force_kernel
+        ↓
+Zone Classification + Force Vector
+        ↓
+ProximityResult (returned to CPU)
+----
+
+== Horizontal Distance Calculation (TEND-72)
+
+=== Why Horizontal Distance?
+
+The creature and tendroids may operate at different heights in the scene.
+Using full 3D distance would cause false positives when the creature passes
+above or below a tendroid.
+
+[source,python]
+----
+# XZ-plane distance (Y/height ignored)
+dx = creature_pos[0] - tendroid_pos[0]
+dz = creature_pos[2] - tendroid_pos[2]
+horizontal_dist = wp.sqrt(dx * dx + dz * dz)
+
+# Distance to cylinder surface
+surface_dist = horizontal_dist - tendroid_radius
+----
+
+=== Coordinate System
+
+* X-axis: Left/Right
+* Y-axis: Up/Down (height - ignored for proximity)
+* Z-axis: Forward/Back
+
+== Force Vector Output (TEND-73)
+
+=== Force Characteristics
+
+* **Direction**: Always horizontal (Y=0), pointing away from tendroid
+* **Magnitude**: Based on zone and falloff function
+* **Falloff**: Quadratic for smooth approach: `(1 - t)²` where `t = distance/max_distance`
+
+=== Zone-Based Forces
+
+[cols="1,1,2"]
+|===
+|Zone |Default Force |Behavior
+
+|contact
+|10.0
+|Maximum repulsion, immediate response
+
+|recovering
+|5.0
+|Strong push to clear minimum distance
+
+|approaching
+|2.0
+|Moderate guidance away
+
+|detected
+|0.5
+|Light awareness nudge
+
+|idle
+|0.0
+|No force applied
+|===
+
+== Usage
+
+=== Single Creature Check
+
+[source,python]
+----
+from qixotic.tendroids.proximity import SingleTendroidProximity
+
+# Initialize
+detector = SingleTendroidProximity()
+detector.configure(
+    tendroid_position=(0.0, 0.0, 0.0),
+    tendroid_radius=0.5
+)
+
+# Each frame
+result = detector.check_proximity(creature_position)
+
+if result.is_contact:
+    creature.apply_shock(result.force)
+elif result.zone == "approaching":
+    creature.slow_down(result.force)
+----
+
+=== Batch Processing
+
+[source,python]
+----
+# Multiple creatures
+positions = [
+    (1.0, 0.0, 0.5),
+    (2.0, 0.0, -1.0),
+    (0.5, 0.0, 0.0),
+]
+
+results = detector.check_proximity_batch(positions)
+
+for result in results:
+    if result.is_detected:
+        apply_avoidance(result.creature_idx, result.force)
+----
+
+=== Custom Force Strengths
+
+[source,python]
+----
+detector.configure(
+    tendroid_position=(0.0, 0.0, 0.0),
+    tendroid_radius=0.5,
+    force_strengths={
+        "contact": 20.0,      # Double contact force
+        "recovering": 8.0,
+        "approaching": 3.0,
+        "detected": 1.0,
+    }
+)
+----
+
+== ProximityResult
+
+The `ProximityResult` dataclass provides:
+
+[cols="1,1,3"]
+|===
+|Field |Type |Description
+
+|`creature_idx`
+|int
+|Index of creature in batch (0 for single check)
+
+|`tendroid_idx`
+|int
+|Index of nearest tendroid
+
+|`surface_distance`
+|float
+|Distance to tendroid surface (meters)
+
+|`zone`
+|str
+|Zone name: "contact", "recovering", "approaching", "detected", "idle"
+
+|`force`
+|Tuple[float, float, float]
+|Repulsion force vector (x, y, z)
+
+|`is_contact`
+|bool
+|Property: True if in contact zone
+
+|`is_detected`
+|bool
+|Property: True if not idle
+|===
+
+== Performance
+
+=== GPU Efficiency
+
+* Hash grid queries are O(1) average case
+* Kernel launches are batched to minimize overhead
+* Arrays are reused across frames when size unchanged
+
+=== Memory Usage
+
+Per-creature GPU allocation:
+
+* Position: 12 bytes (vec3)
+* Distance: 4 bytes (float)
+* Direction: 12 bytes (vec3)
+* Force: 12 bytes (vec3)
+* Zone: 4 bytes (int)
+
+Total: ~44 bytes per creature
+
+== Related Tasks
+
+* TEND-15: Set up Warp Hash Grid infrastructure
+* TEND-17: Define approach_epsilon and approach_minimum parameters
+* TEND-71: Write @wp.kernel for proximity detection
+* TEND-72: Implement horizontal distance calculation
+* TEND-73: Output force vector for detected proximity

@@ -1,0 +1,373 @@
+= Creature Envelope Geometry Design
+:toc: left
+:toclevels: 3
+:icons: font
+:sectnums:
+:source-highlighter: highlight.js
+:stem: latexmath
+
+== Overview
+
+This document defines the creature envelope geometry - a tight bounding shape used for collision detection and proximity calculations with tendroids.
+
+=== Design Goals
+
+[cols="1,3"]
+|===
+|Goal |Description
+
+|Simplicity
+|Use PhysX-native capsule shape for maximum performance
+
+|Accuracy
+|Closely approximate the visual creature mesh
+
+|Uniformity
+|Handle all approach types (glancing, head-on, wave-induced) with single geometry
+
+|GPU-Friendly
+|Enable batch processing via Warp Hash Grid
+|===
+
+== Creature Visual Mesh Analysis
+
+The creature consists of two components:
+
+[source,text]
+----
+    ╭──────────────────────╮
+    │     NOSE (Cone)      │  ← Height: 12.0 (radius × 2)
+    │      radius: 6.0     │
+    ╰──────────────────────╯
+    │                      │
+    │   BODY (Cylinder)    │  ← Height: 12.0
+    │      radius: 6.0     │
+    │                      │
+    └──────────────────────┘
+----
+
+.Current Visual Mesh Parameters
+[cols="1,1,2"]
+|===
+|Parameter |Value |Source
+
+|`creature_radius`
+|6.0 units
+|`creature_controller.py`
+
+|`creature_length`
+|12.0 units
+|Body cylinder height
+
+|Nose height
+|12.0 units
+|`radius × 2.0`
+
+|Total visual length
+|~24.0 units
+|Body + nose cone
+|===
+
+== Envelope Geometry: Capsule
+
+=== Why Capsule?
+
+[IMPORTANT]
+====
+PhysX supports capsule shapes natively (cylinders with hemispherical caps). This provides:
+
+* O(1) collision detection
+* Built-in contact normal calculation
+* Smooth rolling behavior at caps
+====
+
+=== Capsule Dimensions
+
+The envelope capsule is oriented along the creature's forward direction (Z-axis when at rest).
+
+[source,text]
+----
+    Side View (creature facing +Z)
+    
+         ╭───────╮
+        ╱         ╲   ← Hemispherical cap (radius 6.0)
+       │           │
+       │  CAPSULE  │   ← Cylindrical section (height 12.0)
+       │           │
+        ╲         ╱   ← Hemispherical cap (radius 6.0)
+         ╰───────╯
+         
+    Total capsule length = cylinder_height + 2 × radius
+                        = 12.0 + 12.0 = 24.0 units
+----
+
+.Envelope Capsule Parameters
+[cols="2,1,3"]
+|===
+|Parameter |Value |Rationale
+
+|`envelope_radius`
+|6.0 units
+|Matches creature visual radius
+
+|`envelope_half_height`
+|6.0 units
+|Half of cylindrical section (PhysX convention)
+
+|`envelope_axis`
+|Z-axis
+|Aligned with creature forward direction
+
+|Total length
+|24.0 units
+|Matches visual mesh total length
+|===
+
+=== PhysX Capsule API
+
+[source,python]
+----
+# PhysX capsule is defined by:
+# - radius: radius of cylindrical section and hemispherical caps
+# - halfHeight: half the height of the cylindrical section (not including caps)
+
+envelope_radius = 6.0
+envelope_half_height = 6.0  # Full cylinder height = 12.0
+
+# Total capsule length = 2 × halfHeight + 2 × radius = 12 + 12 = 24
+----
+
+== Approach Type Coverage
+
+The capsule envelope handles all approach types uniformly:
+
+=== Glancing Contact (Sides)
+
+[source,text]
+----
+    Top View
+    
+    Tendroid          Creature
+       │              ╭───╮
+       │    ←────     │ C │  Moving past
+       │              ╰───╯
+       
+    Contact detected on capsule's cylindrical section.
+    Surface normal points radially outward from capsule axis.
+----
+
+* Contact point: Cylindrical surface
+* Normal: Radial direction from capsule axis
+* PhysX provides accurate contact depth
+
+=== Head-On Approach
+
+[source,text]
+----
+    Side View
+    
+    Tendroid    Creature (approaching)
+       │        ╭───╮
+       │  ←──── │ C │ ←── Nose first
+       │        ╰───╯
+       
+    Contact detected on front hemispherical cap.
+    Normal points along capsule axis toward tendroid.
+----
+
+* Contact point: Hemispherical cap
+* Normal: Direction from cap center toward tendroid
+* Smooth deflection around cap
+
+=== Wave-Induced Motion
+
+[source,text]
+----
+    Wave pushes creature into tendroid
+    
+    ~~~>  ╭───╮    │
+    ~~~>  │ C │ →  │ Tendroid
+    ~~~>  ╰───╯    │
+    
+    Same collision physics - external force source doesn't matter.
+----
+
+* Contact point: Any surface region
+* Same collision response as active movement
+* No special handling required
+
+== Envelope Coordinate System
+
+=== Local Space
+
+The capsule is defined in creature local space:
+
+[source,text]
+----
+         +Y (up)
+          │
+          │    +Z (forward)
+          │   ╱
+          │  ╱
+          │ ╱
+          ├───────── +X (right)
+         ╱
+        ╱
+       ╱
+      Origin at creature center
+----
+
+.Local Space Definition
+[cols="1,3"]
+|===
+|Axis |Direction
+
+|+X
+|Creature's right
+
+|+Y
+|Creature's up (world up when level)
+
+|+Z
+|Creature's forward (direction of travel)
+|===
+
+=== Orientation Tracking
+
+The creature controller maintains rotation as Euler angles:
+
+[source,python]
+----
+self.current_rotation = Gf.Vec3f(pitch, yaw, roll)
+# pitch: rotation around X (nose up/down)
+# yaw: rotation around Y (turning left/right)
+# roll: rotation around Z (banking)
+----
+
+The capsule collider must be rotated to match `current_rotation`.
+
+== Contact Point Calculation
+
+=== Leading Point (Nose)
+
+For head-on approach detection, we need the creature's "point" - the front of the capsule:
+
+[source,python]
+----
+def get_leading_point(position: Gf.Vec3f, rotation: Gf.Vec3f) -> Gf.Vec3f:
+    """
+    Calculate world position of creature's leading point (nose tip).
+    
+    Args:
+        position: Creature center position
+        rotation: Creature rotation (pitch, yaw, roll) in degrees
+        
+    Returns:
+        World position of leading point
+    """
+    import math
+    
+    # Half total capsule length (center to tip)
+    nose_offset = envelope_half_height + envelope_radius  # 6 + 6 = 12
+    
+    # Convert yaw to radians
+    yaw_rad = math.radians(rotation[1])
+    pitch_rad = math.radians(rotation[0])
+    
+    # Forward direction in world space
+    forward_x = math.sin(yaw_rad) * math.cos(pitch_rad)
+    forward_y = -math.sin(pitch_rad)
+    forward_z = math.cos(yaw_rad) * math.cos(pitch_rad)
+    
+    # Leading point = center + forward × offset
+    return Gf.Vec3f(
+        position[0] + forward_x * nose_offset,
+        position[1] + forward_y * nose_offset,
+        position[2] + forward_z * nose_offset
+    )
+----
+
+== Parameter Summary
+
+.Final Envelope Parameters
+[cols="2,1,2"]
+|===
+|Parameter |Value |Units
+
+|`ENVELOPE_RADIUS`
+|6.0
+|world units
+
+|`ENVELOPE_HALF_HEIGHT`
+|6.0
+|world units
+
+|`ENVELOPE_TOTAL_LENGTH`
+|24.0
+|world units
+
+|`ENVELOPE_AXIS`
+|"Z"
+|PhysX axis specifier
+
+|`CONTACT_OFFSET`
+|0.04
+|meters (4cm early detection)
+
+|`REST_OFFSET`
+|0.01
+|meters (1cm separation)
+|===
+
+== Implementation Notes
+
+=== PhysX Capsule Setup
+
+[source,python]
+----
+from pxr import UsdPhysics, PhysxSchema
+
+# Apply collision API
+UsdPhysics.CollisionAPI.Apply(creature_prim)
+
+# Create capsule collider
+capsule = UsdPhysics.CapsuleCollider.Define(stage, f"{creature_path}/Collider")
+capsule.CreateRadiusAttr().Set(ENVELOPE_RADIUS)
+capsule.CreateHalfHeightAttr().Set(ENVELOPE_HALF_HEIGHT)
+capsule.CreateAxisAttr().Set(ENVELOPE_AXIS)
+
+# Configure contact offsets
+physx_collision = PhysxSchema.PhysxCollisionAPI.Apply(creature_prim)
+physx_collision.CreateContactOffsetAttr().Set(CONTACT_OFFSET)
+physx_collision.CreateRestOffsetAttr().Set(REST_OFFSET)
+----
+
+=== Warp Hash Grid Registration
+
+[source,python]
+----
+import warp as wp
+
+# Register creature in hash grid as point + radius
+# The envelope is represented as a sphere for grid queries
+# with radius = max(envelope_radius, envelope_half_height + envelope_radius)
+
+creature_query_radius = ENVELOPE_HALF_HEIGHT + ENVELOPE_RADIUS  # 12.0
+----
+
+== Related Tasks
+
+* **TEND-12**: Implement envelope as PhysX capsule collider
+* **TEND-13**: Configure contact offset attributes
+* **TEND-14**: Unit tests for envelope collision detection
+
+== Revision History
+
+[cols="1,1,3"]
+|===
+|Version |Date |Changes
+
+|1.0
+|2025-01-XX
+|Initial design document
+|===

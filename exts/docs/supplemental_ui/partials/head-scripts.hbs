@@ -1,9 +1,0 @@
-<link rel="stylesheet" href="{{uiRootPath}}/css/dark-mode.css">
-<script>
-// Apply dark mode immediately to prevent flash of light mode
-(function() {
-  var stored = localStorage.getItem('geo-sub-dark-mode');
-  var prefersDark = stored === 'true' || (stored === null && window.matchMedia('(prefers-color-scheme: dark)').matches);
-  if (prefersDark) document.documentElement.classList.add('dark-mode');
-})();
-</script>

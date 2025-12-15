@@ -16,6 +16,8 @@ import omni.appwindow
 from pxr import Gf, UsdGeom, UsdShade
 from carb.input import KeyboardInput
 
+from .creature_collider_helper import create_creature_collider, destroy_creature_collider
+
 
 class CreatureController:
     """
@@ -77,9 +79,14 @@ class CreatureController:
         # Create creature mesh
         self.creature_prim = self._create_creature_mesh()
         
+        # Create PhysX capsule collider (TEND-12)
+        self.creature_prim_path = "/World/Creature"
+        self.has_collider = create_creature_collider(self.stage, self.creature_prim_path)
+        
         carb.log_info(
             f"[CreatureController] Initialized at {start_position}, "
-            f"radius={self.creature_radius}, length={self.creature_length}"
+            f"radius={self.creature_radius}, length={self.creature_length}, "
+            f"collider={'enabled' if self.has_collider else 'disabled'}"
         )
     
     def _create_creature_mesh(self):
@@ -454,6 +461,11 @@ class CreatureController:
     
     def destroy(self):
         """Cleanup creature resources."""
+        # Destroy collider first
+        if hasattr(self, 'creature_prim_path') and self.stage:
+            destroy_creature_collider(self.stage, self.creature_prim_path)
+        
+        # Destroy mesh
         if self.creature_prim and self.stage:
             prim_path = str(self.creature_prim.GetPath())
             if self.stage.GetPrimAtPath(prim_path):

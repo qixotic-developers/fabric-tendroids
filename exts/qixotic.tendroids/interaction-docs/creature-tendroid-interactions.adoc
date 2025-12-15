@@ -1,0 +1,266 @@
+= Creature-Tendroid Interactions Specification
+:toc: left
+:toclevels: 3
+:icons: font
+:sectnums:
+:source-highlighter: highlight.js
+
+== Overview
+
+This document defines the interaction behaviors between a creature and tendroids in the Omniverse simulation. The system uses GPU-accelerated collision detection combining Warp spatial structures with PhysX collision handling.
+
+=== Core Principles
+
+* Only one creature exists in the simulation
+* Only one tendroid reacts to the creature at a time (Phase 1)
+* Tendroids should not affect surrounding tendroids when bending
+
+== Creature Behavior
+
+=== Approach Detection
+
+[IMPORTANT]
+====
+Until the creature contacts a tendroid, there should be *no acknowledgement of proximity* by the creature, even when the tendroid is moving away.
+====
+
+==== Creature Envelope
+
+Define a tight envelope enclosing the creature for approach calculations. This envelope handles:
+
+[cols="1,3"]
+|===
+|Approach Type |Description
+
+|Glancing
+|Contact with the sides of the creature envelope
+
+|Head-on
+|Approach via the defined leading point
+
+|Wave Motion
+|External forces (wave simulation) cause approach without creature movement
+|===
+
+NOTE: All approach types may be handled uniformly by the envelope geometry rather than as separate cases.
+
+=== Contact Response
+
+When the creature envelope contacts a tendroid (`approach_distance <= approach_epsilon`):
+
+. Creature is pushed back along the tendroid surface normal at the contact point
+. Creature *never* passes through the tendroid (requires expansion)
+. Creature body changes color to indicate "shock" effect
+
+==== Recovery Sequence
+
+[source,text]
+----
+Contact → Color Change → Repulsion → Tendroid Returns → Color Fades → Normal State
+----
+
+.Recovery Rules
+[cols="1,3"]
+|===
+|Condition |Behavior
+
+|Shock color duration
+|Remains until creature moves beyond `approach_minimum`
+
+|Distance measurement
+|Measured to tendroid surface (which is returning to normal position)
+
+|Coordinate recalculation
+|`approach_minimum` absolute coordinates must be recalculated during movement
+
+|Color fade
+|Proportional to distance from tendroid surface OR repel speed (use best visual)
+
+|Controls
+|Keyboard controls disabled during repel process
+|===
+
+== Tendroid Behavior
+
+=== Proximity Detection Modes
+
+==== Pass Over (Vertical Approach)
+
+[source,text]
+----
+               ┌─────┐
+               │  C  │  ← Creature
+               └──┬──┘
+                  │ Y-axis considered
+    ┌─────────────┼─────────────┐
+    │    max      │             │ ← Top of cylinder
+    │  deflection │             │
+    │      ▲      │             │
+    │      │      │             │
+    │      ▼      │             │
+    │    min      │             │ ← Base of cylinder
+    └─────────────┴─────────────┘
+----
+
+.Vertical Rules
+* Y-axis coordinates of creature must be considered
+* Creature must be between base top and cylinder top
+* Deflection force proportional to height above base
+** Near base → `minimum_deflection`
+** Near top → `maximum_deflection`
+
+==== Head-On Approach
+
+* `approach_distance` measured from creature "point" to tendroid surface
+* Deflection inversely proportional to distance
+* Consider using tendroid surface normals for direction
+
+==== Pass-By Approach
+
+[source,text]
+----
+    Detection Zone (top view)
+    ┌─────────────────────────┐
+    │   ╭───────────────╮     │
+    │   │   ╭───────╮   │     │
+    │   │   │ TENDR │   │     │
+    │   │   │  OID  │   │     │
+    │   │   ╰───────╯   │     │
+    │   │  tendroid_    │     │
+    │   │   radius      │     │
+    │   ╰───────────────╯     │
+    │  + approach_minimum     │
+    └─────────────────────────┘
+----
+
+.Pass-By Rules
+* Detection circle: `tendroid_radius + approach_minimum`
+* Circle centered on tendroid's center line
+* When creature enters circle, deflection triggers
+* Deflection amount depends on minimum distance from creature near-side to tendroid surface (requires expansion)
+
+=== Bubble Behavior During Evasion
+
+Until bubbles can follow tendroid center line during evasion:
+
+[cols="1,2"]
+|===
+|State |Behavior
+
+|Bubble inside tendroid
+|Disappears with no pop
+
+|Bubble partially visible
+|Immediately ejected
+
+|Bubble collision
+|TBD
+|===
+
+== Technical Parameters
+
+=== Distance Parameters
+
+[cols="2,3,1"]
+|===
+|Parameter |Description |Type
+
+|`approach_epsilon`
+|Contact threshold distance
+|Float
+
+|`approach_minimum`
+|Minimum safe distance after repel
+|Float
+
+|`tendroid_radius`
+|Radius of tendroid cylinder
+|Float
+
+|`minimum_deflection`
+|Min bend angle (at base)
+|Float
+
+|`maximum_deflection`
+|Max bend angle (at top)
+|Float
+|===
+
+=== Open Technical Decisions
+
+* [ ] Relative distances vs absolute coordinates for `approach_minimum`
+* [ ] Tendroid-tendroid collision during deflection (currently disabled)
+
+== Control Scheme
+
+.Proposed Numpad Controls
+[cols="1,2"]
+|===
+|Key Group |Function
+
+|Numpad 1-9 (except 5)
+|8 directional movement
+
+|Numpad 5
+|Stop/Center
+
+|+, -, *, /
+|TBD actions
+
+|Decimal, 0
+|TBD actions
+
+|Shift/Alt/Ctrl modifiers
+|Modifier behaviors
+|===
+
+== Architecture Overview
+
+=== Framework Layer Stack
+
+[cols="1,2,3"]
+|===
+|Layer |Framework |Purpose
+
+|Scene Description
+|USD + UsdPhysics schemas
+|Define creatures/tendroids as rigid bodies with capsule colliders
+
+|Proximity Detection
+|Warp Hash Grid
+|GPU-accelerated neighbor queries for *approach* detection
+
+|Collision Detection
+|PhysX via omni.physx
+|Accurate cylinder-cylinder contacts with penetration depth
+
+|Contact Response
+|PhysX + custom forces
+|Built-in solver plus `apply_force_at_pos()` for custom repulsion
+
+|Data Access
+|omni.physics.tensors
+|Batched GPU access to positions, velocities, contact forces
+|===
+
+=== Data Flow
+
+[source,text]
+----
+USD Stage → omni.physx parses → PhysX SDK simulates → Fabric caches → Renderer displays
+----
+
+== Items Requiring Expansion
+
+The following items are marked "TO BE EXPANDED UPON" in the original specification:
+
+. Creature passing through tendroid prevention mechanics
+. Pass-by approach deflection amount calculation based on near-side distance
+
+== Next Steps
+
+. Define precise values for all distance parameters
+. Prototype envelope geometry for creature
+. Implement Phase 1: Single tendroid reaction
+. Design bubble-following behavior for Phase 2
+. Define complete numpad control mapping

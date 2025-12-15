@@ -1,0 +1,388 @@
+= Creature-Tendroid Development Plan
+:toc: left
+:toclevels: 3
+:icons: font
+:sectnums:
+
+== Project Summary
+
+Implement GPU-accelerated creature-tendroid interactions in Nvidia Omniverse. System includes proximity detection, collision response, visual feedback, and control input.
+
+== Phase 1: Foundation (Single Tendroid Reaction)
+
+=== Epic 1.1: Creature Envelope System
+
+[cols="1,3,1,1"]
+|===
+|ID |Task |Priority |Est. Hours
+
+|1.1.1
+|Design creature envelope geometry (tight bounding shape)
+|High
+|4
+
+|1.1.2
+|Implement envelope as PhysX capsule collider
+|High
+|4
+
+|1.1.3
+|Configure contact offset attributes
+|High
+|2
+
+|1.1.4
+|Unit tests for envelope collision detection
+|Medium
+|3
+|===
+
+=== Epic 1.2: Proximity Detection
+
+[cols="1,3,1,1"]
+|===
+|ID |Task |Priority |Est. Hours
+
+|1.2.1
+|Set up Warp Hash Grid infrastructure
+|High
+|6
+
+|1.2.2
+|Implement proximity kernel for single tendroid
+|High
+|4
+
+|1.2.3
+|Define `approach_epsilon` and `approach_minimum` parameters
+|High
+|2
+
+|1.2.4
+|Create proximity state manager (approaching/contact/retreating)
+|High
+|4
+|===
+
+=== Epic 1.3: Tendroid Deflection
+
+[cols="1,3,1,1"]
+|===
+|ID |Task |Priority |Est. Hours
+
+|1.3.1
+|Implement vertical (Y-axis) proximity calculation
+|High
+|4
+
+|1.3.2
+|Implement head-on approach deflection
+|High
+|4
+
+|1.3.3
+|Implement pass-by approach deflection
+|High
+|6
+
+|1.3.4
+|Create deflection proportionality system (height-based)
+|Medium
+|4
+
+|1.3.5
+|Calculate surface normals for deflection direction
+|Medium
+|3
+|===
+
+=== Epic 1.4: Creature Contact Response
+
+[cols="1,3,1,1"]
+|===
+|ID |Task |Priority |Est. Hours
+
+|1.4.1
+|Subscribe to PhysX contact events
+|High
+|3
+
+|1.4.2
+|Implement repulsion force along surface normal
+|High
+|4
+
+|1.4.3
+|Implement "shock" color change effect
+|Medium
+|3
+
+|1.4.4
+|Implement color fade during recovery
+|Low
+|2
+
+|1.4.5
+|Disable keyboard controls during repel
+|Medium
+|2
+|===
+
+=== Epic 1.5: Recovery System
+
+[cols="1,3,1,1"]
+|===
+|ID |Task |Priority |Est. Hours
+
+|1.5.1
+|Track `approach_minimum` during creature movement
+|High
+|4
+
+|1.5.2
+|Recalculate absolute coordinates as tendroid returns
+|High
+|4
+
+|1.5.3
+|Implement repel velocity fade
+|Medium
+|3
+
+|1.5.4
+|Re-enable controls after recovery complete
+|Medium
+|2
+|===
+
+== Phase 2: Multi-Tendroid Support
+
+=== Epic 2.1: Tendroid Selection
+
+[cols="1,3,1,1"]
+|===
+|ID |Task |Priority |Est. Hours
+
+|2.1.1
+|Determine which tendroid should react (nearest? first contact?)
+|High
+|4
+
+|2.1.2
+|Prevent tendroid-tendroid collision during deflection
+|Medium
+|4
+
+|2.1.3
+|Handle transition when creature moves between tendroids
+|Medium
+|6
+|===
+
+=== Epic 2.2: Bubble System Integration
+
+[cols="1,3,1,1"]
+|===
+|ID |Task |Priority |Est. Hours
+
+|2.2.1
+|Detect bubble state (inside/partially visible)
+|Medium
+|4
+
+|2.2.2
+|Implement silent disappear for internal bubbles
+|Medium
+|3
+
+|2.2.3
+|Implement immediate ejection for visible bubbles
+|Medium
+|4
+
+|2.2.4
+|Design bubble-following behavior (Phase 2 future)
+|Low
+|8
+|===
+
+== Phase 3: Controls & Polish
+
+=== Epic 3.1: Numpad Control Scheme
+
+[cols="1,3,1,1"]
+|===
+|ID |Task |Priority |Est. Hours
+
+|3.1.1
+|Implement 8-directional movement (numpad 1-4, 6-9)
+|High
+|4
+
+|3.1.2
+|Implement stop/center (numpad 5)
+|High
+|1
+
+|3.1.3
+|Define and implement +, -, *, / actions
+|Medium
+|4
+
+|3.1.4
+|Define and implement decimal, 0 actions
+|Low
+|2
+
+|3.1.5
+|Implement Shift/Alt/Ctrl modifiers
+|Low
+|4
+|===
+
+== Phase 4: Performance & Optimization
+
+=== Epic 4.1: GPU Optimization
+
+[cols="1,3,1,1"]
+|===
+|ID |Task |Priority |Est. Hours
+
+|4.1.1
+|Enable GPU dynamics in PhysX scene
+|High
+|2
+
+|4.1.2
+|Configure Fabric for USD bypass
+|Medium
+|3
+
+|4.1.3
+|Benchmark Hash Grid vs PhysX overlap queries
+|Medium
+|4
+
+|4.1.4
+|Enable CCD if needed for fast movements
+|Low
+|2
+|===
+
+=== Epic 4.2: Tensor API Integration
+
+[cols="1,3,1,1"]
+|===
+|ID |Task |Priority |Est. Hours
+
+|4.2.1
+|Create rigid body views for batched access
+|Medium
+|4
+
+|4.2.2
+|Implement contact view for filtered force queries
+|Medium
+|4
+
+|4.2.3
+|Profile and optimize frame-by-frame access
+|Low
+|6
+|===
+
+== Technical Decisions Required
+
+[cols="1,3,2"]
+|===
+|ID |Decision |Proposed Resolution
+
+|TD-1
+|Relative vs absolute coordinates for `approach_minimum`
+|Recommend relative for simpler math during movement
+
+|TD-2
+|Capsule vs true cylinder colliders
+|Capsule (native PhysX support, faster)
+
+|TD-3
+|Hash Grid vs PhysX overlap for proximity
+|Hash Grid for GPU performance, PhysX as fallback
+
+|TD-4
+|Color fade by distance or speed
+|Test both, user preference
+|===
+
+== Milestones
+
+[cols="1,2,1"]
+|===
+|Milestone |Deliverable |Target
+
+|M1
+|Single tendroid reacts to creature approach
+|Phase 1 complete
+
+|M2
+|Contact causes repel with visual feedback
+|Epic 1.4 + 1.5 complete
+
+|M3
+|Full numpad control scheme working
+|Epic 3.1 complete
+
+|M4
+|Multi-tendroid support with bubbles
+|Phase 2 complete
+
+|M5
+|Performance optimized for production
+|Phase 4 complete
+|===
+
+== Estimated Total Hours
+
+[cols="1,1"]
+|===
+|Phase |Hours
+
+|Phase 1: Foundation
+|~73
+
+|Phase 2: Multi-Tendroid
+|~33
+
+|Phase 3: Controls
+|~15
+
+|Phase 4: Performance
+|~25
+
+|*Total*
+|*~146 hours*
+|===
+
+== Jira Project Recommendation
+
+=== Suggested Structure
+
+* *Project Key:* `TEND`
+* *Issue Types:* Epic, Story, Task, Bug
+* *Components:*
+** Creature System
+** Tendroid System
+** Proximity Detection
+** Contact Physics
+** Visual Effects
+** Input Controls
+** Performance
+
+=== Labels
+
+* `gpu-warp`
+* `gpu-physx`
+* `phase-1`
+* `phase-2`
+* `needs-decision`
+* `blocked`

@@ -1,4 +1,0 @@
-= Project README
-:navtitle: README
-
-include::../../README.adoc[]

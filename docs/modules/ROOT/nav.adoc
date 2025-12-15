@@ -5,6 +5,8 @@
 * Architecture
 ** xref:architecture.adoc[System Architecture]
 ** xref:components.adoc[Components]
+* Systems
+** xref:deflection/deflection-system.adoc[Deflection System]
 * Reference
 ** xref:api.adoc[API Reference]
 ** xref:configuration.adoc[Configuration]

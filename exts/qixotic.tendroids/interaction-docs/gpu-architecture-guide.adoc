@@ -1,0 +1,266 @@
+= GPU Architecture & Implementation Guide
+:toc: left
+:toclevels: 3
+:icons: font
+:sectnums:
+:source-highlighter: highlight.js
+
+== Overview
+
+This document covers GPU-accelerated collision detection and proximity sensing for the creature-tendroid simulation using Nvidia Omniverse frameworks.
+
+=== Framework Summary
+
+[IMPORTANT]
+====
+*PhysX* handles collision detection while *Warp* provides spatial acceleration structures. They complement rather than duplicate each other.
+====
+
+[cols="1,3"]
+|===
+|Framework |Role
+
+|Warp
+|Custom GPU kernels with hash grids and BVH queries
+
+|USDRT
+|High-performance data layer for physics schemas
+
+|Fabric
+|CPU/GPU data synchronization
+
+|PhysX (omni.physx)
+|Collision detection and contact resolution
+|===
+
+== Warp Spatial Structures
+
+=== Hash Grid for Proximity Detection
+
+Hash Grid enables O(1) neighbor queries within a search radius. Ideal for creature-tendroid proximity detection.
+
+[source,python]
+----
+import warp as wp
+
+grid = wp.HashGrid(dim_x=128, dim_y=128, dim_z=128, device="cuda")
+grid.build(points=positions, radius=search_radius)
+
+@wp.kernel
+def proximity_check(
+    grid: wp.uint64, 
+    positions: wp.array(dtype=wp.vec3), 
+    detection_radius: float, 
+    forces: wp.array(dtype=wp.vec3)
+):
+    tid = wp.tid()
+    pos = positions[tid]
+    force = wp.vec3(0.0)
+    
+    query = wp.hash_grid_query(grid, pos, detection_radius)
+    index = int(0)
+    
+    while wp.hash_grid_query_next(query, index):
+        if index != tid:
+            neighbor = positions[index]
+            diff = pos - neighbor
+            dist = wp.length(diff)
+            if dist < detection_radius and dist > 0.0:
+                normal = diff / dist
+                overlap = detection_radius - dist
+                force += normal * overlap * 1000.0  # Spring constant
+    
+    forces[tid] = force
+----
+
+=== BVH for Mesh Queries
+
+For complex geometry, use `wp.mesh_query_point()`:
+
+* Returns closest point on mesh
+* Provides distance, inside/outside sign, surface normal
+* BVH-accelerated
+
+[WARNING]
+====
+The `warp.sim` module is *deprecated* as of Warp v1.8. It is being replaced by the Newton physics engine (Linux Foundation project).
+====
+
+== USDRT and Fabric
+
+=== Critical Distinction
+
+[IMPORTANT]
+====
+USDRT and Fabric do *NOT* perform collision detection. They provide high-performance access to physics data while PhysX handles simulation.
+====
+
+=== Available APIs
+
+* `UsdPhysicsCollisionAPI` - Configure collision properties
+* `UsdPhysicsRigidBodyAPI` - Rigid body configuration
+* O(1) queries for physics prims
+
+== PhysX Scene Queries
+
+=== Overlap Tests
+
+[source,python]
+----
+from omni.physx import get_physx_scene_query_interface
+import carb
+
+def check_nearby(position, radius):
+    nearby = []
+    
+    def report_hit(hit):
+        nearby.append({
+            'path': hit.rigid_body, 
+            'distance': hit.distance
+        })
+        return True
+    
+    origin = carb.Float3(position[0], position[1], position[2])
+    get_physx_scene_query_interface().overlap_sphere(
+        radius, origin, report_hit, False
+    )
+    return nearby
+----
+
+[NOTE]
+====
+Scene queries only function *after simulation has begun* because collider data isn't fully initialized until then.
+====
+
+== Detection Approaches
+
+=== Method Comparison
+
+[cols="1,2,2"]
+|===
+|Method |Best For |Notes
+
+|PhysX Trigger Volumes
+|Discrete enter/exit detection
+|Apply `PhysxTriggerAPI`, poll `GetTriggeredCollisionsRel()`
+
+|PhysX Overlap Queries
+|Distance-threshold proximity
+|Configurable radius awareness zones
+
+|Warp Hash Grids
+|Many-agent simulations
+|Full GPU execution, no CPU round-trips
+|===
+
+=== Contact Physics Configuration
+
+[source,python]
+----
+from pxr import PhysxSchema
+
+collider = PhysxSchema.PhysxCollisionAPI.Apply(creature_prim)
+# Generate contacts 4cm before touching
+collider.CreateContactOffsetAttr().Set(0.04)
+# Natural separation distance
+collider.CreateRestOffsetAttr().Set(0.01)
+----
+
+=== Contact Event Subscription
+
+[source,python]
+----
+from omni.physx import get_physx_simulation_interface
+
+def on_contact(contact_headers, contact_data):
+    for header in contact_headers:
+        start = header.contact_data_offset
+        end = start + header.num_contact_data
+        for i in range(start, end):
+            contact = contact_data[i]
+            impulse_magnitude = (
+                contact.impulse[0]**2 + 
+                contact.impulse[1]**2 + 
+                contact.impulse[2]**2
+            )**0.5
+            # Apply reactive avoidance
+
+contact_subscription = get_physx_simulation_interface()\
+    .subscribe_contact_report_events(on_contact)
+----
+
+== Tensor API for Batched Access
+
+[source,python]
+----
+import omni.physics.tensors as tensors
+
+sim_view = tensors.create_simulation_view("warp")  # Returns Warp arrays
+
+creature_view = sim_view.create_rigid_body_view("/World/Creature_*")
+tendroid_view = sim_view.create_rigid_body_view("/World/Tendroid_*")
+contact_view = sim_view.create_rigid_contact_view(
+    "/World/Creature_*", 
+    filter_patterns=["/World/Tendroid_*"]
+)
+
+# Each frame:
+creature_transforms = creature_view.get_transforms()  # GPU array
+tendroid_transforms = tendroid_view.get_transforms()
+contact_forces = contact_view.get_contact_forces()
+----
+
+== Performance Optimization
+
+=== Enable GPU Dynamics
+
+[source,python]
+----
+PhysxSchema.PhysxSceneAPI.Get(stage, "/physicsScene")\
+    .CreateEnableGPUDynamicsAttr(True)
+----
+
+=== Bypass USD Write Overhead
+
+[source,python]
+----
+from omni.physx.bindings._physx import SETTING_UPDATE_TO_USD
+carb.settings.get_settings().set(SETTING_UPDATE_TO_USD, False)
+# Enable omni.physx.fabric extension
+----
+
+=== Continuous Collision Detection
+
+For fast-moving tendroids:
+
+[source,python]
+----
+PhysxSchema.PhysxSceneAPI.Get(stage, scene_path)\
+    .CreateEnableCCDAttr(True)
+----
+
+== Cylinder Collision Notes
+
+=== Capsule Approximation
+
+PhysX supports capsule shapes natively (cylinders with hemispherical caps). Model creatures and tendroids as capsules for efficiency.
+
+=== True Cylinder Geometry
+
+If true cylinders required:
+
+[source,python]
+----
+UsdPhysicsMeshCollisionAPI.CreateApproximationAttr()\
+    .Set("convexHull")
+----
+
+== Implementation Checklist
+
+* [ ] Set up Warp Hash Grid for proximity detection
+* [ ] Configure PhysX capsule colliders
+* [ ] Implement contact event subscription
+* [ ] Create tensor views for batched access
+* [ ] Enable GPU dynamics
+* [ ] Test CCD for fast movements
+* [ ] Benchmark: Hash Grid vs PhysX overlap queries

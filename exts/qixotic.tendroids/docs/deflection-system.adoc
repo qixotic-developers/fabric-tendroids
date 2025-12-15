@@ -1,0 +1,307 @@
+= Deflection System Overview
+:navtitle: Deflection System
+:description: Overview of the tendroid deflection system
+:keywords: deflection, approach, bend, physics
+:toc: left
+:toclevels: 3
+
+== Introduction
+
+The Deflection System (TEND-3) implements realistic bending behavior for tendroids when a creature approaches. Tendroids detect approaching creatures and bend away proportionally to the contact height and proximity.
+
+== Key Features
+
+* *Three Approach Types*: Vertical (pass-over), Head-on (direct approach), Pass-by (lateral movement)
+* *Height-Based Proportionality*: More deflection at tip, less at base
+* *Smooth Transitions*: Configurable deflection and recovery rates
+* *GPU Batch Processing*: Optional Warp acceleration for many tendroids
+* *Flexible Integration*: Multiple patterns for different architectures
+
+== Module Structure
+
+[source]
+----
+qixotic/tendroids/deflection/
+├── __init__.py                  # Module exports
+├── deflection_config.py         # Configuration classes
+├── approach_calculators.py      # Approach type detection
+├── deflection_helpers.py        # Deflection calculations
+├── deflection_controller.py     # Main controller
+├── deflection_integration.py    # Animation bridge
+├── wrapper_deflection.py        # Wrapper utilities
+├── batch_deflection_manager.py  # GPU batch processing
+└── tests/
+    ├── test_deflection.py       # Unit tests
+    └── test_integration.py      # Integration tests
+----
+
+== Approach Types
+
+=== Vertical Approach (TEND-19)
+
+Detects creature passing over tendroid:
+
+* Checks creature Y between tendroid base and tip
+* Uses horizontal (XZ plane) distance for proximity
+* Calculates `height_ratio = (creature_y - base_y) / height`
+
+[source,python]
+----
+result = calculate_vertical_proximity(
+    creature_pos=(0, 0.5, 0.1),
+    geometry=tendroid_geometry,
+    zones=detection_zones
+)
+if result.in_range:
+    print(f"Height ratio: {result.height_ratio}")
+----
+
+=== Head-On Approach (TEND-20)
+
+Detects creature approaching directly:
+
+* Measures 3D distance from creature to tendroid axis
+* Checks velocity direction vs surface normal
+* Deflection inversely proportional to distance
+
+[source,python]
+----
+result = calculate_head_on_approach(
+    creature_pos=(0.1, 0.5, 0),
+    creature_vel=(0.5, 0, 0),
+    geometry=tendroid_geometry,
+    zones=detection_zones
+)
+if result.in_range:
+    print(f"Distance: {result.distance}")
+----
+
+=== Pass-By Approach (TEND-21)
+
+Detects lateral/tangential movement:
+
+* Detection circle = tendroid_radius + approach_buffer
+* Detects tangential velocity component
+* Only triggers within tendroid Y range
+
+== Height-Based Proportionality (TEND-22)
+
+Deflection varies by contact height:
+
+[source]
+----
+deflection_angle = lerp(min_angle, max_angle, height_ratio)
+
+Where:
+  height_ratio = (contact_y - base_y) / tendroid_height
+  min_angle = 3°  (at base)
+  max_angle = 30° (at tip)
+----
+
+The formula ensures:
+
+* Contact at base: minimal deflection (~3°)
+* Contact at tip: maximum deflection (~30°)
+* Smooth gradient between
+
+== Surface Normals (TEND-23)
+
+Deflection direction uses surface normals:
+
+[source,python]
+----
+# Calculate radial normal from cylinder axis
+normal = calculate_cylinder_normal(
+    contact_pos, tendroid_center_x, tendroid_center_z
+)
+
+# Deflection is opposite to contact normal
+deflection_dir = calculate_deflection_direction(normal)
+
+# Bend axis perpendicular to deflection
+bend_axis = calculate_bend_axis(deflection_dir)
+----
+
+== Quick Start
+
+=== Basic Usage
+
+[source,python]
+----
+from qixotic.tendroids.deflection import (
+    DeflectionController,
+    DeflectionConfig,
+    TendroidGeometry
+)
+
+# Create controller with default config
+controller = DeflectionController()
+
+# Register tendroids
+for i, tendroid in enumerate(tendroids):
+    controller.register_tendroid(i, TendroidGeometry(
+        center_x=tendroid.position[0],
+        center_z=tendroid.position[2],
+        base_y=tendroid.position[1],
+        height=tendroid.length,
+        radius=tendroid.radius
+    ))
+
+# Update each frame
+def on_update(dt):
+    creature_pos = creature.get_position()
+    creature_vel = tuple(creature.velocity)
+    
+    states = controller.update(creature_pos, creature_vel, dt)
+    
+    for tid, state in states.items():
+        if state.is_deflecting:
+            apply_bend(tendroids[tid], state.current_angle, state.deflection_axis)
+----
+
+=== Using Integration Bridge
+
+[source,python]
+----
+from qixotic.tendroids.deflection import DeflectionIntegration
+
+integration = DeflectionIntegration()
+integration.register_tendroids(tendroid_wrappers)
+
+# In animation loop
+states = integration.update(creature_controller, dt)
+for name, state in states.items():
+    if state.is_deflecting:
+        apply_bend(name, state)
+----
+
+== Configuration
+
+=== Presets
+
+Three built-in presets:
+
+[cols="1,2"]
+|===
+| Preset | Description
+
+| `default`
+| Balanced settings for typical use
+
+| `sensitive`
+| Larger detection range, more deflection
+
+| `subtle`
+| Minimal detection range, gentle deflection
+|===
+
+[source,python]
+----
+config = get_deflection_config('sensitive')
+controller = DeflectionController(config)
+----
+
+=== Custom Configuration
+
+[source,python]
+----
+from qixotic.tendroids.deflection import (
+    DeflectionConfig,
+    DeflectionLimits,
+    DetectionZones
+)
+
+config = DeflectionConfig(
+    limits=DeflectionLimits(
+        minimum_deflection=0.087,  # 5 degrees
+        maximum_deflection=0.698,  # 40 degrees
+        deflection_rate=2.0,
+        recovery_rate=1.0
+    ),
+    zones=DetectionZones(
+        tendroid_radius=0.08,
+        approach_buffer=0.2,
+        detection_range=0.6
+    )
+)
+----
+
+== API Reference
+
+=== TendroidDeflectionState
+
+Returned by controller.update():
+
+[cols="1,1,2"]
+|===
+| Field | Type | Description
+
+| `tendroid_id`
+| int
+| Unique tendroid identifier
+
+| `current_angle`
+| float
+| Current deflection angle (radians)
+
+| `target_angle`
+| float
+| Target angle being approached
+
+| `deflection_direction`
+| tuple
+| (x, y, z) direction of deflection
+
+| `deflection_axis`
+| tuple
+| (x, y, z) rotation axis for bend
+
+| `last_approach_type`
+| ApproachType
+| VERTICAL, HEAD_ON, PASS_BY, NONE
+
+| `is_deflecting`
+| bool
+| True if currently deflecting
+|===
+
+=== DeflectionController Methods
+
+[cols="1,2"]
+|===
+| Method | Description
+
+| `register_tendroid(id, geometry)`
+| Add tendroid to tracking
+
+| `unregister_tendroid(id)`
+| Remove tendroid from tracking
+
+| `update(pos, vel, dt)`
+| Frame update, returns all states
+
+| `get_state(id)`
+| Get state for specific tendroid
+
+| `get_deflecting_tendroids()`
+| List of currently deflecting IDs
+|===
+
+== Related Tasks
+
+* TEND-19: Vertical proximity calculation
+* TEND-20: Head-on approach detection
+* TEND-21: Pass-by approach detection
+* TEND-22: Height-based deflection proportionality
+* TEND-23: Surface normal calculations
+* TEND-86: Animation system integration
+* TEND-87: TendroidWrapper integration
+* TEND-88: GPU batch processing
+* TEND-89: Integration tests
+* TEND-90: Documentation
+
+== See Also
+
+* link:deflection-integration-guide.adoc[Integration Guide]
+* link:approach-parameters.adoc[Approach Parameters]
+* link:proximity-kernel.adoc[Proximity Kernel Reference]

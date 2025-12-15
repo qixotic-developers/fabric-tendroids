@@ -1,0 +1,270 @@
+= Contact Offset Configuration Guide
+:toc:
+:toc-placement: preamble
+:icons: font
+:source-highlighter: highlight.js
+
+Guide for configuring and tuning PhysX contact offset attributes for creature collision detection.
+
+== Overview
+
+PhysX uses two offset parameters to control collision detection sensitivity:
+
+[cols="1,2,1"]
+|===
+|Parameter |Purpose |Default
+
+|`contactOffset`
+|Distance at which contact generation begins
+|0.04m (4cm)
+
+|`restOffset`
+|Natural separation distance between objects
+|0.01m (1cm)
+|===
+
+[source]
+----
+        Contact Zone (3cm)
+    |<----------------->|
+    
+    ══════════════════════════  Contact Offset (4cm from surface)
+    
+    ░░░░░░░░░░░░░░░░░░░░░░░░  Rest Zone (1cm)
+    
+    ████████████████████████  Collider Surface
+----
+
+== How Contact Offsets Work
+
+=== Contact Offset
+
+The `contactOffset` defines how far from the collider surface PhysX begins generating contact pairs. A larger value means contacts are detected earlier, giving more time to react.
+
+**Trade-offs:**
+
+* **Larger values**: Earlier detection, smoother response, but may detect false positives
+* **Smaller values**: More precise, but less time to react
+
+=== Rest Offset
+
+The `restOffset` defines the minimum separation distance PhysX maintains between objects at rest. This prevents visual penetration.
+
+**Trade-offs:**
+
+* **Larger values**: More visible gap between objects, but more stable
+* **Smaller values**: Tighter contact, but may have jitter
+
+=== PhysX Requirement
+
+[IMPORTANT]
+====
+`contactOffset` must be >= `restOffset`
+
+PhysX will fail to create contacts properly if this constraint is violated.
+====
+
+== Configuration
+
+=== Constants File
+
+Default values are defined in `envelope_constants.py`:
+
+[source,python]
+----
+# PhysX contact detection parameters
+CONTACT_OFFSET = 0.04  # 4cm - early contact generation
+REST_OFFSET = 0.01     # 1cm - natural separation distance
+----
+
+=== Runtime Tuning
+
+Use the helper functions for runtime adjustment:
+
+[source,python]
+----
+from qixotic.tendroids.controllers.creature_collider_helper import (
+    update_contact_offsets,
+    get_contact_offsets,
+    set_collider_visibility,
+)
+
+# Get current values
+stage = omni.usd.get_context().get_stage()
+values = get_contact_offsets(stage, "/World/Creature")
+print(f"Contact: {values['contact_offset']}, Rest: {values['rest_offset']}")
+
+# Update values
+update_contact_offsets(stage, "/World/Creature",
+                       contact_offset=0.05,
+                       rest_offset=0.02)
+
+# Toggle visibility for debugging
+set_collider_visibility(stage, "/World/Creature", True)
+----
+
+== Visual Tuning Tool
+
+A visual tuning script is provided for interactive adjustment:
+
+=== Usage
+
+1. Open `test_contact_offset_tuning.py` in Omniverse Script Editor
+2. Run the script
+3. Use keyboard controls:
+
+[cols="1,3"]
+|===
+|Key |Action
+
+|↑ / ↓
+|Adjust contact offset (+/- 1cm)
+
+|← / →
+|Adjust rest offset (+/- 1cm)
+
+|V
+|Toggle collider visibility
+
+|R
+|Reset to default values
+
+|P
+|Print current values
+|===
+
+4. Run `stop_tuning()` to exit
+
+=== What to Look For
+
+When tuning, observe:
+
+* **Too large contact offset**: Creatures react too early, visible gap
+* **Too small contact offset**: Creatures don't react until penetrating
+* **Too large rest offset**: Objects appear to float apart
+* **Too small rest offset**: Visual penetration, jitter
+
+== Recommended Values
+
+=== Default Configuration
+
+For the creature envelope (radius=6.0, total length=24.0):
+
+[source,python]
+----
+CONTACT_OFFSET = 0.04  # 4cm - ~0.7% of creature radius
+REST_OFFSET = 0.01     # 1cm - minimal separation
+----
+
+=== Alternative Configurations
+
+[cols="1,1,1,2"]
+|===
+|Use Case |Contact |Rest |Notes
+
+|Tight detection
+|0.02
+|0.005
+|Minimal gaps, precise contact
+
+|Early warning
+|0.08
+|0.02
+|More reaction time, visible gap
+
+|Stable physics
+|0.04
+|0.02
+|Balanced for physics stability
+
+|Performance
+|0.02
+|0.01
+|Fewer contact pairs generated
+|===
+
+== Troubleshooting
+
+=== Contacts Not Generating
+
+* Verify `UsdPhysics.CollisionAPI` is applied
+* Verify `PhysxSchema.PhysxCollisionAPI` is applied
+* Check that both objects have collision enabled
+* Increase `contactOffset`
+
+=== Visual Penetration
+
+* Increase `restOffset`
+* Verify collider geometry matches visual mesh
+* Check transform hierarchy for scale issues
+
+=== Jittery Contacts
+
+* Increase `restOffset`
+* Add damping to physics materials
+* Check for conflicting collision pairs
+
+=== Performance Issues
+
+* Reduce `contactOffset` to generate fewer contact pairs
+* Use collision filtering to exclude unnecessary pairs
+* Consider using trigger volumes instead of full collision
+
+== API Reference
+
+=== update_contact_offsets()
+
+[source,python]
+----
+def update_contact_offsets(
+    stage,
+    creature_prim_path: str,
+    contact_offset: float = None,
+    rest_offset: float = None
+) -> bool:
+    """
+    Update PhysX contact offset attributes at runtime.
+    
+    Args:
+        stage: USD stage
+        creature_prim_path: Path to creature parent prim
+        contact_offset: New contact offset (meters), or None to keep current
+        rest_offset: New rest offset (meters), or None to keep current
+        
+    Returns:
+        True if updated successfully
+        
+    Raises:
+        Logs error if contact_offset < rest_offset
+    """
+----
+
+=== get_contact_offsets()
+
+[source,python]
+----
+def get_contact_offsets(stage, creature_prim_path: str) -> dict:
+    """
+    Get current PhysX contact offset values.
+    
+    Returns:
+        Dict with 'contact_offset' and 'rest_offset', or None
+    """
+----
+
+=== set_collider_visibility()
+
+[source,python]
+----
+def set_collider_visibility(stage, creature_prim_path: str, visible: bool):
+    """
+    Toggle collider visibility for debugging.
+    """
+----
+
+== Related Tasks
+
+* TEND-11: Design creature envelope geometry
+* TEND-12: Implement envelope as PhysX capsule collider
+* **TEND-13**: Configure contact offset attributes
+* TEND-14: Unit tests for envelope collision detection

@@ -1,4 +1,0 @@
-= Creature Controls
-:navtitle: Creature Controls
-
-include::../../../CREATURE_CONTROLS.adoc[]

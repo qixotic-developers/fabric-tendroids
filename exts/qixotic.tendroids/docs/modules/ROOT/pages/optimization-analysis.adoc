@@ -1,4 +1,0 @@
-= Optimization Analysis
-:navtitle: Optimization Analysis
-
-include::../OPTIMIZATION_ANALYSIS.adoc[]

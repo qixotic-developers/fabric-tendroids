@@ -1,0 +1,217 @@
+= Envelope Collision Detection Reference
+:toc:
+:toc-placement: preamble
+:icons: font
+:source-highlighter: highlight.js
+
+Reference documentation for the geometric collision detection algorithms used in the creature envelope system.
+
+== Overview
+
+The envelope collision module provides pure-geometry collision detection for the creature capsule envelope. These algorithms work independently of PhysX, enabling comprehensive unit testing.
+
+== Capsule Geometry
+
+The creature envelope is a capsule shape:
+
+[source]
+----
+         ╭───────╮
+        ╱         ╲        ← Cap B (hemisphere)
+       │           │
+       │  Cylinder │       ← Half-height on each side
+       │   Body    │
+       │           │
+        ╲         ╱        ← Cap A (hemisphere)
+         ╰───────╯
+         ←─────→
+          Radius
+----
+
+=== Parameters
+
+[cols="1,1,2"]
+|===
+|Parameter |Value |Description
+
+|`center`
+|Vec3
+|Center point of capsule
+
+|`axis`
+|Vec3 (unit)
+|Direction along capsule length
+
+|`half_height`
+|6.0m
+|Half the cylinder height
+
+|`radius`
+|6.0m
+|Radius of cylinder and caps
+|===
+
+== Collision Functions
+
+=== point_capsule_collision()
+
+Test if a point intersects the capsule.
+
+[source,python]
+----
+from qixotic.tendroids.controllers.envelope_collision import (
+    point_capsule_collision, Vec3, Capsule
+)
+
+capsule = Capsule(
+    center=Vec3(0, 50, 0),
+    axis=Vec3(0, 0, 1),
+    half_height=6.0,
+    radius=6.0
+)
+
+point = Vec3(5, 50, 0)
+result = point_capsule_collision(point, capsule, contact_offset=0.04)
+
+if result.hit:
+    print(f"Contact at {result.contact_point}")
+    print(f"Normal: {result.contact_normal}")
+    print(f"Type: {result.contact_type}")
+----
+
+=== sphere_capsule_collision()
+
+Test if a sphere intersects the capsule.
+
+[source,python]
+----
+result = sphere_capsule_collision(
+    sphere_center=Vec3(10, 50, 0),
+    sphere_radius=2.0,
+    capsule=capsule,
+    contact_offset=0.04
+)
+----
+
+=== calculate_approach_velocity()
+
+Calculate how fast an object is approaching the capsule.
+
+[source,python]
+----
+approach = calculate_approach_velocity(
+    object_pos=Vec3(20, 50, 0),
+    object_vel=Vec3(-5, 0, 0),  # Moving toward capsule
+    capsule=capsule
+)
+# approach > 0 means approaching
+# approach < 0 means receding
+----
+
+== Contact Classification
+
+=== is_glancing_contact()
+
+Determine if a contact is a glancing blow (velocity mostly tangent to surface).
+
+[source,python]
+----
+if is_glancing_contact(result, velocity, glancing_threshold=0.5):
+    # Velocity is mostly parallel to surface
+    # Apply sliding response
+----
+
+**Threshold:** cos(angle) value. 0.5 = 60° from surface.
+
+=== is_head_on_contact()
+
+Determine if a contact is head-on (velocity mostly perpendicular to surface).
+
+[source,python]
+----
+if is_head_on_contact(result, velocity, head_on_threshold=0.7):
+    # Velocity is mostly into surface
+    # Apply strong deflection
+----
+
+**Threshold:** cos(angle) value. 0.7 = ~45° from normal.
+
+== CollisionResult Structure
+
+[source,python]
+----
+@dataclass
+class CollisionResult:
+    hit: bool              # True if collision detected
+    distance: float        # Distance to surface (negative = inside)
+    contact_point: Vec3    # Closest point on surface
+    contact_normal: Vec3   # Outward normal at contact
+    contact_type: str      # "cylinder", "cap_a", "cap_b", "none"
+----
+
+=== Contact Types
+
+[cols="1,3"]
+|===
+|Type |Description
+
+|`cylinder`
+|Contact on the cylindrical body
+
+|`cap_a`
+|Contact on bottom hemisphere (negative axis direction)
+
+|`cap_b`
+|Contact on top hemisphere (positive axis direction)
+
+|`none`
+|No contact
+|===
+
+== Test Coverage
+
+=== TEND-61: Glancing Contact Tests
+
+- Tangent velocity correctly identified as glancing
+- Perpendicular velocity not glancing
+- 45-degree approach classification
+- Glancing detection on hemispherical caps
+
+=== TEND-62: Head-On Contact Tests
+
+- Direct approach correctly identified as head-on
+- Tangent approach not head-on
+- Head-on cap contact
+- Threshold sensitivity testing
+
+=== TEND-63: No False Positives Tests
+
+- Points far from capsule
+- Points just outside radius
+- Points outside caps
+- Spheres not touching capsule
+- Axis extension tests
+- Grid position tests
+
+=== Additional Test Classes
+
+- `TestContactOffset` - Contact offset expansion
+- `TestContactTypeClassification` - Correct type assignment
+- `TestContactNormalAccuracy` - Normal vector correctness
+- `TestApproachVelocity` - Velocity calculation
+- `TestWaveMotionContact` - Oscillating motion patterns
+
+== Running Tests
+
+[source,bash]
+----
+cd exts/qixotic.tendroids
+python -m pytest tests/test_envelope_collision.py -v
+----
+
+== Related Tasks
+
+* TEND-11: Design creature envelope geometry
+* TEND-12: Implement envelope as PhysX capsule collider
+* TEND-13: Configure contact offset attributes
+* **TEND-14**: Unit tests for envelope collision detection

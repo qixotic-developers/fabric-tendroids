@@ -1,0 +1,332 @@
+= Approach Parameters Reference
+:toc: left
+:toclevels: 3
+:icons: font
+:source-highlighter: highlight.js
+
+== Overview
+
+This document defines the distance parameters used for creature-tendroid proximity detection. All distances are measured from the tendroid surface in meters.
+
+=== Related Tasks
+
+[cols="1,3,1"]
+|===
+|Task |Description |Status
+
+|TEND-17
+|Define approach_epsilon and approach_minimum parameters
+|✅ Complete
+
+|TEND-68
+|Define approach_epsilon parameter with default value
+|✅ Complete
+
+|TEND-69
+|Define approach_minimum parameter with default value
+|✅ Complete
+
+|TEND-70
+|Add parameters to config file
+|✅ Complete
+|===
+
+== Parameter Definitions
+
+=== approach_epsilon
+
+*Contact trigger distance*
+
+[cols="1,2"]
+|===
+|Property |Value
+
+|Default
+|0.04m (4cm)
+
+|Unit
+|Meters
+
+|Type
+|Relative distance from surface
+
+|PhysX Alignment
+|Matches `contactOffset` attribute
+|===
+
+When a creature's distance to the tendroid surface falls below `approach_epsilon`, contact is triggered. This initiates the avoidance behavior response.
+
+=== approach_minimum
+
+*Recovery threshold distance*
+
+[cols="1,2"]
+|===
+|Property |Value
+
+|Default
+|0.15m (15cm)
+
+|Unit
+|Meters
+
+|Type
+|Relative distance from surface
+|===
+
+After contact, the creature must retreat beyond `approach_minimum` before transitioning to the "recovered" state. This hysteresis prevents oscillation at the boundary.
+
+=== warning_distance
+
+*Early warning zone*
+
+[cols="1,2"]
+|===
+|Property |Value
+
+|Default
+|0.25m (25cm)
+
+|Unit
+|Meters
+|===
+
+When creature distance falls below `warning_distance`, the system transitions to "approaching" state. This allows smoother avoidance by starting to slow/turn earlier.
+
+=== detection_radius
+
+*Maximum detection range*
+
+[cols="1,2"]
+|===
+|Property |Value
+
+|Default
+|1.0m (100cm)
+
+|Unit
+|Meters
+|===
+
+The maximum distance at which proximity is detected. Points beyond this radius are not found in hash grid queries.
+
+== Zone Diagram
+
+[source]
+----
+                    Tendroid Surface
+                          │
+    ══════════════════════╪══════════════════════
+                          │
+         ┌────────────────┼────────────────┐
+         │                │                │
+         │   CONTACT      │                │  ← approach_epsilon (4cm)
+         │                │                │
+         ├────────────────┼────────────────┤
+         │                │                │
+         │   RECOVERING   │                │  ← approach_minimum (15cm)
+         │                │                │
+         ├────────────────┼────────────────┤
+         │                │                │
+         │   APPROACHING  │                │  ← warning_distance (25cm)
+         │                │                │
+         ├────────────────┼────────────────┤
+         │                │                │
+         │   DETECTED     │                │  ← detection_radius (100cm)
+         │                │                │
+         └────────────────┼────────────────┘
+                          │
+              IDLE        │        IDLE
+                          │
+----
+
+== State Transitions
+
+[source]
+----
+                    ┌─────────────┐
+                    │    IDLE     │
+                    │ (d > detect)│
+                    └──────┬──────┘
+                           │ d <= detection_radius
+                           ▼
+                    ┌─────────────┐
+                    │  DETECTED   │
+                    │(warn < d)   │
+                    └──────┬──────┘
+                           │ d <= warning_distance
+                           ▼
+                    ┌─────────────┐
+                    │ APPROACHING │
+                    │(min < d)    │
+                    └──────┬──────┘
+                           │ d <= approach_epsilon
+                           ▼
+                    ┌─────────────┐
+         ┌─────────│   CONTACT   │
+         │         │ (d <= eps)  │
+         │         └──────┬──────┘
+         │                │ d > approach_epsilon
+         │                ▼
+         │         ┌─────────────┐
+         └─────────│ RECOVERING  │──────┐
+                   │(eps < d)    │      │
+                   └─────────────┘      │
+                           │            │
+                           │ d > approach_minimum
+                           ▼            │
+                    ┌─────────────┐     │
+                    │  RECOVERED  │◄────┘
+                    │             │ (can re-enter APPROACHING)
+                    └─────────────┘
+----
+
+== Configuration
+
+=== Using Presets
+
+[source,python]
+----
+from qixotic.tendroids.proximity import get_approach_params
+
+# Available presets
+params = get_approach_params("default")        # Standard values
+params = get_approach_params("small_creature") # Tighter tolerances
+params = get_approach_params("large_creature") # Larger spacing
+params = get_approach_params("sensitive")      # Easy triggering (demo)
+----
+
+=== Preset Comparison
+
+[cols="1,1,1,1,1"]
+|===
+|Preset |epsilon |minimum |warning |detection
+
+|default
+|4cm
+|15cm
+|25cm
+|100cm
+
+|small_creature
+|2cm
+|8cm
+|15cm
+|50cm
+
+|large_creature
+|8cm
+|25cm
+|50cm
+|200cm
+
+|sensitive
+|10cm
+|30cm
+|60cm
+|150cm
+|===
+
+=== Custom Parameters
+
+[source,python]
+----
+from qixotic.tendroids.proximity import create_custom_approach_params
+
+# Create from centimeter values (validates automatically)
+params = create_custom_approach_params(
+    epsilon_cm=5.0,
+    minimum_cm=15.0,
+    warning_cm=30.0,
+    detection_cm=100.0
+)
+
+# Or create directly
+from qixotic.tendroids.proximity import ApproachParameters
+
+params = ApproachParameters(
+    approach_epsilon=0.05,   # 5cm
+    approach_minimum=0.15,   # 15cm
+    warning_distance=0.30,   # 30cm
+    detection_radius=1.0     # 1m
+)
+
+# Validate
+valid, msg = params.validate()
+assert valid, f"Invalid config: {msg}"
+----
+
+=== Zone Testing
+
+[source,python]
+----
+params = get_approach_params("default")
+
+# Test which zone a distance falls into
+zone = params.get_zone(0.03)  # → "contact"
+zone = params.get_zone(0.10)  # → "recovering"
+zone = params.get_zone(0.20)  # → "approaching"
+zone = params.get_zone(0.50)  # → "detected"
+zone = params.get_zone(2.00)  # → "idle"
+----
+
+== Tuning Tool
+
+A tuning tool is provided for interactive adjustment:
+
+[source,python]
+----
+from tools.approach_param_tuner import ApproachParamTuner
+
+tuner = ApproachParamTuner()
+tuner.print_values()
+tuner.print_zones()
+
+# Adjust values
+tuner.set_epsilon_cm(5.0)
+tuner.set_minimum_cm(20.0)
+
+# Test a distance
+tuner.test_distance(15.0)  # → "RECOVERING"
+
+# Save/load
+tuner.save_to_file("my_params.json")
+tuner.load_from_file("my_params.json")
+----
+
+== Design Decisions
+
+=== Relative vs Absolute Distances
+
+*Decision:* Use RELATIVE distances from tendroid surface.
+
+*Rationale:*
+
+1. Independent of tendroid world position
+2. Consistent behavior regardless of tendroid placement
+3. Easier to reason about ("4cm from surface" vs "world coord X")
+4. Matches how PhysX contactOffset works
+
+=== PhysX Alignment
+
+The default `approach_epsilon` (4cm) matches the PhysX `contactOffset` configured in TEND-13. This ensures:
+
+1. Visual contact detection aligns with physics collision
+2. No gap between "approaching" behavior and physics response
+3. Consistent user experience
+
+=== Hysteresis via approach_minimum
+
+The `approach_minimum` (15cm) is intentionally larger than `approach_epsilon` (4cm) to create hysteresis:
+
+1. Prevents oscillation at contact boundary
+2. Gives creature time to build escape momentum
+3. Creates clear "safe zone" after avoidance
+
+== Testing
+
+[source,bash]
+----
+# Run approach parameter tests
+python -m pytest tests/test_approach_params.py -v
+----

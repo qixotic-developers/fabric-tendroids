@@ -1,0 +1,205 @@
+= Test Suite Documentation
+:toc:
+:toc-placement: preamble
+:icons: font
+
+Documentation for the qixotic.tendroids test suite.
+
+== Overview
+
+The test suite provides automated testing for the creature-tendroid interaction system. Tests are organized into two categories:
+
+* **Unit Tests**: Can run without Omniverse runtime (use mocks)
+* **Integration Tests**: Require full Omniverse environment
+
+== Directory Structure
+
+[source]
+----
+tests/
+├── __init__.py              # Package init with documentation
+├── conftest.py              # Pytest fixtures and configuration
+├── test_mocks.py            # Mock objects for unit testing
+├── test_envelope_constants.py    # Constants validation
+├── test_creature_collider.py     # Collider creation tests
+└── test_creature_regression.py   # Regression tests for existing features
+----
+
+== Running Tests
+
+=== Prerequisites
+
+Install test dependencies:
+
+[source,bash]
+----
+pip install -r requirements-test.txt
+----
+
+=== Run All Tests
+
+[source,bash]
+----
+# From extension root directory
+python run_tests.py
+
+# Or using pytest directly
+python -m pytest tests/ -v
+----
+
+=== Run Specific Test File
+
+[source,bash]
+----
+python -m pytest tests/test_envelope_constants.py -v
+----
+
+=== Run With Coverage
+
+[source,bash]
+----
+python -m pytest tests/ -v --cov=qixotic.tendroids --cov-report=html
+----
+
+== Test Categories
+
+=== Envelope Constants (`test_envelope_constants.py`)
+
+Validates that envelope geometry parameters match TEND-11 design:
+
+[cols="1,2,1"]
+|===
+|Test Class |Purpose |Omniverse Required
+
+|`TestEnvelopeGeometry`
+|Verify radius, height, axis match design
+|No
+
+|`TestPhysXParameters`
+|Verify contact/rest offsets
+|No
+
+|`TestCollisionGroups`
+|Verify collision group definitions
+|No
+
+|`TestDebugSettings`
+|Verify debug visualization settings
+|No
+|===
+
+=== Creature Collider (`test_creature_collider.py`)
+
+Tests collider creation and destruction:
+
+[cols="1,2,1"]
+|===
+|Test Class |Purpose |Omniverse Required
+
+|`TestColliderCreation`
+|Verify collider is created correctly
+|No (mocked)
+
+|`TestColliderDestruction`
+|Verify cleanup works
+|No (mocked)
+
+|`TestColliderDimensions`
+|Verify correct dimensions used
+|No
+
+|`TestPhysXConfiguration`
+|Verify PhysX attributes set
+|No
+|===
+
+=== Regression Tests (`test_creature_regression.py`)
+
+Ensures existing functionality not broken:
+
+[cols="1,2,1"]
+|===
+|Test Class |Purpose |Omniverse Required
+
+|`TestCreaturePhysics`
+|Velocity, damping, bounds clamping
+|No
+
+|`TestBubbleCollisionDetection`
+|Bubble collision logic
+|No
+
+|`TestTendroidInteractionDetection`
+|Avoidance/shock detection logic
+|No
+
+|`TestCreatureOrientation`
+|Rotation calculations
+|No
+|===
+
+== Mock Objects
+
+The `test_mocks.py` module provides lightweight mocks:
+
+[source,python]
+----
+MockVec3f      # Gf.Vec3f replacement with math operations
+MockPrim       # USD Prim with basic attributes
+MockStage      # USD Stage with prim management
+MockCapsule    # UsdGeom.Capsule
+MockCollisionAPI    # UsdPhysics.CollisionAPI
+----
+
+== Adding New Tests
+
+=== Unit Test Template
+
+[source,python]
+----
+"""Test description."""
+
+import pytest
+from tests.test_mocks import MockStage, MockVec3f
+
+
+class TestNewFeature:
+    """Test new feature functionality."""
+    
+    def test_specific_behavior(self):
+        """What this test verifies."""
+        # Arrange
+        stage = MockStage()
+        
+        # Act
+        result = some_function(stage)
+        
+        # Assert
+        assert result == expected_value
+----
+
+=== Integration Test Template
+
+[source,python]
+----
+"""Integration test requiring Omniverse."""
+
+import pytest
+
+
+@pytest.mark.integration
+class TestOmniverseFeature:
+    """Tests requiring Omniverse runtime."""
+    
+    def test_with_real_stage(self, omniverse_stage):
+        """Test with actual USD stage."""
+        # This will only run when Omniverse is available
+        pass
+----
+
+== Related Jira Tasks
+
+* **TEND-14**: Unit tests for envelope collision detection
+* **TEND-61**: Test glancing contact detection
+* **TEND-62**: Test head-on contact detection
+* **TEND-63**: Verify no false positives outside envelope

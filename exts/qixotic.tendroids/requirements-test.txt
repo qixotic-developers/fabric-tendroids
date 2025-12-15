@@ -1,0 +1,5 @@
+# Test Dependencies for qixotic.tendroids
+# Install with: pip install -r requirements-test.txt
+
+pytest>=7.0.0
+pytest-cov>=4.0.0

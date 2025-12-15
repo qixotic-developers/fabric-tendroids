@@ -1,9 +1,0 @@
-name: geo-sub
-title: Geo-Sub OptiX Documentation
-version: main
-nav:
-- modules/ROOT/nav.adoc
-asciidoc:
-  attributes:
-    project-name: Geo-Sub OptiX
-    project-description: CMake-based OptiX ray tracing submarine visualization

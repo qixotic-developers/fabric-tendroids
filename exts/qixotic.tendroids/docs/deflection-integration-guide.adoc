@@ -1,0 +1,299 @@
+= Deflection Integration Guide
+:navtitle: Integration Guide
+:description: How to integrate the deflection system with existing tendroid animation
+:keywords: deflection, integration, animation, controller
+:toc: left
+:toclevels: 3
+
+== Overview
+
+This guide covers integrating the deflection system with existing tendroid animation pipelines.
+The deflection module provides multiple integration patterns to suit different architectures.
+
+== Architecture
+
+The deflection system consists of these components:
+
+[source]
+----
+┌─────────────────────────────────────────────────────────────┐
+│                    Animation Controller                      │
+│  ┌──────────────────────┐  ┌────────────────────────────┐  │
+│  │  CreatureController  │  │    DeflectionIntegration   │  │
+│  │  - position          │──│    - register_tendroids()  │  │
+│  │  - velocity          │  │    - update()              │  │
+│  └──────────────────────┘  └────────────────────────────┘  │
+│                                        │                     │
+│                                        ▼                     │
+│                            ┌───────────────────────┐        │
+│                            │ DeflectionController  │        │
+│                            │ - approach detection  │        │
+│                            │ - angle calculation   │        │
+│                            │ - smooth transitions  │        │
+│                            └───────────────────────┘        │
+│                                        │                     │
+│                                        ▼                     │
+│  ┌──────────────────────────────────────────────────────┐  │
+│  │              TendroidWrapper (per instance)           │  │
+│  │  - apply deflection transform                         │  │
+│  │  - mesh deformation                                   │  │
+│  └──────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
+----
+
+== Integration Patterns
+
+=== Pattern 1: DeflectionIntegration (Recommended)
+
+The simplest integration uses `DeflectionIntegration` as a bridge:
+
+[source,python]
+----
+from qixotic.tendroids.deflection import DeflectionIntegration
+
+class MyAnimationController:
+    def __init__(self):
+        self.deflection = DeflectionIntegration()
+    
+    def setup(self, tendroids, creature_controller):
+        # Register all tendroids
+        self.deflection.register_tendroids(tendroids)
+        self.creature = creature_controller
+    
+    def update(self, dt):
+        # Update deflection from creature position
+        states = self.deflection.update(self.creature, dt)
+        
+        # Apply states to wrappers
+        for name, state in states.items():
+            wrapper = self.get_wrapper(name)
+            if state.is_deflecting:
+                self.apply_bend(wrapper, state)
+----
+
+=== Pattern 2: Mixin Class
+
+For wrapper subclassing, use `TendroidDeflectionMixin`:
+
+[source,python]
+----
+from qixotic.tendroids.deflection import create_deflectable_tendroid_class
+from qixotic.tendroids.scene import V2TendroidWrapper
+
+# Create enhanced wrapper class
+DeflectableTendroid = create_deflectable_tendroid_class(V2TendroidWrapper)
+
+# Use in factory
+tendroid = DeflectableTendroid(
+    name="tendroid_0",
+    position=(0, 0, 0),
+    radius=0.05,
+    length=1.0,
+    mesh_prim=mesh,
+    deformer=deformer,
+    deform_start_height=0.0
+)
+
+# Update from controller state
+tendroid.update_deflection(controller_state)
+
+# Access transform
+transform = tendroid.deflection_transform
+angle = transform.bend_angle
+axis = transform.bend_axis
+----
+
+=== Pattern 3: Batch GPU Processing
+
+For high-performance scenarios with many tendroids:
+
+[source,python]
+----
+from qixotic.tendroids.deflection import BatchDeflectionManager
+
+manager = BatchDeflectionManager(device="cuda:0")
+manager.register_tendroids(tendroid_list)
+
+# Configure parameters
+manager.configure(
+    detection_range=0.5,
+    approach_buffer=0.15,
+    min_deflection_deg=3.0,
+    max_deflection_deg=30.0
+)
+
+# In animation loop
+def update(dt):
+    creature_pos = creature.get_position()
+    creature_vel = creature.velocity
+    
+    # Single GPU kernel computes all deflections
+    angles, axes = manager.compute_deflections(
+        creature_pos, creature_vel, dt
+    )
+    
+    # Apply to meshes
+    for i, (angle, axis) in enumerate(zip(angles, axes)):
+        apply_bend(tendroids[i], angle, axis)
+----
+
+== Animation Controller Integration
+
+=== Modifying V2AnimationController
+
+Add deflection to the existing animation loop:
+
+[source,python]
+----
+# In V2AnimationController.__init__
+from qixotic.tendroids.deflection import DeflectionIntegration
+
+self.deflection_integration = DeflectionIntegration()
+self._deflection_enabled = True
+
+# In V2AnimationController.set_tendroids
+def set_tendroids(self, tendroids, tendroid_data=None):
+    self.tendroids = tendroids
+    self.tendroid_data = tendroid_data or []
+    
+    # Register for deflection
+    if self._deflection_enabled:
+        self.deflection_integration.register_tendroids(tendroids)
+
+# In V2AnimationController._on_update
+def _on_update(self, event):
+    # ... existing update code ...
+    
+    # Update deflection
+    if self._deflection_enabled and self.creature_controller:
+        deflection_states = self.deflection_integration.update(
+            self.creature_controller, dt
+        )
+        self._apply_deflections(deflection_states)
+
+def _apply_deflections(self, states):
+    for tendroid in self.tendroids:
+        if tendroid.name in states:
+            state = states[tendroid.name]
+            apply_deflection_to_wrapper(tendroid, state)
+----
+
+== Configuration Reference
+
+=== DeflectionConfig Options
+
+[cols="1,1,2"]
+|===
+| Parameter | Default | Description
+
+| `detection_range`
+| 0.5m
+| Maximum distance for detection
+
+| `approach_buffer`
+| 0.15m
+| Buffer zone around tendroid
+
+| `minimum_deflection`
+| 3°
+| Deflection at tendroid base
+
+| `maximum_deflection`
+| 30°
+| Deflection at tendroid tip
+
+| `deflection_rate`
+| 1.5 rad/s
+| Speed of deflection
+
+| `recovery_rate`
+| 0.8 rad/s
+| Speed of recovery
+|===
+
+=== Using Presets
+
+[source,python]
+----
+from qixotic.tendroids.deflection import get_deflection_config
+
+# Available presets: 'default', 'sensitive', 'subtle'
+config = get_deflection_config('sensitive')
+
+# Or customize
+from qixotic.tendroids.deflection import (
+    DeflectionConfig, DeflectionLimits, DetectionZones
+)
+
+config = DeflectionConfig(
+    limits=DeflectionLimits.from_degrees(
+        minimum_deflection=5.0,
+        maximum_deflection=45.0
+    ),
+    zones=DetectionZones(
+        detection_range=0.8
+    )
+)
+----
+
+== Debugging
+
+=== Enable Debug Logging
+
+[source,python]
+----
+import carb
+carb.settings.get_settings().set(
+    "/log/level", "verbose"
+)
+----
+
+=== Get Debug Info
+
+[source,python]
+----
+# From integration
+info = integration.get_debug_info()
+print(f"Deflecting: {info['deflecting']}")
+print(f"Tendroid count: {info['tendroid_count']}")
+
+# From controller
+controller_info = info['controller_info']
+for tid, state in controller_info['states'].items():
+    print(f"  {tid}: angle={state.current_angle:.2f}")
+----
+
+== Troubleshooting
+
+=== No Deflection Occurring
+
+1. Check creature is within detection range
+2. Verify tendroid registration: `len(integration._tendroid_map)`
+3. Ensure deflection is enabled: `integration.enabled = True`
+4. Check creature Y is within tendroid height range
+
+=== Deflection Too Slow/Fast
+
+Adjust rates in configuration:
+
+[source,python]
+----
+config.limits.deflection_rate = 2.5  # Faster deflection
+config.limits.recovery_rate = 1.2    # Faster recovery
+----
+
+=== Performance Issues
+
+Use batch processing for >10 tendroids:
+
+[source,python]
+----
+manager = BatchDeflectionManager(device="cuda:0")
+# Processes all tendroids in single GPU kernel
+----
+
+== Related Documentation
+
+* link:deflection-system.adoc[Deflection System Overview]
+* link:approach-parameters.adoc[Approach Parameters]
+* link:proximity-kernel.adoc[Proximity Kernel]

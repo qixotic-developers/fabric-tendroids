@@ -7,6 +7,7 @@ force calculations, and color effects for creature-tendroid interactions.
 Implements TEND-24: Subscribe to PhysX contact events.
 Implements TEND-25: Implement repulsion force along surface normal.
 Implements TEND-26: Implement shock color change effect.
+Implements TEND-27: Implement color fade during recovery.
 """
 
 from .contact_handler import ContactHandler, ContactEvent
@@ -30,11 +31,24 @@ from .color_effect_helpers import (
     ColorEffectState,
     ColorEffectStatus,
     trigger_shock,
+    start_recovery,
+    update_recovery,
     check_shock_exit,
     reset_to_normal,
     interpolate_color,
     is_shocked,
     is_normal,
+    is_recovering,
+)
+from .color_fade_helpers import (
+    FadeMode,
+    FadeConfig,
+    calculate_distance_fade,
+    calculate_speed_fade,
+    calculate_time_fade,
+    calculate_fade_progress,
+    apply_easing,
+    blend_fade_modes,
 )
 from .color_effect_controller import ColorEffectController
 
@@ -61,9 +75,21 @@ __all__ = [
     'ColorEffectStatus',
     'ColorEffectController',
     'trigger_shock',
+    'start_recovery',
+    'update_recovery',
     'check_shock_exit',
     'reset_to_normal',
     'interpolate_color',
     'is_shocked',
     'is_normal',
+    'is_recovering',
+    # Fade
+    'FadeMode',
+    'FadeConfig',
+    'calculate_distance_fade',
+    'calculate_speed_fade',
+    'calculate_time_fade',
+    'calculate_fade_progress',
+    'apply_easing',
+    'blend_fade_modes',
 ]

@@ -1,0 +1,449 @@
+= Phase 2 Implementation Quick Reference
+:toc: left
+:toclevels: 2
+:icons: font
+
+== Pre-Phase 2: Finish Phase 1
+
+=== TEND-4: Creature Contact Response
+
+==== TEND-24: Subscribe to PhysX Contact Events (3h)
+
+**File:** `exts/qixotic.tendroids/qixotic/tendroids/physics/contact_handler.py`
+
+```python
+from omni.physx import get_physx_simulation_interface
+
+class ContactHandler:
+    def __init__(self):
+        self._subscription = None
+    
+    def start(self):
+        sim_interface = get_physx_simulation_interface()
+        self._subscription = sim_interface.subscribe_contact_report_events(
+            self._on_contact
+        )
+    
+    def _on_contact(self, contact_headers, contact_data):
+        for header in contact_headers:
+            # Process each contact
+            pass
+```
+
+==== TEND-25: Implement Repulsion Force (4h)
+
+**File:** `exts/qixotic.tendroids/qixotic/tendroids/physics/repulsion_system.py`
+
+**Key Logic:**
+
+* Calculate surface normal at contact point
+* Apply impulse along normal direction
+* Magnitude scales with approach velocity
+* Ensure creature never passes through tendroid
+
+==== TEND-26: Shock Color Change (3h)
+
+**File:** `exts/qixotic.tendroids/qixotic/tendroids/visual/color_effects.py`
+
+**Key Logic:**
+
+* Instant color change on contact
+* Store original color
+* Maintain shock color until `approach_minimum` distance
+
+==== TEND-27: Color Fade During Recovery (2h)
+
+**File:** `exts/qixotic.tendroids/qixotic/tendroids/visual/color_effects.py`
+
+**Options to implement:**
+
+. Distance-based fade (lerp from shock to normal)
+. Speed-based fade (lerp based on velocity)
+
+Test both, keep best.
+
+==== TEND-28: Disable Controls During Repel (2h)
+
+**File:** `exts/qixotic.tendroids/qixotic/tendroids/input/control_manager.py`
+
+**Key Logic:**
+
+* Flag: `controls_enabled = False` on contact
+* Ignore all input during repel
+* Re-enable on recovery complete
+
+=== TEND-5: Recovery System
+
+==== TEND-29: Track approach_minimum (4h)
+
+**File:** `exts/qixotic.tendroids/qixotic/tendroids/core/recovery_tracker.py`
+
+**Key Logic:**
+
+* Continuously measure distance to tendroid surface
+* Account for both creature and tendroid movement
+* Trigger recovery complete when distance > `approach_minimum`
+
+==== TEND-30: Recalculate Absolute Coordinates (4h)
+
+**File:** `exts/qixotic.tendroids/qixotic/tendroids/core/recovery_tracker.py`
+
+**Consider:** May be simpler to use relative distances instead of absolute coordinates
+
+==== TEND-31: Repel Velocity Fade (3h)
+
+**File:** `exts/qixotic.tendroids/qixotic/tendroids/physics/repulsion_system.py`
+
+**Key Logic:**
+
+* Apply exponential decay to repulsion velocity
+* `velocity *= fade_factor` each frame
+* Stop when velocity < threshold
+
+==== TEND-32: Re-enable Controls (2h)
+
+**File:** `exts/qixotic.tendroids/qixotic/tendroids/core/recovery_tracker.py`
+
+**Trigger Conditions (ALL must be true):**
+
+* Tendroid returned to normal position
+* Creature beyond `approach_minimum`
+* Color faded to normal
+* Repel velocity near zero
+
+== Phase 2: Multi-Tendroid Support
+
+=== TEND-6: Multi-Tendroid Selection
+
+==== TEND-33: Determine Selection Algorithm (4h)
+
+**Deliverable:** `docs/technical/tendroid-selection-algorithm.adoc`
+
+**Design Document Should Include:**
+
+* Chosen algorithm (recommend: nearest tendroid)
+* Edge case handling (ties, rapid transitions)
+* Performance considerations
+* Pseudocode implementation
+* Test scenarios
+
+**Recommended Algorithm: Nearest Tendroid**
+
+```python
+def select_active_tendroid(creature_pos, tendroids_in_range):
+    """
+    Select which tendroid should react.
+    
+    Returns:
+        Tendroid with minimum horizontal distance to creature
+    """
+    if not tendroids_in_range:
+        return None
+    
+    return min(
+        tendroids_in_range,
+        key=lambda t: horizontal_distance(creature_pos, t.position)
+    )
+```
+
+==== TEND-34: Prevent Tendroid-Tendroid Collision (4h)
+
+**Files:**
+
+* `exts/qixotic.tendroids/qixotic/tendroids/physics/collision_config.py`
+* `exts/qixotic.tendroids/qixotic/tendroids/animation/deflection_limiter.py`
+
+**Implementation:**
+
+. **PhysX Layer Filtering:**
++
+```python
+# Disable tendroid-tendroid collisions
+tendroid_layer = 0x00000010
+tendroid_filter = tendroid_layer & ~tendroid_layer
+```
+
+. **Deflection Limiting:**
++
+```python
+def calculate_max_deflection(tendroid, neighbors):
+    """Limit deflection based on neighbor distance."""
+    min_neighbor_distance = min(
+        distance(tendroid, n) for n in neighbors
+    )
+    return min(
+        requested_deflection,
+        safe_deflection(min_neighbor_distance)
+    )
+```
+
+==== TEND-35: Handle Tendroid Transitions (6h)
+
+**File:** `exts/qixotic.tendroids/qixotic/tendroids/core/transition_manager.py`
+
+**Key Scenarios:**
+
+. **Clean Handoff**
++
+```python
+if creature_leaving_zone_A and entering_zone_B:
+    tendroid_A.begin_recovery()
+    tendroid_B.begin_deflection()
+```
+
+. **Overlap Situation**
++
+```python
+if creature_in_multiple_zones:
+    # Use selection algorithm
+    active = select_active_tendroid(creature_pos, zones)
+    for tendroid in zones:
+        if tendroid == active:
+            tendroid.maintain_deflection()
+        else:
+            tendroid.begin_recovery()
+```
+
+. **Rapid Movement**
++
+```python
+# Don't activate tendroids if creature moving too fast
+if creature_velocity > skip_threshold:
+    continue_current_state()
+```
+
+=== TEND-7: Bubble System Integration
+
+==== TEND-36: Detect Bubble State (4h)
+
+**File:** `exts/qixotic.tendroids/qixotic/tendroids/bubble/state_detector.py`
+
+**States:**
+
+* `FULLY_INSIDE`: All bubble vertices inside tendroid bounds
+* `PARTIALLY_VISIBLE`: Some vertices inside, some outside
+* `OUTSIDE`: No vertices inside tendroid
+
+```python
+def detect_bubble_state(bubble, tendroid):
+    """
+    Detect bubble visibility state relative to tendroid.
+    
+    Returns:
+        BubbleState enum
+    """
+    vertices_inside = count_vertices_inside(
+        bubble.get_vertices(),
+        tendroid.get_bounds()
+    )
+    
+    total_vertices = len(bubble.get_vertices())
+    
+    if vertices_inside == 0:
+        return BubbleState.OUTSIDE
+    elif vertices_inside == total_vertices:
+        return BubbleState.FULLY_INSIDE
+    else:
+        return BubbleState.PARTIALLY_VISIBLE
+```
+
+==== TEND-37: Silent Disappear for Internal Bubbles (3h)
+
+**File:** `exts/qixotic.tendroids/qixotic/tendroids/bubble/behavior.py`
+
+**Implementation:**
+
+```python
+def handle_evasion_trigger(bubble, tendroid):
+    """Handle bubble when tendroid begins evasion."""
+    state = detect_bubble_state(bubble, tendroid)
+    
+    if state == BubbleState.FULLY_INSIDE:
+        # Silent disappear
+        bubble.destroy(silent=True)  # No pop animation
+```
+
+==== TEND-38: Immediate Ejection for Visible Bubbles (4h)
+
+**File:** `exts/qixotic.tendroids/qixotic/tendroids/bubble/behavior.py`
+
+**Implementation:**
+
+```python
+def handle_evasion_trigger(bubble, tendroid):
+    """Handle bubble when tendroid begins evasion."""
+    state = detect_bubble_state(bubble, tendroid)
+    
+    if state == BubbleState.PARTIALLY_VISIBLE:
+        # Calculate ejection
+        contact_point = find_bubble_tendroid_contact(bubble, tendroid)
+        ejection_normal = tendroid.get_surface_normal(contact_point)
+        
+        # Apply ejection impulse
+        ejection_velocity = ejection_normal * EJECTION_SPEED
+        bubble.apply_impulse(ejection_velocity)
+```
+
+==== TEND-39: Design Bubble-Following Behavior (8h)
+
+**Deliverable:** `docs/technical/bubble-following-design.adoc`
+
+**Future Feature - Design Only**
+
+**Design Document Should Include:**
+
+* Algorithm for bubbles to follow tendroid centerline
+* Integration with existing bubble physics
+* Performance implications
+* Animation smoothness considerations
+* Prototype implementation plan
+
+== Testing Strategy
+
+=== Phase 1 Completion Tests
+
+```python
+def test_contact_response():
+    """Test TEND-4 complete."""
+    creature = create_test_creature()
+    tendroid = create_test_tendroid()
+    
+    # Trigger contact
+    move_creature_into_tendroid(creature, tendroid)
+    
+    # Verify
+    assert creature.color == SHOCK_COLOR
+    assert creature.controls_enabled == False
+    assert creature.velocity.direction == tendroid.surface_normal
+    
+def test_recovery():
+    """Test TEND-5 complete."""
+    # Setup: Creature in recovery state
+    creature = create_recovering_creature()
+    
+    # Let recovery complete
+    simulate_until_recovery_complete()
+    
+    # Verify
+    assert creature.color == NORMAL_COLOR
+    assert creature.controls_enabled == True
+    assert creature.velocity.magnitude < EPSILON
+```
+
+=== Phase 2 Tests
+
+```python
+def test_multi_tendroid_selection():
+    """Test TEND-6 complete."""
+    creature = create_test_creature()
+    tendroids = [
+        create_tendroid(position=(0, 0, 0)),   # Nearest
+        create_tendroid(position=(5, 0, 0)),   # Farther
+        create_tendroid(position=(10, 0, 0)),  # Farthest
+    ]
+    
+    # Creature approaches from (-2, 0, 0)
+    creature.position = (-2, 0, 0)
+    
+    # Verify only nearest reacts
+    active = get_active_tendroid()
+    assert active == tendroids[0]
+    assert tendroids[1].state == TendroidState.NORMAL
+    assert tendroids[2].state == TendroidState.NORMAL
+
+def test_bubble_states():
+    """Test TEND-7 complete."""
+    tendroid = create_test_tendroid()
+    
+    # Test inside bubble
+    bubble_inside = create_bubble_inside(tendroid)
+    tendroid.trigger_evasion()
+    assert not bubble_inside.exists()  # Silent disappear
+    
+    # Test partial bubble
+    bubble_partial = create_bubble_partial(tendroid)
+    tendroid.trigger_evasion()
+    assert bubble_partial.exists()  # Ejected
+    assert bubble_partial.velocity.magnitude > 0
+```
+
+== File Structure for Phase 2
+
+```
+exts/qixotic.tendroids/qixotic/tendroids/
+├── physics/
+│   ├── contact_handler.py          # TEND-24
+│   ├── repulsion_system.py         # TEND-25, TEND-31
+│   ├── collision_config.py         # TEND-34
+│   └── __init__.py
+├── visual/
+│   ├── color_effects.py            # TEND-26, TEND-27
+│   └── __init__.py
+├── input/
+│   ├── control_manager.py          # TEND-28
+│   └── __init__.py
+├── core/
+│   ├── recovery_tracker.py         # TEND-29, TEND-30, TEND-32
+│   ├── transition_manager.py       # TEND-35
+│   └── __init__.py
+├── animation/
+│   ├── deflection_limiter.py       # TEND-34
+│   └── __init__.py
+├── bubble/
+│   ├── state_detector.py           # TEND-36
+│   ├── behavior.py                 # TEND-37, TEND-38
+│   └── __init__.py
+└── tests/
+    ├── test_contact_response.py
+    ├── test_recovery.py
+    ├── test_multi_tendroid.py
+    └── test_bubble_integration.py
+```
+
+== Configuration Parameters
+
+Add to `config.py`:
+
+```python
+# Contact Response (Phase 1)
+SHOCK_COLOR = (1.0, 0.0, 0.0)           # Red
+REPULSION_STRENGTH = 50.0                # Newtons
+VELOCITY_FADE_FACTOR = 0.95              # Per frame
+
+# Recovery (Phase 1)
+APPROACH_MINIMUM = 2.0                   # Meters
+COLOR_FADE_SPEED = 0.02                  # Per frame
+RECOVERY_VELOCITY_THRESHOLD = 0.1        # m/s
+
+# Multi-Tendroid (Phase 2)
+SELECTION_HYSTERESIS = 0.5               # Meters (prevent flapping)
+DEFLECTION_NEIGHBOR_MARGIN = 0.3         # Meters
+RAPID_MOVEMENT_THRESHOLD = 5.0           # m/s
+
+# Bubble System (Phase 2)
+EJECTION_SPEED = 3.0                     # m/s
+BUBBLE_CHECK_RESOLUTION = 8              # Vertices to check
+```
+
+== Integration Checklist
+
+=== Phase 1 → Phase 2 Transition
+
+- [ ] All Phase 1 epics marked Done in Jira
+- [ ] All Phase 1 tests passing
+- [ ] Code review completed for Phase 1
+- [ ] Documentation updated for Phase 1
+- [ ] Performance profiling shows acceptable frame times
+- [ ] Technical design completed for TD-5, TD-6, TD-7
+
+=== Phase 2 Completion Criteria
+
+- [ ] All Phase 2 tasks transitioned to Done
+- [ ] Multi-tendroid selection working smoothly
+- [ ] No tendroid-tendroid collisions observed
+- [ ] Bubble states detected correctly
+- [ ] Silent disappear and ejection working
+- [ ] Design document completed for future bubble-following
+- [ ] All tests passing (162 + new Phase 2 tests)
+- [ ] Performance within targets
+- [ ] Documentation complete

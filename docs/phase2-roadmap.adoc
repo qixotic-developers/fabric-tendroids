@@ -1,0 +1,506 @@
+= TEND Project Roadmap: Phase 1 Completion → Phase 2
+:icons: font
+
+== Timeline Overview
+
+[plantuml, format=svg]
+----
+@startgantt
+title TEND Project: Phase 1 Completion → Phase 2 Delivery
+projectscale weekly
+
+-- Phase 1 Completion --
+[Sprint Beryl] lasts 2 weeks
+
+[TEND-4: Contact Response] lasts 1 weeks
+[TEND-5: Recovery System] lasts 1 weeks
+[TEND-5: Recovery System] starts at [TEND-4: Contact Response]'s end
+
+-- Phase 2: Multi-Tendroid --
+[Sprint Citrine] lasts 2 weeks
+[Sprint Citrine] starts at [Sprint Beryl]'s end
+
+[TEND-6: Multi-Tendroid] lasts 1 weeks
+[TEND-6: Multi-Tendroid] starts at [Sprint Citrine]'s start
+
+[TEND-7: Bubble System] lasts 2 weeks
+[TEND-7: Bubble System] starts at [TEND-6: Multi-Tendroid]'s start
+
+-- Phase 2: Polish --
+[Sprint Diamond] lasts 2 weeks
+[Sprint Diamond] starts at [Sprint Citrine]'s end
+
+[TEND-39: Design Doc] lasts 1 weeks
+[TEND-39: Design Doc] starts at [Sprint Diamond]'s start
+
+[Testing & Docs] lasts 1 weeks
+[Testing & Docs] starts at [TEND-39: Design Doc]'s end
+
+@endgantt
+----
+
+== Dependency Graph
+
+[plantuml, format=svg]
+----
+@startuml
+!define DONE #90EE90
+!define TODO #FFB6C1
+!define PHASE2 #87CEEB
+
+skinparam rectangle {
+    BackgroundColor<<done>> DONE
+    BackgroundColor<<todo>> TODO
+    BackgroundColor<<phase2>> PHASE2
+}
+
+rectangle "TEND-1\nEnvelope System" <<done>> as T1
+rectangle "TEND-2\nProximity Detection" <<done>> as T2
+rectangle "TEND-3\nTendroid Deflection" <<done>> as T3
+
+rectangle "TEND-4\nContact Response" <<todo>> as T4
+rectangle "TEND-5\nRecovery System" <<todo>> as T5
+
+rectangle "TEND-6\nMulti-Tendroid Selection" <<phase2>> as T6
+rectangle "TEND-7\nBubble Integration" <<phase2>> as T7
+
+T1 --> T4 : Envelope needed\nfor contact
+T2 --> T4 : Proximity state\nfor triggers
+T3 --> T4 : Deflection for\nsurface normals
+
+T4 --> T5 : Contact triggers\nrecovery
+T4 --> T6 : Single tendroid\nproof of concept
+T5 --> T6 : Recovery logic\nfor transitions
+
+T6 --> T7 : Multi-tendroid\nfor bubble scenarios
+
+note right of T4
+  **BLOCKING**
+  Must complete before
+  Phase 2 can start
+end note
+
+note right of T5
+  **BLOCKING**
+  Must complete before
+  Phase 2 can start
+end note
+
+@enduml
+----
+
+== Epic Status Dashboard
+
+=== Phase 1: Foundation
+
+[cols="1,3,1,1,1"]
+|===
+|Epic |Name |Status |Tasks Complete |Hours Remaining
+
+|TEND-1
+|Creature Envelope System
+|✅ Done
+|All
+|0
+
+|TEND-2
+|Proximity Detection System
+|✅ Done
+|All
+|0
+
+|TEND-3
+|Tendroid Deflection System
+|✅ Done
+|All
+|0
+
+|TEND-4
+|Creature Contact Response
+|⚠️ To Do
+|0/5
+|14
+
+|TEND-5
+|Recovery System
+|⚠️ To Do
+|0/4
+|13
+
+|*Totals*
+|
+|*60% Complete*
+|*9/9 remaining*
+|*27 hours*
+|===
+
+=== Phase 2: Multi-Tendroid Support
+
+[cols="1,3,1,1,1"]
+|===
+|Epic |Name |Status |Tasks Complete |Hours Estimated
+
+|TEND-6
+|Multi-Tendroid Selection
+|📋 Waiting
+|0/3
+|14
+
+|TEND-7
+|Bubble System Integration
+|📋 Waiting
+|0/4
+|19
+
+|*Totals*
+|
+|*Not Started*
+|*0/7 tasks*
+|*33 hours*
+|===
+
+== Sprint Planning
+
+=== Sprint Beryl (Weeks 1-2) - Phase 1 Completion
+
+**Goal:** Complete all blocking Phase 1 work
+
+**Capacity:** 40 hours
+
+**Planned Work:** 27 hours (68% utilization)
+
+[cols="1,3,1"]
+|===
+|ID |Task |Hours
+
+|*TEND-4: Contact Response (14h)*
+|
+|
+
+|TEND-24
+|Subscribe to PhysX contact events
+|3
+
+|TEND-25
+|Implement repulsion force along surface normal
+|4
+
+|TEND-26
+|Implement shock color change effect
+|3
+
+|TEND-27
+|Implement color fade during recovery
+|2
+
+|TEND-28
+|Disable keyboard controls during repel
+|2
+
+|*TEND-5: Recovery System (13h)*
+|
+|
+
+|TEND-29
+|Track approach_minimum during creature movement
+|4
+
+|TEND-30
+|Recalculate absolute coordinates as tendroid returns
+|4
+
+|TEND-31
+|Implement repel velocity fade
+|3
+
+|TEND-32
+|Re-enable controls after recovery complete
+|2
+|===
+
+**Buffer:** 13 hours for testing, review, and contingency
+
+=== Sprint Citrine (Weeks 3-4) - Phase 2 Start
+
+**Goal:** Complete Multi-Tendroid Selection + Start Bubble System
+
+**Capacity:** 40 hours
+
+**Planned Work:** 25 hours (63% utilization)
+
+[cols="1,3,1"]
+|===
+|ID |Task |Hours
+
+|*TEND-6: Multi-Tendroid Selection (14h)*
+|
+|
+
+|TEND-33
+|Determine tendroid reaction selection algorithm
+|4
+
+|TEND-34
+|Prevent tendroid-tendroid collision during deflection
+|4
+
+|TEND-35
+|Handle transition when creature moves between tendroids
+|6
+
+|*TEND-7: Bubble System (11h partial)*
+|
+|
+
+|TEND-36
+|Detect bubble state (inside/partially visible)
+|4
+
+|TEND-37
+|Implement silent disappear for internal bubbles
+|3
+
+|TEND-38
+|Implement immediate ejection for visible bubbles
+|4
+|===
+
+**Buffer:** 15 hours for prototyping, testing, and adjustments
+
+=== Sprint Diamond (Weeks 5-6) - Phase 2 Completion
+
+**Goal:** Complete Bubble System + Documentation
+
+**Capacity:** 40 hours
+
+**Planned Work:** 16 hours (40% utilization)
+
+[cols="1,3,1"]
+|===
+|ID |Task |Hours
+
+|*TEND-7: Bubble System Completion (8h)*
+|
+|
+
+|TEND-39
+|Design bubble-following behavior (future)
+|8
+
+|*Documentation & Testing (8h)*
+|
+|
+
+|_Docs_
+|Phase 2 integration testing
+|4
+
+|_Docs_
+|API documentation updates
+|2
+
+|_Docs_
+|User guide updates
+|2
+|===
+
+**Buffer:** 24 hours for polish, bug fixes, and final testing
+
+== Milestone Checklist
+
+=== M1: Phase 1 Complete (End of Sprint Beryl)
+
+- [ ] TEND-4: Contact Response
+  - [ ] PhysX contact events subscribed
+  - [ ] Repulsion force working
+  - [ ] Shock color implemented
+  - [ ] Color fade working
+  - [ ] Controls disabled during repel
+
+- [ ] TEND-5: Recovery System
+  - [ ] approach_minimum tracking
+  - [ ] Coordinate recalculation
+  - [ ] Velocity fade implemented
+  - [ ] Controls re-enabled properly
+
+- [ ] All Phase 1 tests passing (162+)
+- [ ] Code review completed
+- [ ] Documentation updated
+
+=== M2: Multi-Tendroid Working (Mid Sprint Citrine)
+
+- [ ] TEND-6: Multi-Tendroid Selection
+  - [ ] Selection algorithm designed and documented
+  - [ ] Collision prevention working
+  - [ ] Smooth transitions between tendroids
+
+- [ ] Prototype tested with user feedback
+- [ ] No performance regressions
+
+=== M3: Phase 2 Complete (End of Sprint Diamond)
+
+- [ ] TEND-7: Bubble System Integration
+  - [ ] Bubble state detection working
+  - [ ] Silent disappear implemented
+  - [ ] Ejection behavior working
+  - [ ] Future design documented
+
+- [ ] All Phase 2 tests passing
+- [ ] Integration testing complete
+- [ ] Documentation finalized
+- [ ] Ready for Phase 3 (Controls)
+
+== Resource Allocation
+
+[cols="2,1,1,1"]
+|===
+|Sprint |Available |Planned |Buffer
+
+|Sprint Beryl (Phase 1)
+|40h
+|27h (68%)
+|13h (32%)
+
+|Sprint Citrine (Phase 2 start)
+|40h
+|25h (63%)
+|15h (37%)
+
+|Sprint Diamond (Phase 2 complete)
+|40h
+|16h (40%)
+|24h (60%)
+
+|*Total*
+|*120h*
+|*68h (57%)*
+|*52h (43%)*
+|===
+
+**Resource Strategy:**
+
+* Conservative estimates allow for unknowns
+* Large buffers accommodate learning curve
+* Single developer focused execution
+* Can parallelize in future phases
+
+== Risk Tracking
+
+[cols="2,1,1,2,1"]
+|===
+|Risk |Impact |Prob |Mitigation |Status
+
+|Phase 1 incomplete
+|🔴 High
+|🟡 Med
+|13h buffer in Sprint Beryl
+|🟢 Active
+
+|Selection algorithm iteration
+|🟡 Med
+|🟡 Med
+|Early prototype + user testing
+|🟢 Active
+
+|Bubble detection complexity
+|🟡 Med
+|🟢 Low
+|Leverage proximity system
+|🟢 Active
+
+|Tendroid collision issues
+|🟡 Med
+|🟢 Low
+|PhysX layer filtering
+|🟢 Active
+
+|Performance regression
+|🟡 Med
+|🟢 Low
+|Profile early; use PhysX optimizations
+|🟢 Active
+|===
+
+== Definition of Done
+
+=== Epic-Level DoD
+
+- [ ] All tasks within epic marked "Done" in Jira
+- [ ] Code reviewed and approved
+- [ ] Unit tests written and passing
+- [ ] Integration tests passing
+- [ ] Performance profiled (no regressions)
+- [ ] Documentation updated
+- [ ] Demo-able to stakeholders
+
+=== Phase-Level DoD
+
+- [ ] All epics within phase meet Epic-Level DoD
+- [ ] Cross-epic integration tested
+- [ ] System-level performance acceptable
+- [ ] User acceptance criteria met
+- [ ] Technical design docs complete
+- [ ] API documentation complete
+- [ ] Ready for next phase
+
+== Communication Plan
+
+=== Daily
+
+* Stand-up updates in project chat
+* Jira task status updates
+* Commit messages reference task IDs
+
+=== Weekly
+
+* Sprint progress review
+* Risk assessment update
+* Roadmap adjustments if needed
+
+=== Sprint Boundaries
+
+* Sprint retrospective
+* Sprint planning for next iteration
+* Technical design sessions for upcoming work
+* Demo to stakeholders
+
+== Success Metrics
+
+[cols="2,1,1"]
+|===
+|Metric |Target |Measurement
+
+|Phase 1 Completion
+|100%
+|All tasks Done by end Sprint Beryl
+
+|Phase 2 Delivery
+|100%
+|All tasks Done by end Sprint Diamond
+
+|Test Coverage
+|>80%
+|Unit + Integration tests
+
+|Performance
+|60 FPS
+|Frame time profiling
+
+|Code Quality
+|0 blocking issues
+|Code review + linting
+
+|Documentation
+|100%
+|All public APIs documented
+|===
+
+---
+
+*Document Status:* Planning Draft
+
+*Last Updated:* {docdate}
+
+*Owner:* qixotic
+
+*Next Review:* Sprint Beryl Planning

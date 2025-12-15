@@ -2,12 +2,14 @@
 Contact Handling Package
 
 Provides PhysX contact event subscription, filtering, repulsion
-force calculations, and color effects for creature-tendroid interactions.
+force calculations, color effects, and input lock management
+for creature-tendroid interactions.
 
 Implements TEND-24: Subscribe to PhysX contact events.
 Implements TEND-25: Implement repulsion force along surface normal.
 Implements TEND-26: Implement shock color change effect.
 Implements TEND-27: Implement color fade during recovery.
+Implements LTEND-28: Disable keyboard controls during repel.
 """
 
 from .contact_handler import ContactHandler, ContactEvent
@@ -51,6 +53,17 @@ from .color_fade_helpers import (
     blend_fade_modes,
 )
 from .color_effect_controller import ColorEffectController
+from .input_lock_helpers import (
+    InputLockReason,
+    InputLockStatus,
+    lock_input_on_contact,
+    update_lock_reason,
+    unlock_input_on_recovery_complete,
+    sync_lock_from_color_state,
+    is_input_locked,
+    should_apply_keyboard,
+    get_lock_reason_name,
+)
 
 __all__ = [
     # Contact handler
@@ -92,4 +105,14 @@ __all__ = [
     'calculate_fade_progress',
     'apply_easing',
     'blend_fade_modes',
+    # Input lock (LTEND-28)
+    'InputLockReason',
+    'InputLockStatus',
+    'lock_input_on_contact',
+    'update_lock_reason',
+    'unlock_input_on_recovery_complete',
+    'sync_lock_from_color_state',
+    'is_input_locked',
+    'should_apply_keyboard',
+    'get_lock_reason_name',
 ]

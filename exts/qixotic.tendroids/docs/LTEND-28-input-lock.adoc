@@ -1,0 +1,173 @@
+= LTEND-28: Disable Keyboard Controls During Repel
+:toc: left
+:toclevels: 3
+:sectnums:
+
+== Overview
+
+This document describes the implementation of keyboard input locking during the repel phase of creature-tendroid contact.
+
+=== Requirements
+
+* Disable movement input on contact
+* Creature moves only via repulsion force during repel
+* Re-enable controls on recovery complete
+
+== Architecture
+
+=== State Flow
+
+[source]
+----
+NORMAL (input unlocked)
+    │
+    ▼ Contact detected
+SHOCKED (input locked)
+    │
+    ▼ Distance > approach_minimum  
+RECOVERING (input locked)
+    │
+    ▼ Recovery complete (fade = 1.0)
+NORMAL (input unlocked)
+----
+
+=== Module Structure
+
+[source]
+----
+contact/
+├── input_lock_helpers.py    # Pure lock state logic
+├── color_effect_helpers.py  # State synchronization source
+└── __init__.py              # Updated exports
+
+controllers/
+├── creature_controller.py   # Input lock integration
+├── creature_input_helpers.py # Keyboard filtering
+├── creature_mesh_helpers.py  # USD mesh creation (refactored out)
+└── creature_update_helpers.py # Physics update logic
+----
+
+== Implementation Details
+
+=== InputLockStatus
+
+The `InputLockStatus` dataclass tracks keyboard lock state:
+
+[source,python]
+----
+@dataclass
+class InputLockStatus:
+    is_locked: bool = False
+    reason: InputLockReason = InputLockReason.NONE
+    lock_count: int = 0  # Total times locked
+----
+
+=== Lock Reasons
+
+[source,python]
+----
+class InputLockReason(Enum):
+    NONE = auto()       # Input not locked
+    CONTACT = auto()    # Initial contact with tendroid
+    REPELLING = auto()  # Being pushed by repulsion force
+    RECOVERING = auto() # Fading back to normal
+----
+
+=== Integration with ColorEffectState
+
+The input lock synchronizes with the color effect state machine:
+
+|===
+|Color State |Input Lock State |Lock Reason
+
+|NORMAL
+|Unlocked
+|NONE
+
+|SHOCKED
+|Locked
+|CONTACT → REPELLING
+
+|RECOVERING
+|Locked
+|RECOVERING
+|===
+
+=== Keyboard Filtering
+
+When locked, `filter_keyboard_by_lock()` returns null state:
+
+[source,python]
+----
+def filter_keyboard_by_lock(keyboard_state, lock_status):
+    if is_input_locked(lock_status):
+        return get_null_keyboard_state()  # All keys = False
+    return keyboard_state
+----
+
+=== Repulsion Force Application
+
+The `apply_repulsion_force()` method bypasses the input lock:
+
+[source,python]
+----
+def apply_repulsion_force(self, force_vector: tuple) -> None:
+    """Apply external repulsion force (bypasses keyboard lock)."""
+    fx, fy, fz = force_vector
+    self.velocity += Gf.Vec3f(fx, fy, fz)
+----
+
+== Usage
+
+=== Frame Update Loop
+
+[source,python]
+----
+# Each frame:
+# 1. Process contact events (triggers color shock)
+color_controller.on_contact()
+
+# 2. Sync input lock from color state
+creature.sync_input_lock(color_controller.status)
+
+# 3. Apply repulsion force if in contact
+if color_controller.is_shocked:
+    creature.apply_repulsion_force(repulsion_result.force_vector)
+
+# 4. Update creature (keyboard filtered internally)
+creature.update(dt, ...)
+
+# 5. Update color based on distance
+color_controller.update(distance, speed, elapsed)
+----
+
+=== Checking Lock State
+
+[source,python]
+----
+if creature.is_input_locked:
+    print(f"Input locked: {creature.input_lock_reason.name}")
+----
+
+== Testing
+
+Run the tests:
+
+[source,bash]
+----
+cd exts/qixotic.tendroids
+python -m pytest tests/test_input_lock.py -v
+python -m pytest tests/test_creature_input.py -v
+----
+
+=== Test Coverage
+
+* `test_input_lock.py` - 15 tests for lock state management
+* `test_creature_input.py` - 14 tests for keyboard filtering
+
+== Related Tasks
+
+* TEND-24: PhysX contact subscription
+* TEND-25: Repulsion force calculation
+* TEND-26: Shock color effect
+* TEND-27: Recovery fade

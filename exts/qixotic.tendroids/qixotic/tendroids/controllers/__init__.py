@@ -1,5 +1,8 @@
 """
 V2 Controllers - Scene orchestration and demo controllers
+
+LTEND-28: Added input lock support to CreatureController.
+Keyboard controls are disabled during repel state.
 """
 
 from .controller import V2Controller

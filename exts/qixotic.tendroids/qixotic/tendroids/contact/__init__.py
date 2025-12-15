@@ -11,6 +11,7 @@ Implements TEND-26: Implement shock color change effect.
 Implements TEND-27: Implement color fade during recovery.
 Implements LTEND-28: Disable keyboard controls during repel.
 Implements TEND-29: Track approach_minimum during creature movement.
+Implements TEND-31: Implement repel velocity fade.
 """
 
 from .contact_handler import ContactHandler, ContactEvent
@@ -83,6 +84,22 @@ from .approach_tracker_helpers import (
     is_recovery_complete,
     get_phase_name,
 )
+from .velocity_fade_helpers import (
+    FadeMode as VelocityFadeMode,
+    VelocityFadeConfig,
+    VelocityFadeStatus,
+    create_fade_status,
+    apply_initial_velocity,
+    velocity_from_force,
+    update_velocity,
+    get_displacement,
+    get_fade_progress as get_velocity_fade_progress,
+    reset_velocity,
+    is_velocity_active,
+    is_velocity_stopped,
+    get_current_speed,
+    get_velocity_direction,
+)
 
 __all__ = [
     # Contact handler
@@ -151,4 +168,19 @@ __all__ = [
     'is_tracking_active',
     'is_recovery_complete',
     'get_phase_name',
+    # Velocity fade (TEND-31)
+    'VelocityFadeMode',
+    'VelocityFadeConfig',
+    'VelocityFadeStatus',
+    'create_fade_status',
+    'apply_initial_velocity',
+    'velocity_from_force',
+    'update_velocity',
+    'get_displacement',
+    'get_velocity_fade_progress',
+    'reset_velocity',
+    'is_velocity_active',
+    'is_velocity_stopped',
+    'get_current_speed',
+    'get_velocity_direction',
 ]

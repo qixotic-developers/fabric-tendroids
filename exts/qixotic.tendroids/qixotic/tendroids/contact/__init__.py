@@ -1,11 +1,12 @@
 """
 Contact Handling Package
 
-Provides PhysX contact event subscription, filtering, and repulsion
-force calculations for creature-tendroid interactions.
+Provides PhysX contact event subscription, filtering, repulsion
+force calculations, and color effects for creature-tendroid interactions.
 
 Implements TEND-24: Subscribe to PhysX contact events.
 Implements TEND-25: Implement repulsion force along surface normal.
+Implements TEND-26: Implement shock color change effect.
 """
 
 from .contact_handler import ContactHandler, ContactEvent
@@ -24,6 +25,18 @@ from .repulsion_helpers import (
     compute_corrected_position,
     calculate_repulsion,
 )
+from .color_effect_helpers import (
+    ColorConfig,
+    ColorEffectState,
+    ColorEffectStatus,
+    trigger_shock,
+    check_shock_exit,
+    reset_to_normal,
+    interpolate_color,
+    is_shocked,
+    is_normal,
+)
+from .color_effect_controller import ColorEffectController
 
 __all__ = [
     # Contact handler
@@ -42,4 +55,15 @@ __all__ = [
     'compute_repulsion_force',
     'compute_corrected_position',
     'calculate_repulsion',
+    # Color effects
+    'ColorConfig',
+    'ColorEffectState',
+    'ColorEffectStatus',
+    'ColorEffectController',
+    'trigger_shock',
+    'check_shock_exit',
+    'reset_to_normal',
+    'interpolate_color',
+    'is_shocked',
+    'is_normal',
 ]

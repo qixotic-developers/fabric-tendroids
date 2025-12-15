@@ -348,3 +348,300 @@ class TestContactEvent:
     assert event.surface_normal == (0.0, 1.0, 0.0)
     assert event.impulse == 100.0
     assert event.separation == -0.005
+
+
+# =============================================================================
+# PHYSX CALLBACK TESTS - _on_contact_report
+# =============================================================================
+
+class MockContactData:
+    """Mock PhysX contact data structure."""
+    def __init__(self, position, normal, impulse=0.0, separation=0.0):
+        self.position = position
+        self.normal = normal
+        self.impulse = impulse
+        self.separation = separation
+
+
+class MockContactHeader:
+    """Mock PhysX contact header structure."""
+    def __init__(self, actor0, actor1, num_contacts, data_offset=0):
+        self.actor0 = actor0
+        self.actor1 = actor1
+        self.num_contact_data = num_contacts
+        self.contact_data_offset = data_offset
+
+
+class TestOnContactReport:
+    """Tests for _on_contact_report PhysX callback."""
+
+    def test_single_creature_tendroid_contact(self):
+        """Processes single creature-tendroid contact correctly."""
+        handler = ContactHandler()
+        received = []
+        handler.add_listener(lambda e: received.append(e))
+
+        headers = [
+            MockContactHeader('/World/Creature', '/World/Tendroids/T0', 1, 0)
+        ]
+        contact_data = [
+            MockContactData([10.0, 5.0, 20.0], [1.0, 0.0, 0.0], 50.0, -0.01)
+        ]
+
+        handler._on_contact_report(headers, contact_data)
+
+        assert len(received) == 1
+        assert received[0].creature_path == '/World/Creature'
+        assert received[0].tendroid_path == '/World/Tendroids/T0'
+        assert received[0].contact_point == (10.0, 5.0, 20.0)
+        assert received[0].surface_normal == (1.0, 0.0, 0.0)
+
+    def test_multiple_contacts_single_header(self):
+        """Processes multiple contact points in single header."""
+        handler = ContactHandler()
+        received = []
+        handler.add_listener(lambda e: received.append(e))
+
+        headers = [
+            MockContactHeader('/World/Creature', '/World/Tendroids/T0', 3, 0)
+        ]
+        contact_data = [
+            MockContactData([1.0, 0.0, 0.0], [1.0, 0.0, 0.0]),
+            MockContactData([2.0, 0.0, 0.0], [1.0, 0.0, 0.0]),
+            MockContactData([3.0, 0.0, 0.0], [1.0, 0.0, 0.0]),
+        ]
+
+        handler._on_contact_report(headers, contact_data)
+
+        assert len(received) == 3
+        assert received[0].contact_point == (1.0, 0.0, 0.0)
+        assert received[1].contact_point == (2.0, 0.0, 0.0)
+        assert received[2].contact_point == (3.0, 0.0, 0.0)
+
+    def test_multiple_headers(self):
+        """Processes multiple contact headers."""
+        handler = ContactHandler()
+        received = []
+        handler.add_listener(lambda e: received.append(e))
+
+        headers = [
+            MockContactHeader('/World/Creature', '/World/Tendroids/T0', 1, 0),
+            MockContactHeader('/World/Creature', '/World/Tendroids/T1', 1, 1),
+        ]
+        contact_data = [
+            MockContactData([1.0, 0.0, 0.0], [1.0, 0.0, 0.0]),
+            MockContactData([2.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
+        ]
+
+        handler._on_contact_report(headers, contact_data)
+
+        assert len(received) == 2
+        assert received[0].tendroid_path == '/World/Tendroids/T0'
+        assert received[1].tendroid_path == '/World/Tendroids/T1'
+
+    def test_filters_non_creature_tendroid_contacts(self):
+        """Ignores contacts not involving creature-tendroid pairs."""
+        handler = ContactHandler()
+        received = []
+        handler.add_listener(lambda e: received.append(e))
+
+        headers = [
+            # Should be ignored - ground contact
+            MockContactHeader('/World/Ground', '/World/Creature', 1, 0),
+            # Should be processed
+            MockContactHeader('/World/Creature', '/World/Tendroids/T0', 1, 1),
+            # Should be ignored - tendroid-tendroid
+            MockContactHeader('/World/Tendroids/T0', '/World/Tendroids/T1', 1, 2),
+        ]
+        contact_data = [
+            MockContactData([0.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+            MockContactData([5.0, 0.0, 0.0], [1.0, 0.0, 0.0]),
+            MockContactData([10.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
+        ]
+
+        handler._on_contact_report(headers, contact_data)
+
+        assert len(received) == 1
+        assert received[0].tendroid_path == '/World/Tendroids/T0'
+
+    def test_contact_data_offset_handling(self):
+        """Correctly uses contact_data_offset for indexing."""
+        handler = ContactHandler()
+        received = []
+        handler.add_listener(lambda e: received.append(e))
+
+        # Header starts at offset 5 with 2 contacts
+        headers = [
+            MockContactHeader('/World/Creature', '/World/Tendroids/T0', 2, 5)
+        ]
+        # Pad with dummy data, real data at indices 5 and 6
+        contact_data = [
+            MockContactData([0.0, 0.0, 0.0], [0.0, 0.0, 0.0]),  # 0 - ignored
+            MockContactData([0.0, 0.0, 0.0], [0.0, 0.0, 0.0]),  # 1 - ignored
+            MockContactData([0.0, 0.0, 0.0], [0.0, 0.0, 0.0]),  # 2 - ignored
+            MockContactData([0.0, 0.0, 0.0], [0.0, 0.0, 0.0]),  # 3 - ignored
+            MockContactData([0.0, 0.0, 0.0], [0.0, 0.0, 0.0]),  # 4 - ignored
+            MockContactData([55.0, 0.0, 0.0], [1.0, 0.0, 0.0]),  # 5 - used
+            MockContactData([66.0, 0.0, 0.0], [1.0, 0.0, 0.0]),  # 6 - used
+        ]
+
+        handler._on_contact_report(headers, contact_data)
+
+        assert len(received) == 2
+        assert received[0].contact_point == (55.0, 0.0, 0.0)
+        assert received[1].contact_point == (66.0, 0.0, 0.0)
+
+
+# =============================================================================
+# EDGE CASES - Empty/Null paths
+# =============================================================================
+
+class TestEdgeCasesEmptyPaths:
+    """Tests for empty and edge case prim paths."""
+
+    def test_empty_string_path_creature(self):
+        """Empty string is not a creature."""
+        assert is_creature_prim('') is False
+
+    def test_empty_string_path_tendroid(self):
+        """Empty string is not a tendroid."""
+        assert is_tendroid_prim('') is False
+
+    def test_extract_with_empty_paths(self):
+        """Extract returns None for empty paths."""
+        info = extract_contact_info(
+            '', '',
+            (0.0, 0.0, 0.0), (1.0, 0.0, 0.0)
+        )
+        assert info is None
+
+    def test_whitespace_only_path(self):
+        """Whitespace-only paths don't match."""
+        assert is_creature_prim('   ') is False
+        assert is_tendroid_prim('   ') is False
+
+
+# =============================================================================
+# EDGE CASES - Numeric edge cases
+# =============================================================================
+
+class TestEdgeCasesNumeric:
+    """Tests for numeric edge cases in contact data."""
+
+    def test_zero_length_normal_vector(self):
+        """Handles zero-length normal vector."""
+        info = extract_contact_info(
+            '/World/Creature',
+            '/World/Tendroids/T0',
+            contact_point=(10.0, 5.0, 20.0),
+            contact_normal=(0.0, 0.0, 0.0),  # Zero vector
+        )
+        # Should still extract - normalization is caller's responsibility
+        assert info is not None
+        assert info.contact_normal == (0.0, 0.0, 0.0)
+
+    def test_nan_in_coordinates(self):
+        """Handles NaN in coordinates without crashing."""
+        import math
+        info = extract_contact_info(
+            '/World/Creature',
+            '/World/Tendroids/T0',
+            contact_point=(float('nan'), 5.0, 20.0),
+            contact_normal=(1.0, 0.0, 0.0),
+        )
+        # Should extract - validation is caller's responsibility
+        assert info is not None
+        assert math.isnan(info.contact_point[0])
+
+    def test_infinity_in_coordinates(self):
+        """Handles infinity in coordinates without crashing."""
+        import math
+        info = extract_contact_info(
+            '/World/Creature',
+            '/World/Tendroids/T0',
+            contact_point=(float('inf'), 5.0, 20.0),
+            contact_normal=(1.0, 0.0, 0.0),
+        )
+        assert info is not None
+        assert math.isinf(info.contact_point[0])
+
+    def test_very_large_impulse(self):
+        """Handles very large impulse values."""
+        info = extract_contact_info(
+            '/World/Creature',
+            '/World/Tendroids/T0',
+            contact_point=(0.0, 0.0, 0.0),
+            contact_normal=(1.0, 0.0, 0.0),
+            impulse=1e38,  # Very large
+        )
+        assert info is not None
+        assert info.impulse == 1e38
+
+    def test_negative_impulse(self):
+        """Handles negative impulse (edge case from physics)."""
+        info = extract_contact_info(
+            '/World/Creature',
+            '/World/Tendroids/T0',
+            contact_point=(0.0, 0.0, 0.0),
+            contact_normal=(1.0, 0.0, 0.0),
+            impulse=-50.0,
+        )
+        assert info is not None
+        assert info.impulse == -50.0
+
+
+# =============================================================================
+# EDGE CASES - PhysX callback edge cases
+# =============================================================================
+
+class TestPhysXCallbackEdgeCases:
+    """Edge cases for PhysX callback handling."""
+
+    def test_empty_headers_list(self):
+        """Handles empty headers list gracefully."""
+        handler = ContactHandler()
+        received = []
+        handler.add_listener(lambda e: received.append(e))
+
+        handler._on_contact_report([], [])
+
+        assert len(received) == 0
+        assert handler.contact_count == 0
+
+    def test_header_with_zero_contacts(self):
+        """Handles header with zero contact count."""
+        handler = ContactHandler()
+        received = []
+        handler.add_listener(lambda e: received.append(e))
+
+        headers = [
+            MockContactHeader('/World/Creature', '/World/Tendroids/T0', 0, 0)
+        ]
+
+        handler._on_contact_report(headers, [])
+
+        assert len(received) == 0
+
+    def test_contact_without_impulse_attribute(self):
+        """Handles contact data missing impulse attribute."""
+        handler = ContactHandler()
+        received = []
+        handler.add_listener(lambda e: received.append(e))
+
+        # Create contact without impulse attribute
+        class MinimalContact:
+            def __init__(self):
+                self.position = [1.0, 2.0, 3.0]
+                self.normal = [1.0, 0.0, 0.0]
+                # No impulse or separation attributes
+
+        headers = [
+            MockContactHeader('/World/Creature', '/World/Tendroids/T0', 1, 0)
+        ]
+        contact_data = [MinimalContact()]
+
+        handler._on_contact_report(headers, contact_data)
+
+        assert len(received) == 1
+        assert received[0].impulse == 0.0  # Default value
+        assert received[0].separation == 0.0  # Default value

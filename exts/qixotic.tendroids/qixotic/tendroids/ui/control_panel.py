@@ -13,6 +13,7 @@ from .spawn_controls import SpawnControls
 from .wave_controls import WaveControls
 from .bubble_controls import BubbleControls
 from .creature_controls import CreatureControls
+from .debug_controls import DebugControls
 from .action_buttons import ActionButtons
 
 
@@ -38,6 +39,7 @@ class V2ControlPanel:
         self.wave_controls = WaveControls()
         self.bubble_controls = BubbleControls()
         self.creature_controls = CreatureControls()
+        self.debug_controls = DebugControls(self.scene_manager)
         self.action_buttons = ActionButtons(
             self.scene_manager,
             self.spawn_controls,
@@ -94,6 +96,9 @@ class V2ControlPanel:
                     # Bubble settings
                     self._bind_bubble_manager()
                     self.bubble_controls.build()
+                    
+                    # Debug visualization
+                    self.debug_controls.build()
                     
                     # Action buttons
                     self.action_buttons.build()

@@ -11,6 +11,7 @@ import carb
 
 from ..animation import WaveConfig, WaveController
 from ..bubbles import DEFAULT_V2_BUBBLE_CONFIG
+from ..debug import EnvelopeVisualizer
 
 
 class V2AnimationController:
@@ -29,6 +30,7 @@ class V2AnimationController:
     self.gpu_bubble_adapter = None
     self.batch_deformer = None
     self.creature_controller = None  # Interactive creature
+    self.envelope_visualizer = None  # Debug visualization
     self.update_subscription = None
     self.is_running = False
 
@@ -74,6 +76,18 @@ class V2AnimationController:
     self.creature_controller = creature_controller
     if creature_controller:
       carb.log_info("[Creature] Interactive creature enabled")
+
+  def set_envelope_visualizer(self, visualizer: EnvelopeVisualizer):
+    """Set envelope debug visualizer."""
+    self.envelope_visualizer = visualizer
+    if visualizer:
+      carb.log_info("[Debug] Envelope visualizer enabled")
+
+  def toggle_envelope_debug(self) -> bool:
+    """Toggle envelope visualization. Returns new state."""
+    if self.envelope_visualizer:
+      return self.envelope_visualizer.toggle()
+    return False
 
   def set_fabric_write(self, enabled: bool):
     """Enable/disable Fabric GPU write path."""
@@ -167,6 +181,11 @@ class V2AnimationController:
         # Update interactive creature (Phase 1) - no bubbles
         if self.creature_controller:
           self.creature_controller.update(dt, wave_state=wave_state)
+
+      # Update envelope debug visualization
+      if self.envelope_visualizer and self.creature_controller:
+        creature_pos = self.creature_controller.get_position()
+        self.envelope_visualizer.update(creature_pos)
 
     except Exception as e:
       carb.log_error(f"[V2AnimationController] Update error: {e}")

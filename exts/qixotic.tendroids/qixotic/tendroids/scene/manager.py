@@ -14,6 +14,7 @@ from .tendroid_factory import V2TendroidFactory
 from .tendroid_wrapper import V2TendroidWrapper
 from ..bubbles import V2BubbleManager, create_gpu_bubble_system
 from ..core import BatchWarpDeformer, V2WarpDeformer
+from ..debug import EnvelopeVisualizer
 from ..environment import SeaFloorController, get_height_at
 
 
@@ -42,6 +43,9 @@ class V2SceneManager:
 
     # Interactive creature (Phase 1)
     self.creature_controller = None
+
+    # Debug visualization
+    self.envelope_visualizer = None
 
   def _ensure_sea_floor(self, stage):
     """Create sea floor if not present."""
@@ -135,12 +139,19 @@ class V2SceneManager:
       # Pass to animation controller
       self.animation_controller.set_creature_controller(self.creature_controller)
 
+      # Create envelope debug visualizer
+      self.envelope_visualizer = EnvelopeVisualizer(
+        envelope_radius=self.creature_controller.creature_radius
+      )
+      self.animation_controller.set_envelope_visualizer(self.envelope_visualizer)
+
       carb.log_info("[Creature] Interactive creature initialized")
     except Exception as e:
       carb.log_error(f"[Creature] Failed to initialize: {e}")
       import traceback
       traceback.print_exc()
       self.creature_controller = None
+      self.envelope_visualizer = None
 
   def create_tendroids(
     self,
@@ -316,6 +327,15 @@ class V2SceneManager:
     """Stop animation loop."""
     self.animation_controller.stop()
 
+  def toggle_envelope_debug(self) -> bool:
+    """Toggle envelope debug visualization. Returns new state."""
+    return self.animation_controller.toggle_envelope_debug()
+
+  def set_envelope_debug(self, enabled: bool) -> None:
+    """Enable or disable envelope debug visualization."""
+    if self.envelope_visualizer:
+      self.envelope_visualizer.enabled = enabled
+
   def clear_tendroids(self, stage=None):
     """Remove all tendroids from scene."""
     if not stage:
@@ -353,6 +373,9 @@ class V2SceneManager:
     if self.creature_controller:
       self.creature_controller.destroy()
       self.creature_controller = None
+
+    # Clean up debug visualizer
+    self.envelope_visualizer = None
 
     self.tendroids.clear()
     self.tendroid_data.clear()

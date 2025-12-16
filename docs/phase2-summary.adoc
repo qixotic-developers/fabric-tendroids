@@ -1,0 +1,280 @@
+= Phase 2 Planning Summary
+:toc: left
+:icons: font
+
+== Executive Summary
+
+Phase 2 of the TEND project adds multi-tendroid support and bubble system integration. However, **Phase 1 must be completed first** - two epics (TEND-4 and TEND-5) remain unfinished.
+
+== Current State
+
+✅ *Completed (Phase 1):*
+
+* TEND-1: Creature Envelope System
+* TEND-2: Proximity Detection System  
+* TEND-3: Tendroid Deflection System
+
+⚠️ *Blocking Phase 2 (Phase 1 incomplete):*
+
+* TEND-4: Creature Contact Response (5 tasks, 14 hours)
+* TEND-5: Recovery System (4 tasks, 13 hours)
+
+📋 *Awaiting Phase 1 Completion (Phase 2):*
+
+* TEND-6: Multi-Tendroid Selection (3 tasks, 14 hours)
+* TEND-7: Bubble System Integration (4 tasks, 19 hours)
+
+== Critical Path
+
+```
+┌────────────────────────────────────────────────────────────┐
+│                   SPRINT BERYL (Current)                   │
+│              Complete Phase 1 (27 hours work)               │
+│                                                             │
+│  TEND-4: Contact Response  → TEND-5: Recovery System       │
+│          (14 hours)                    (13 hours)           │
+└────────────────────────────────────────────────────────────┘
+                            ↓
+┌────────────────────────────────────────────────────────────┐
+│               SPRINT CITRINE (Phase 2 Start)                │
+│          Multi-Tendroid + Bubble System Start               │
+│                                                             │
+│  TEND-6: Multi-Tendroid Selection (14 hours)                │
+│  TEND-7: Bubble System (start, 11 hours)                   │
+└────────────────────────────────────────────────────────────┘
+                            ↓
+┌────────────────────────────────────────────────────────────┐
+│           SPRINT DIAMOND (Phase 2 Completion)               │
+│              Bubble System Completion + Docs                │
+│                                                             │
+│  TEND-39: Bubble-Following Design (8 hours)                │
+│  Testing & Documentation (8 hours)                          │
+└────────────────────────────────────────────────────────────┘
+```
+
+**Total Timeline:** 6 weeks (3 sprints)
+**Total Effort:** 68 hours (57% of available capacity)
+
+== Key Technical Decisions
+
+=== TD-5: Multi-Tendroid Selection (TEND-33)
+
+*Question:* Which tendroid reacts when multiple are in range?
+
+*Recommendation:* **Nearest tendroid** (horizontal distance)
+
+*Rationale:*
+
+* Simple, predictable behavior
+* Easiest to implement and test
+* Consistent with existing proximity detection
+* Can be enhanced later if needed
+
+=== TD-6: Collision Prevention (TEND-34)
+
+*Question:* How to prevent tendroid-tendroid collisions?
+
+*Recommendation:* **PhysX layer filtering + deflection limits**
+
+*Rationale:*
+
+* Layer filtering is performant (no collision checks)
+* Deflection limits prevent visual overlap
+* Combined approach handles both physics and visuals
+
+=== TD-7: Bubble Ejection (TEND-38)
+
+*Question:* Which direction for bubble ejection?
+
+*Recommendation:* **Surface normal** at contact point
+
+*Rationale:*
+
+* Consistent with contact response system
+* Physically intuitive
+* Normal calculations already available from deflection
+
+== Phase 2 Work Breakdown
+
+=== Epic TEND-6: Multi-Tendroid Selection (14 hours)
+
+[cols="3,1"]
+|===
+|Task |Hours
+
+|Determine selection algorithm (design doc)
+|4
+
+|Prevent tendroid-tendroid collisions
+|4
+
+|Handle transitions between tendroids
+|6
+|===
+
+**Key Files:**
+
+* `core/transition_manager.py`
+* `physics/collision_config.py`
+* `animation/deflection_limiter.py`
+* `docs/technical/tendroid-selection-algorithm.adoc`
+
+=== Epic TEND-7: Bubble System Integration (19 hours)
+
+[cols="3,1"]
+|===
+|Task |Hours
+
+|Detect bubble state (inside/partial/outside)
+|4
+
+|Silent disappear for internal bubbles
+|3
+
+|Immediate ejection for visible bubbles
+|4
+
+|Design bubble-following behavior (future)
+|8
+|===
+
+**Key Files:**
+
+* `bubble/state_detector.py`
+* `bubble/behavior.py`
+* `docs/technical/bubble-following-design.adoc`
+
+== Success Criteria
+
+=== Phase 1 Complete (Before Phase 2)
+
+- [ ] Creature repels on tendroid contact
+- [ ] Shock color changes on contact
+- [ ] Color fades during recovery
+- [ ] Controls disabled during repel
+- [ ] Tendroid returns to normal after contact
+- [ ] All 162+ tests passing
+
+=== Phase 2 Complete
+
+- [ ] Multiple tendroids handled correctly
+- [ ] Correct tendroid selected via algorithm
+- [ ] No tendroid-tendroid collisions
+- [ ] Smooth transitions between tendroids
+- [ ] Bubbles inside tendroids disappear silently
+- [ ] Bubbles partially visible are ejected
+- [ ] Design doc for bubble-following complete
+- [ ] All Phase 2 tests passing
+
+== Risk Mitigation
+
+[cols="2,1,2"]
+|===
+|Risk |Impact |Mitigation
+
+|Phase 1 overruns delay Phase 2
+|High
+|13 hours buffer in Sprint Beryl
+
+|Selection algorithm needs iteration
+|Medium
+|Prototype early; user testing
+
+|Bubble detection complex
+|Medium
+|Leverage existing proximity system
+
+|Performance regression
+|Medium
+|Profile early; PhysX optimized
+|===
+
+== Action Items
+
+=== Immediate (Sprint Beryl)
+
+. [ ] Review TEND-4 and TEND-5 task details
+. [ ] Assign tasks to sprint
+. [ ] Begin implementation of contact response
+. [ ] Set up testing framework for contact scenarios
+
+=== Before Phase 2 (Sprint Beryl End)
+
+. [ ] Complete all Phase 1 tasks
+. [ ] Code review Phase 1 implementation
+. [ ] Document Phase 1 APIs
+. [ ] Performance baseline testing
+
+=== Phase 2 Preparation (Between Beryl and Citrine)
+
+. [ ] Technical design session for TD-5, TD-6, TD-7
+. [ ] Create design documents
+. [ ] Review Phase 2 task breakdown
+. [ ] Set up Phase 2 test scenarios
+
+=== Phase 2 Execution (Sprint Citrine)
+
+. [ ] Implement TEND-6 (multi-tendroid)
+. [ ] Prototype selection algorithm
+. [ ] Mid-sprint review of multi-tendroid behavior
+. [ ] Begin TEND-7 (bubble system)
+
+== Documentation References
+
+[cols="2,3"]
+|===
+|Document |Purpose
+
+|`development-plan.adoc`
+|Original 4-phase plan with all tasks
+
+|`phase2-planning.adoc`
+|Detailed Phase 2 breakdown with sprint structure
+
+|`phase2-implementation-guide.adoc`
+|Technical implementation details and code examples
+
+|`phase2-summary.adoc`
+|This document - executive overview
+|===
+
+== Key Metrics
+
+[cols="2,1"]
+|===
+|Metric |Value
+
+|Total Phase 2 effort
+|33 hours
+
+|Total Phase 1 remaining
+|27 hours
+
+|Total work to Phase 2 complete
+|60 hours
+
+|Sprint capacity (3 sprints)
+|120 hours
+
+|Capacity utilization
+|50%
+
+|Buffer for unknowns
+|60 hours (50%)
+|===
+
+== Next Meeting Agenda
+
+. Review Phase 1 completion status
+. Discuss technical decisions (TD-5, TD-6, TD-7)
+. Assign Sprint Beryl tasks
+. Schedule Phase 2 design session
+. Confirm Phase 2 acceptance criteria
+
+---
+
+*Last Updated:* {docdate}
+
+*Sprint:* Beryl (Phase 1 completion)
+
+*Next Review:* Sprint Citrine planning

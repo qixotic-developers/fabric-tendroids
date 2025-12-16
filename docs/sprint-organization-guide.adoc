@@ -1,0 +1,437 @@
+= TEND Project Sprint Organization Guide
+:toc: left
+:icons: font
+
+== Sprint Structure Overview
+
+The TEND project is organized into named sprints following gemstone alphabetical naming:
+
+* **Sprint Agate** (Current) - Phase 1 Foundation completion
+* **Sprint Beryl** - Phase 1 Contact Response & Recovery (renamed from prior planning)
+* **Sprint Citrine** - Phase 2 Multi-Tendroid Selection
+* **Sprint Diamond** - Phase 2 Bubble System completion
+
+**Note:** Based on the current Jira state, we're continuing with Sprint Agate for Phase 1 completion, then moving to Beryl for any overflow, followed by Citrine and Diamond for Phase 2.
+
+== Labels Applied ✅
+
+All issues have been labeled:
+
+=== Phase 1 Labels (`phase-1`)
+
+**Epics:**
+- TEND-1: Creature Envelope System (Done)
+- TEND-2: Proximity Detection System (Done)
+- TEND-3: Tendroid Deflection System (Done)
+- TEND-4: Creature Contact Response (To Do)
+- TEND-5: Recovery System (To Do)
+
+**Tasks:**
+- TEND-24 through TEND-32 (9 tasks total)
+
+=== Phase 2 Labels (`phase-2`)
+
+**Epics:**
+- TEND-6: Multi-Tendroid Selection
+- TEND-7: Bubble System Integration
+
+**Tasks:**
+- TEND-33 through TEND-39 (7 tasks total)
+
+== Sprint Agate/Beryl: Phase 1 Completion
+
+**Duration:** 2 weeks (40 hours capacity)
+
+**Goal:** Complete all Phase 1 work before moving to Phase 2
+
+**Capacity:** 40 hours available, 27 hours planned (68% utilization, 13 hours buffer)
+
+=== Issues to Add to Sprint Agate/Beryl
+
+[cols="1,3,1,1"]
+|===
+|Issue Key |Summary |Epic |Est. Hours
+
+4+^|**TEND-4: Creature Contact Response (14 hours)**
+
+|TEND-24
+|Subscribe to PhysX contact events
+|TEND-4
+|3
+
+|TEND-25
+|Implement repulsion force along surface normal
+|TEND-4
+|4
+
+|TEND-26
+|Implement shock color change effect
+|TEND-4
+|3
+
+|TEND-27
+|Implement color fade during recovery
+|TEND-4
+|2
+
+|TEND-28
+|Disable keyboard controls during repel
+|TEND-4
+|2
+
+4+^|**TEND-5: Recovery System (13 hours)**
+
+|TEND-29
+|Track approach_minimum during creature movement
+|TEND-5
+|4
+
+|TEND-30
+|Recalculate absolute coordinates as tendroid returns
+|TEND-5
+|4
+
+|TEND-31
+|Implement repel velocity fade
+|TEND-5
+|3
+
+|TEND-32
+|Re-enable controls after recovery complete
+|TEND-5
+|2
+
+4+^|**Total: 27 hours (13 hours buffer)**
+|===
+
+=== How to Add Issues to Sprint in Jira
+
+. Navigate to your TEND project board
+. Click "Backlog" in the left sidebar
+. Find the Sprint Agate section (or create/rename it to "Sprint Beryl" if you prefer)
+. Drag and drop the following issues into the sprint:
+  * TEND-24, TEND-25, TEND-26, TEND-27, TEND-28
+  * TEND-29, TEND-30, TEND-31, TEND-32
+. Start the sprint with:
+  * **Sprint Name:** "Sprint Beryl - Phase 1 Completion"
+  * **Sprint Goal:** "Complete creature contact response and recovery systems"
+  * **Duration:** 2 weeks
+  * **Start Date:** (your start date)
+
+== Sprint Citrine: Phase 2 Start
+
+**Duration:** 2 weeks (40 hours capacity)
+
+**Goal:** Complete Multi-Tendroid Selection + Start Bubble System
+
+**Capacity:** 40 hours available, 25 hours planned (63% utilization, 15 hours buffer)
+
+=== Issues to Add to Sprint Citrine
+
+[cols="1,3,1,1"]
+|===
+|Issue Key |Summary |Epic |Est. Hours
+
+4+^|**TEND-6: Multi-Tendroid Selection (14 hours)**
+
+|TEND-33
+|Determine tendroid reaction selection algorithm
+|TEND-6
+|4
+
+|TEND-34
+|Prevent tendroid-tendroid collision during deflection
+|TEND-6
+|4
+
+|TEND-35
+|Handle transition when creature moves between tendroids
+|TEND-6
+|6
+
+4+^|**TEND-7: Bubble System Integration - Part 1 (11 hours)**
+
+|TEND-36
+|Detect bubble state (inside/partially visible)
+|TEND-7
+|4
+
+|TEND-37
+|Implement silent disappear for internal bubbles
+|TEND-7
+|3
+
+|TEND-38
+|Implement immediate ejection for visible bubbles
+|TEND-7
+|4
+
+4+^|**Total: 25 hours (15 hours buffer)**
+|===
+
+=== How to Create Sprint Citrine
+
+. In Jira Backlog view
+. Click "Create Sprint" button
+. Name it "Sprint Citrine - Phase 2 Multi-Tendroid"
+. Add issues: TEND-33, TEND-34, TEND-35, TEND-36, TEND-37, TEND-38
+. **Do not start yet** - wait for Sprint Beryl to complete
+. When ready to start:
+  * **Sprint Goal:** "Multi-tendroid selection and bubble system integration"
+  * **Duration:** 2 weeks
+
+== Sprint Diamond: Phase 2 Completion
+
+**Duration:** 2 weeks (40 hours capacity)
+
+**Goal:** Complete Bubble System + Documentation
+
+**Capacity:** 40 hours available, 16 hours planned (40% utilization, 24 hours buffer)
+
+=== Issues to Add to Sprint Diamond
+
+[cols="1,3,1,1"]
+|===
+|Issue Key |Summary |Epic |Est. Hours
+
+4+^|**TEND-7: Bubble System Integration - Part 2 (8 hours)**
+
+|TEND-39
+|Design bubble-following behavior (future)
+|TEND-7
+|8
+
+4+^|**Documentation & Testing (8 hours estimated)**
+
+|_New_
+|Phase 2 integration testing
+|Documentation
+|4
+
+|_New_
+|Phase 2 API documentation
+|Documentation
+|2
+
+|_New_
+|Phase 2 user guide updates
+|Documentation
+|2
+
+4+^|**Total: 16 hours (24 hours buffer)**
+|===
+
+**Note:** You may want to create additional tasks in Jira for the documentation work, or track them separately.
+
+=== How to Create Sprint Diamond
+
+. In Jira Backlog view
+. Click "Create Sprint" button
+. Name it "Sprint Diamond - Phase 2 Complete"
+. Add issue: TEND-39
+. Optionally create new tasks for documentation work
+. **Do not start yet** - wait for Sprint Citrine to complete
+. When ready to start:
+  * **Sprint Goal:** "Complete bubble system and finalize Phase 2 documentation"
+  * **Duration:** 2 weeks
+
+== Quick Reference: Sprint Timeline
+
+```
+┌─────────────────────────────────────────────┐
+│   Sprint Beryl (Weeks 1-2)                  │
+│   Complete Phase 1                          │
+│   Issues: TEND-24 through TEND-32           │
+│   Label: phase-1                            │
+└─────────────────────────────────────────────┘
+                    ↓
+┌─────────────────────────────────────────────┐
+│   Sprint Citrine (Weeks 3-4)                │
+│   Multi-Tendroid + Bubble Start             │
+│   Issues: TEND-33 through TEND-38           │
+│   Label: phase-2                            │
+└─────────────────────────────────────────────┘
+                    ↓
+┌─────────────────────────────────────────────┐
+│   Sprint Diamond (Weeks 5-6)                │
+│   Bubble Complete + Documentation           │
+│   Issues: TEND-39 + docs                    │
+│   Label: phase-2                            │
+└─────────────────────────────────────────────┘
+```
+
+== Jira Board Configuration
+
+=== Recommended Columns
+
+. **To Do** - Issues not yet started
+. **In Progress** - Active work
+. **In Review** - Code review/testing
+. **Done** - Completed and verified
+
+=== Recommended Filters
+
+**Phase 1 Filter:**
+```
+project = TEND AND labels = "phase-1" ORDER BY key ASC
+```
+
+**Phase 2 Filter:**
+```
+project = TEND AND labels = "phase-2" ORDER BY key ASC
+```
+
+**Current Sprint Filter:**
+```
+project = TEND AND Sprint = "Sprint Beryl - Phase 1 Completion"
+```
+
+=== Swimlanes
+
+Configure swimlanes by Epic for better organization:
+
+. Go to Board Settings → Swimlanes
+. Select "Stories" (or "Issues")
+. Choose "Group by: Epic"
+
+This will show:
+- TEND-4: Creature Contact Response
+- TEND-5: Recovery System
+- TEND-6: Multi-Tendroid Selection
+- TEND-7: Bubble System Integration
+
+== Sprint Goals
+
+=== Sprint Beryl Goal
+
+**Primary Goal:**
+> Complete all Phase 1 blocking work to enable Phase 2 development. Implement creature contact response with repulsion, visual feedback, and recovery system.
+
+**Success Criteria:**
+- [ ] Creature repels on tendroid contact
+- [ ] Shock color changes on contact and fades during recovery
+- [ ] Controls disabled during repel and re-enabled after recovery
+- [ ] All Phase 1 tests passing (162+ tests)
+- [ ] Code review completed
+- [ ] Ready to start Phase 2
+
+=== Sprint Citrine Goal
+
+**Primary Goal:**
+> Implement multi-tendroid selection logic and begin bubble system integration. Enable creature interaction with multiple tendroids simultaneously.
+
+**Success Criteria:**
+- [ ] Selection algorithm designed and implemented
+- [ ] No tendroid-tendroid collisions during deflection
+- [ ] Smooth transitions between tendroids
+- [ ] Bubble state detection working
+- [ ] Silent disappear and ejection implemented
+- [ ] Prototype tested with user feedback
+
+=== Sprint Diamond Goal
+
+**Primary Goal:**
+> Complete Phase 2 bubble system and finalize documentation. Design future bubble-following behavior.
+
+**Success Criteria:**
+- [ ] Bubble-following design document completed
+- [ ] All Phase 2 tests passing
+- [ ] Integration testing complete
+- [ ] API documentation updated
+- [ ] User guide finalized
+- [ ] Ready for Phase 3 (Controls)
+
+== Estimated Hours Summary
+
+[cols="2,1,1,1"]
+|===
+|Sprint |Available |Planned |Buffer
+
+|Sprint Beryl
+|40h
+|27h (68%)
+|13h (32%)
+
+|Sprint Citrine
+|40h
+|25h (63%)
+|15h (37%)
+
+|Sprint Diamond
+|40h
+|16h (40%)
+|24h (60%)
+
+|**Total**
+|**120h**
+|**68h (57%)**
+|**52h (43%)**
+|===
+
+== Step-by-Step Setup Instructions
+
+=== Step 1: Create Sprint Beryl
+
+. Open Jira → TEND Project → Backlog
+. Click "Create Sprint" if not already created
+. Name: "Sprint Beryl - Phase 1 Completion"
+. Drag these issues into the sprint:
+  - TEND-24, TEND-25, TEND-26, TEND-27, TEND-28
+  - TEND-29, TEND-30, TEND-31, TEND-32
+. Click "Start Sprint"
+. Set:
+  - Duration: 2 weeks
+  - Goal: "Complete creature contact response and recovery systems"
+
+=== Step 2: Create Sprint Citrine (Do Not Start)
+
+. In Backlog view, click "Create Sprint"
+. Name: "Sprint Citrine - Phase 2 Multi-Tendroid"
+. Drag these issues into the sprint:
+  - TEND-33, TEND-34, TEND-35
+  - TEND-36, TEND-37, TEND-38
+. Leave in backlog (do not start)
+
+=== Step 3: Create Sprint Diamond (Do Not Start)
+
+. In Backlog view, click "Create Sprint"
+. Name: "Sprint Diamond - Phase 2 Complete"
+. Drag this issue into the sprint:
+  - TEND-39
+. Leave in backlog (do not start)
+
+=== Step 4: Verify Labels
+
+Run these JQL queries to verify all labels are correct:
+
+**Phase 1 Issues:**
+```
+project = TEND AND labels = "phase-1"
+```
+Should return: TEND-1, TEND-2, TEND-3, TEND-4, TEND-5, TEND-24 through TEND-32
+
+**Phase 2 Issues:**
+```
+project = TEND AND labels = "phase-2"
+```
+Should return: TEND-6, TEND-7, TEND-33 through TEND-39
+
+== Checklist: Setup Complete
+
+- [ ] Sprint Beryl created with 9 tasks (TEND-24 through TEND-32)
+- [ ] Sprint Citrine created with 6 tasks (TEND-33 through TEND-38)
+- [ ] Sprint Diamond created with 1 task (TEND-39)
+- [ ] All Phase 1 issues labeled with `phase-1` ✅ (Already done)
+- [ ] All Phase 2 issues labeled with `phase-2` ✅ (Already done)
+- [ ] Sprint goals documented
+- [ ] Board configured with appropriate columns
+- [ ] Swimlanes configured by Epic
+- [ ] Ready to start Sprint Beryl
+
+---
+
+**Last Updated:** {docdate}
+
+**Status:** Labels Applied ✅, Sprints Ready to Organize
+
+**Next Step:** Create sprints in Jira following the instructions above

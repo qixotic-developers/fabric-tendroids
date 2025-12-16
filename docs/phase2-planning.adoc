@@ -1,0 +1,418 @@
+= TEND Project Phase 2 Planning
+:toc: left
+:toclevels: 3
+:icons: font
+:sectnums:
+
+== Current Status Overview
+
+=== Phase 1 Completion Status
+
+[cols="1,3,1,1"]
+|===
+|Epic ID |Epic Name |Status |Tasks
+
+|TEND-1
+|Creature Envelope System
+|✅ Done
+|All complete
+
+|TEND-2
+|Proximity Detection System
+|✅ Done
+|All complete
+
+|TEND-3
+|Tendroid Deflection System
+|✅ Done
+|All complete
+
+|TEND-4
+|Creature Contact Response
+|⚠️ *To Do*
+|5 tasks remaining
+
+|TEND-5
+|Recovery System
+|⚠️ *To Do*
+|4 tasks remaining
+|===
+
+=== Critical Path to Phase 2
+
+**Phase 1 must be completed before Phase 2 begins.**
+
+The following epics block Phase 2 work:
+
+* *TEND-4: Creature Contact Response* (14 hours estimated)
+* *TEND-5: Recovery System* (13 hours estimated)
+
+**Total remaining Phase 1 work: 27 hours (~7 days)**
+
+== Phase 2 Scope
+
+=== Epic TEND-6: Multi-Tendroid Selection
+
+**Goal:** Handle scenarios where creature approaches multiple tendroids simultaneously.
+
+[cols="1,3,1,1"]
+|===
+|Task ID |Task Name |Priority |Est. Hours
+
+|TEND-33
+|Determine tendroid reaction selection algorithm
+|High
+|4
+
+|TEND-34
+|Prevent tendroid-tendroid collision during deflection
+|Medium
+|4
+
+|TEND-35
+|Handle transition between tendroids
+|Medium
+|6
+|===
+
+**Epic Total: 14 hours**
+
+=== Epic TEND-7: Bubble System Integration
+
+**Goal:** Handle bubble behavior during tendroid evasion maneuvers.
+
+[cols="1,3,1,1"]
+|===
+|Task ID |Task Name |Priority |Est. Hours
+
+|TEND-36
+|Detect bubble state (inside/partially visible)
+|Medium
+|4
+
+|TEND-37
+|Implement silent disappear for internal bubbles
+|Medium
+|3
+
+|TEND-38
+|Implement immediate ejection for visible bubbles
+|Medium
+|4
+
+|TEND-39
+|Design bubble-following behavior (future)
+|Low
+|8
+|===
+
+**Epic Total: 19 hours**
+
+== Recommended Sprint Structure
+
+=== Sprint Beryl (Current - Complete Phase 1)
+
+**Duration:** 2 weeks (40 hours capacity)
+
+**Goal:** Complete all Phase 1 work before moving to Phase 2
+
+[cols="1,3,1,1"]
+|===
+|Task ID |Task Name |Epic |Est. Hours
+
+|TEND-24
+|Subscribe to PhysX contact events
+|TEND-4
+|3
+
+|TEND-25
+|Implement repulsion force along surface normal
+|TEND-4
+|4
+
+|TEND-26
+|Implement shock color change effect
+|TEND-4
+|3
+
+|TEND-27
+|Implement color fade during recovery
+|TEND-4
+|2
+
+|TEND-28
+|Disable keyboard controls during repel
+|TEND-4
+|2
+
+|TEND-29
+|Track approach_minimum during creature movement
+|TEND-5
+|4
+
+|TEND-30
+|Recalculate absolute coordinates as tendroid returns
+|TEND-5
+|4
+
+|TEND-31
+|Implement repel velocity fade
+|TEND-5
+|3
+
+|TEND-32
+|Re-enable controls after recovery complete
+|TEND-5
+|2
+|===
+
+**Sprint Total: 27 hours (13 hours buffer)**
+
+=== Sprint Citrine (True Phase 2 Start)
+
+**Duration:** 2 weeks (40 hours capacity)
+
+**Goal:** Complete Multi-Tendroid Selection (TEND-6) + Start Bubble System
+
+[cols="1,3,1,1"]
+|===
+|Task ID |Task Name |Epic |Est. Hours
+
+|TEND-33
+|Determine tendroid reaction selection algorithm
+|TEND-6
+|4
+
+|TEND-34
+|Prevent tendroid-tendroid collision during deflection
+|TEND-6
+|4
+
+|TEND-35
+|Handle transition between tendroids
+|TEND-6
+|6
+
+|TEND-36
+|Detect bubble state (inside/partially visible)
+|TEND-7
+|4
+
+|TEND-37
+|Implement silent disappear for internal bubbles
+|TEND-7
+|3
+
+|TEND-38
+|Implement immediate ejection for visible bubbles
+|TEND-7
+|4
+|===
+
+**Sprint Total: 25 hours (15 hours buffer)**
+
+=== Sprint Diamond (Phase 2 Completion)
+
+**Duration:** 2 weeks (40 hours capacity)
+
+**Goal:** Complete Bubble System Integration + Documentation
+
+[cols="1,3,1,1"]
+|===
+|Task ID |Task Name |Epic |Est. Hours
+
+|TEND-39
+|Design bubble-following behavior (future)
+|TEND-7
+|8
+
+|_Documentation_
+|Phase 2 integration testing & documentation
+|All
+|8
+
+|_Buffer_
+|Contingency for overruns or issues
+|All
+|24
+|===
+
+**Sprint Total: 16 hours core work (24 hours buffer)**
+
+== Technical Decisions Required for Phase 2
+
+=== TD-5: Multi-Tendroid Selection Algorithm
+
+**Question:** When creature is in range of multiple tendroids, which should react?
+
+**Options:**
+
+1. **Nearest tendroid** - Simplest, most intuitive
+2. **First contact** - Based on collision detection order
+3. **Most direct approach angle** - Creature trajectory-based
+
+**Recommendation:** Start with nearest tendroid (option 1)
+
+**Why:**
+
+* Easiest to implement and test
+* Most predictable behavior for users
+* Can be enhanced later with trajectory awareness
+
+=== TD-6: Tendroid-Tendroid Collision Prevention
+
+**Question:** How to prevent tendroids from colliding during deflection?
+
+**Options:**
+
+1. **Disable collision layers** - PhysX layer filtering
+2. **Soft constraints** - Allow slight overlap with spring forces
+3. **Deflection limits** - Cap deflection based on neighbor distance
+
+**Recommendation:** Disable collision layers (option 1) + Deflection limits (option 3)
+
+**Why:**
+
+* Layer filtering is performant and clean
+* Deflection limits provide visual polish
+* Combined approach prevents both physics and visual issues
+
+=== TD-7: Bubble Ejection Direction
+
+**Question:** Which direction should bubbles be ejected when partially visible?
+
+**Options:**
+
+1. **Surface normal** - Perpendicular to tendroid surface
+2. **Upward** - Simple Y+ direction
+3. **Creature direction** - Away from approaching creature
+
+**Recommendation:** Surface normal (option 1)
+
+**Why:**
+
+* Consistent with contact response system
+* Physically intuitive
+* Already have normal calculations from deflection system
+
+== Phase 2 Success Criteria
+
+=== Epic TEND-6 Success Criteria
+
+- [ ] Creature can approach multiple tendroids without system confusion
+- [ ] Correct tendroid reacts based on selection algorithm
+- [ ] Tendroids do not collide with each other during deflection
+- [ ] Smooth transitions when creature moves between tendroid zones
+- [ ] All transitions are visually smooth with no popping
+
+=== Epic TEND-7 Success Criteria
+
+- [ ] System correctly detects bubble state (inside/outside/partial)
+- [ ] Bubbles inside tendroid disappear silently during evasion
+- [ ] Bubbles partially visible are immediately ejected
+- [ ] No bubble-tendroid visual artifacts
+- [ ] Design document completed for future bubble-following behavior
+
+== Risk Assessment
+
+[cols="1,2,1,2"]
+|===
+|Risk |Impact |Probability |Mitigation
+
+|Phase 1 overruns delay Phase 2
+|High
+|Medium
+|Buffer time in Sprint Beryl; prioritize blocking tasks
+
+|Multi-tendroid selection algorithm needs iteration
+|Medium
+|Medium
+|Prototype early in Sprint Citrine; user testing
+
+|Bubble detection system complex
+|Medium
+|Low
+|Leverage existing proximity detection infrastructure
+
+|Tendroid-tendroid collision prevention causes performance issues
+|Low
+|Low
+|Profile early; PhysX layer filtering is performant
+|===
+
+== Dependencies
+
+=== Internal Dependencies
+
+* Phase 2 **fully depends** on Phase 1 completion
+* TEND-7 (Bubble System) has soft dependency on TEND-6 (Multi-Tendroid)
+** Can work in parallel if different developers
+** Integration testing requires both complete
+
+=== External Dependencies
+
+* PhysX collision layer system (Omniverse SDK)
+* Existing bubble system from main simulation
+* Warp Hash Grid infrastructure (Phase 1)
+
+== Next Steps
+
+. **Complete Sprint Agate** (current sprint)
+. **Start Sprint Beryl** with focus on TEND-4 and TEND-5
+. **Technical Design Session** for TD-5, TD-6, TD-7
+. **Prototype multi-tendroid selection** early in Sprint Citrine
+. **User testing** at Sprint Citrine midpoint
+
+== Appendix: Phase Overview
+
+=== Total Phase 2 Estimates
+
+[cols="1,1"]
+|===
+|Component |Hours
+
+|Epic TEND-6 (Multi-Tendroid)
+|14
+
+|Epic TEND-7 (Bubble System)
+|19
+
+|Testing & Integration
+|8
+
+|Documentation
+|8
+
+|*Total Phase 2*
+|*49 hours*
+|===
+
+=== Sprint Capacity Overview
+
+[cols="1,1,1"]
+|===
+|Sprint |Capacity |Utilization
+
+|Sprint Beryl (Phase 1 completion)
+|40 hrs
+|27 hrs (68%)
+
+|Sprint Citrine (Phase 2 start)
+|40 hrs
+|25 hrs (63%)
+
+|Sprint Diamond (Phase 2 complete)
+|40 hrs
+|16 hrs (40%)
+
+|*Total*
+|*120 hrs*
+|*68 hrs (57%)*
+|===
+
+**Note:** Conservative utilization allows for:
+
+* Technical unknowns and discovery
+* Code review and refactoring
+* Testing and bug fixes
+* Documentation

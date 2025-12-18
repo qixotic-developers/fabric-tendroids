@@ -156,7 +156,9 @@ class DeflectionController:
       )
 
     # Calculate deflection
-    deflection = calculate_deflection(approach, geometry, self.config.limits)
+    deflection = calculate_deflection(
+      approach, geometry, self.config.limits, self.config.zones.detection_range
+    )
 
     # Update target
     state.target_angle = deflection.deflection_angle

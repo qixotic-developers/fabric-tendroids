@@ -73,10 +73,11 @@ def lerp_deflection(
 
 def calculate_proportional_deflection(
   approach: ApproachResult,
-  limits: DeflectionLimits
+  limits: DeflectionLimits,
+  detection_range: float = 31.0
 ) -> float:
   """
-  Calculate deflection angle proportional to contact height.
+  Calculate deflection angle proportional to contact height and distance.
 
   TEND-22: Full implementation with distance falloff.
 
@@ -87,6 +88,7 @@ def calculate_proportional_deflection(
   Args:
       approach: ApproachResult with height_ratio and distance
       limits: DeflectionLimits configuration
+      detection_range: Maximum detection distance for scaling
 
   Returns:
       Deflection angle in radians
@@ -102,15 +104,15 @@ def calculate_proportional_deflection(
   )
 
   # Distance-based scaling (inverse relationship)
-  # At contact distance (0), full deflection
-  # At detection range, minimal deflection
+  # At distance 0, full deflection (factor = 1.0)
+  # At detection_range, minimal deflection (factor ~= 0.1)
   if approach.distance <= 0:
     distance_factor = 1.0
   else:
-    # Smooth falloff using inverse square
-    # Clamp distance to reasonable range
-    clamped_dist = max(0.01, approach.distance)
-    distance_factor = 1.0 / (1.0 + clamped_dist * 5.0)
+    # Normalize distance to 0-1 range based on detection_range
+    normalized_dist = min(approach.distance / detection_range, 1.0)
+    # Smooth falloff: 1.0 at distance=0, ~0.1 at distance=range
+    distance_factor = (1.0 - normalized_dist) ** 0.5
 
   return base_deflection * distance_factor
 
@@ -213,7 +215,8 @@ def calculate_bend_axis(
 def calculate_deflection(
   approach: ApproachResult,
   tendroid: TendroidGeometry,
-  limits: DeflectionLimits
+  limits: DeflectionLimits,
+  detection_range: float = 31.0
 ) -> DeflectionResult:
   """
   Calculate complete deflection result for approach.
@@ -224,6 +227,7 @@ def calculate_deflection(
       approach: ApproachResult from approach detection
       tendroid: Tendroid geometry
       limits: Deflection limits configuration
+      detection_range: Maximum detection distance for scaling
 
   Returns:
       DeflectionResult with angle, direction, and axis
@@ -238,7 +242,9 @@ def calculate_deflection(
     )
 
   # Calculate proportional deflection angle
-  deflection_angle = calculate_proportional_deflection(approach, limits)
+  deflection_angle = calculate_proportional_deflection(
+    approach, limits, detection_range
+  )
 
   # Calculate directions
   deflection_dir = calculate_deflection_direction(approach.contact_normal)

@@ -15,6 +15,7 @@ from .tendroid_wrapper import V2TendroidWrapper
 from ..bubbles import V2BubbleManager, create_gpu_bubble_system
 from ..core import BatchWarpDeformer, V2WarpDeformer
 from ..debug import EnvelopeVisualizer
+from ..deflection import DeflectionIntegration
 from ..environment import SeaFloorController, get_height_at
 
 
@@ -46,6 +47,9 @@ class V2SceneManager:
 
     # Debug visualization
     self.envelope_visualizer = None
+
+    # Deflection system (creature-tendroid interaction)
+    self.deflection_integration = None
 
   def _ensure_sea_floor(self, stage):
     """Create sea floor if not present."""
@@ -153,6 +157,36 @@ class V2SceneManager:
       self.creature_controller = None
       self.envelope_visualizer = None
 
+  def _initialize_deflection(self):
+    """Initialize deflection system for creature-tendroid interaction."""
+    if not self.tendroids:
+      return
+
+    try:
+      self.deflection_integration = DeflectionIntegration()
+      
+      # Get creature radius if available
+      creature_radius = 6.0  # default
+      if self.creature_controller:
+        creature_radius = self.creature_controller.creature_radius
+      
+      self.deflection_integration.register_tendroids(
+        self.tendroids,
+        creature_radius=creature_radius
+      )
+      
+      # Pass to animation controller
+      self.animation_controller.set_deflection_integration(self.deflection_integration)
+      
+      carb.log_info(
+        f"[Deflection] Initialized for {len(self.tendroids)} tendroids"
+      )
+    except Exception as e:
+      carb.log_error(f"[Deflection] Failed to initialize: {e}")
+      import traceback
+      traceback.print_exc()
+      self.deflection_integration = None
+
   def create_tendroids(
     self,
     count: int = None,
@@ -226,6 +260,9 @@ class V2SceneManager:
 
       # Initialize interactive creature (Phase 1)
       self._initialize_creature(stage, self.tendroid_data)
+
+      # Initialize deflection system (creature-tendroid bending)
+      self._initialize_deflection()
 
       carb.log_info(
         f"[V2SceneManager] Created {len(self.tendroids)} tendroids"
@@ -311,6 +348,19 @@ class V2SceneManager:
             self.tendroids,
             self.tendroid_data
           )
+          
+          # Initialize supporting systems for single tendroid
+          self.bubble_manager = V2BubbleManager(stage)
+          self.bubble_manager.register_tendroid(tendroid)
+          self.animation_controller.set_bubble_manager(self.bubble_manager)
+          
+          if self.use_gpu_bubbles:
+            self._initialize_gpu_bubbles()
+          
+          self._initialize_batch_deformer()
+          self._initialize_creature(stage, self.tendroid_data)
+          self._initialize_deflection()
+          
           return True
 
       return False
@@ -376,6 +426,11 @@ class V2SceneManager:
 
     # Clean up debug visualizer
     self.envelope_visualizer = None
+
+    # Clean up deflection system
+    if self.deflection_integration:
+      self.deflection_integration.destroy()
+      self.deflection_integration = None
 
     self.tendroids.clear()
     self.tendroid_data.clear()

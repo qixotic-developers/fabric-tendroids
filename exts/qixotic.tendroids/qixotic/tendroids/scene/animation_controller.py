@@ -12,6 +12,7 @@ import carb
 from ..animation import WaveConfig, WaveController
 from ..bubbles import DEFAULT_V2_BUBBLE_CONFIG
 from ..debug import EnvelopeVisualizer
+from ..deflection import DeflectionIntegration
 
 
 class V2AnimationController:
@@ -31,6 +32,7 @@ class V2AnimationController:
     self.batch_deformer = None
     self.creature_controller = None  # Interactive creature
     self.envelope_visualizer = None  # Debug visualization
+    self.deflection_integration = None  # Tendroid bending system
     self.update_subscription = None
     self.is_running = False
 
@@ -82,6 +84,12 @@ class V2AnimationController:
     self.envelope_visualizer = visualizer
     if visualizer:
       carb.log_info("[Debug] Envelope visualizer enabled")
+
+  def set_deflection_integration(self, deflection: DeflectionIntegration):
+    """Set deflection system for creature-tendroid interaction."""
+    self.deflection_integration = deflection
+    if deflection:
+      carb.log_info("[Deflection] System connected to animation controller")
 
   def toggle_envelope_debug(self) -> bool:
     """Toggle envelope visualization. Returns new state."""
@@ -160,9 +168,16 @@ class V2AnimationController:
       self.wave_controller.update(dt)
       wave_state = self.wave_controller.get_wave_state()
 
-      # GPU path
+      # Update deflection system (creature-tendroid bending)
+      deflection_states = {}
+      if self.deflection_integration and self.creature_controller:
+        deflection_states = self.deflection_integration.update(
+          self.creature_controller, dt
+        )
+
+      # GPU path - pass deflection states to deformation
       if self.gpu_bubble_adapter:
-        self._update_gpu_path(dt, wave_state)
+        self._update_gpu_path(dt, wave_state, deflection_states)
       # CPU fallback
       elif self.bubble_manager:
         self.bubble_manager.update(dt, self.tendroids, self.wave_controller)
@@ -170,14 +185,13 @@ class V2AnimationController:
         if self.creature_controller:
           bubble_positions = self.bubble_manager.get_bubble_positions()
           bubble_radii = self.bubble_manager.get_bubble_radii()
-          collision_data = self.creature_controller.update(dt, bubble_positions, bubble_radii, wave_state)
+          popped, interactions = self.creature_controller.update(dt, bubble_positions, bubble_radii, wave_state)
           # Handle collisions (extract tendroid name from tuple)
-          for tendroid_name, collision_dir in collision_data:
+          for tendroid_name, collision_dir in popped:
             self.bubble_manager.pop_bubble(tendroid_name)
-      # No bubbles - wave only
+      # No bubbles - wave only with deflection
       else:
-        for tendroid in self.tendroids:
-          tendroid.apply_wave_only_with_state(wave_state)
+        self._apply_wave_only_with_deflection(wave_state, deflection_states)
         # Update interactive creature (Phase 1) - no bubbles
         if self.creature_controller:
           self.creature_controller.update(dt, wave_state=wave_state)
@@ -192,7 +206,41 @@ class V2AnimationController:
       import traceback
       traceback.print_exc()
 
-  def _update_gpu_path(self, dt: float, wave_state: dict):
+  def _apply_wave_only_with_deflection(self, wave_state: dict, deflection_states: dict):
+    """
+    Apply wave-only deformation with deflection bending.
+    
+    Used when no bubble system is active.
+    """
+    import math
+    
+    for tendroid in self.tendroids:
+      # Get deflection state for this tendroid
+      defl_state = deflection_states.get(tendroid.name)
+      
+      if defl_state and defl_state.is_deflecting and abs(defl_state.current_angle) > 0.001:
+        # Calculate wave displacement
+        if wave_state.get('enabled', False):
+          spatial_phase = tendroid.position[0] * 0.003 + tendroid.position[2] * 0.002
+          spatial_factor = 1.0 + math.sin(spatial_phase) * 0.15
+          displacement_value = wave_state['displacement'] * spatial_factor
+          wave_dx = displacement_value * wave_state['amplitude'] * wave_state['dir_x']
+          wave_dz = displacement_value * wave_state['amplitude'] * wave_state['dir_z']
+        else:
+          wave_dx, wave_dz = 0.0, 0.0
+        
+        # Apply wave + deflection
+        # Note: negate angle to bend AWAY from creature
+        tendroid.apply_wave_only_with_deflection(
+          wave_dx, wave_dz,
+          -defl_state.current_angle,
+          (defl_state.deflection_axis[0], defl_state.deflection_axis[2])
+        )
+      else:
+        # No deflection - use standard wave-only
+        tendroid.apply_wave_only_with_state(wave_state)
+
+  def _update_gpu_path(self, dt: float, wave_state: dict, deflection_states: dict = None):
     """
     GPU bubble update - single download, GPU is source of truth.
 
@@ -220,10 +268,16 @@ class V2AnimationController:
       }
 
     # 4. Apply deformations - BATCH or fallback to per-tendroid
-    if self.batch_deformer and self.batch_deformer.is_built:
+    # NOTE: Batch deformer doesn't support deflection yet, so bypass when deflecting
+    any_deflecting = any(
+      s.is_deflecting and abs(s.current_angle) > 0.001 
+      for s in (deflection_states or {}).values()
+    )
+    
+    if self.batch_deformer and self.batch_deformer.is_built and not any_deflecting:
       self._apply_batch_deformation(bubble_data, wave_state)
     else:
-      self._apply_deformations_gpu(bubble_data, wave_state)
+      self._apply_deformations_gpu(bubble_data, wave_state, deflection_states)
 
     # 5. Update interactive creature with bubble collision detection
     if self.creature_controller:
@@ -235,11 +289,11 @@ class V2AnimationController:
           bubble_positions[name] = data['position']
           bubble_radii[name] = data['radius']
       
-      # Update creature and get list of popped bubbles with collision data
-      collision_data = self.creature_controller.update(dt, bubble_positions, bubble_radii, wave_state)
+      # Update creature and get popped bubbles with collision data
+      popped, interactions = self.creature_controller.update(dt, bubble_positions, bubble_radii, wave_state)
       
       # Trigger pop for collided bubbles with particle effects
-      for tendroid_name, collision_dir in collision_data:
+      for tendroid_name, collision_dir in popped:
         # Get bubble data before popping for particle creation
         if tendroid_name in bubble_data:
           bubble_pos = bubble_data[tendroid_name]['position']
@@ -290,22 +344,47 @@ class V2AnimationController:
       # CPU path (fallback)
       self.batch_deformer.apply_to_meshes(all_points)
 
-  def _apply_deformations_gpu(self, bubble_data: dict, wave_state: dict):
+  def _apply_deformations_gpu(self, bubble_data: dict, wave_state: dict, deflection_states: dict = None):
     """
-    Apply deformations using GPU bubble state.
+    Apply deformations using GPU bubble state with deflection support.
 
     Args:
         bubble_data: Dict[name] -> {phase, position, radius}
         wave_state: Wave controller state
+        deflection_states: Dict[name] -> TendroidDeflectionState
     """
+    import math
+    
     if not self.bubble_manager:
       return
+    
+    deflection_states = deflection_states or {}
 
     for tendroid in self.tendroids:
       name = tendroid.name
+      
+      # Get deflection state for this tendroid
+      defl_state = deflection_states.get(name)
+      has_deflection = (
+        defl_state and 
+        defl_state.is_deflecting and 
+        abs(defl_state.current_angle) > 0.001
+      )
+      
+      # Extract deflection params
+      if has_deflection:
+        defl_angle = defl_state.current_angle
+        defl_axis = (defl_state.deflection_axis[0], defl_state.deflection_axis[2])
+      else:
+        defl_angle = 0.0
+        defl_axis = (1.0, 0.0)
 
       if name not in bubble_data:
-        tendroid.apply_wave_only_with_state(wave_state)
+        # No bubble - apply wave + deflection
+        if has_deflection:
+          self._apply_wave_deflection_single(tendroid, wave_state, defl_angle, defl_axis)
+        else:
+          tendroid.apply_wave_only_with_state(wave_state)
         continue
 
       data = bubble_data[name]
@@ -313,29 +392,67 @@ class V2AnimationController:
 
       # Phase 0 = idle (no bubble)
       if phase == 0:
-        tendroid.apply_wave_only_with_state(wave_state)
+        if has_deflection:
+          self._apply_wave_deflection_single(tendroid, wave_state, defl_angle, defl_axis)
+        else:
+          tendroid.apply_wave_only_with_state(wave_state)
         continue
 
-      # Phase 1 = rising, 2 = exiting -> deform
+      # Phase 1 = rising, 2 = exiting -> deform with bubble
       if phase == 1 or phase == 2:
-        # Use GPU position and radius
         pos = data['position']
         radius = data['radius']
-
-        # Calculate Y relative to tendroid base
         bubble_y = pos[1] - tendroid.position[1]
-
-        # Scale for deformation bulge
         deform_radius = radius * DEFAULT_V2_BUBBLE_CONFIG.diameter_multiplier
-
-        tendroid.apply_deformation_with_wave_state(
-          bubble_y,
-          deform_radius,
-          wave_state
-        )
+        
+        if has_deflection:
+          # Calculate wave displacement
+          if wave_state.get('enabled', False):
+            spatial_phase = tendroid.position[0] * 0.003 + tendroid.position[2] * 0.002
+            spatial_factor = 1.0 + math.sin(spatial_phase) * 0.15
+            displacement_value = wave_state['displacement'] * spatial_factor
+            wave_dx = displacement_value * wave_state['amplitude'] * wave_state['dir_x']
+            wave_dz = displacement_value * wave_state['amplitude'] * wave_state['dir_z']
+          else:
+            wave_dx, wave_dz = 0.0, 0.0
+          
+          # Apply combined: bend + wave + bubble
+          # Note: negate angle to bend AWAY from creature
+          tendroid.apply_deformation_with_deflection(
+            bubble_y, deform_radius,
+            wave_dx, wave_dz,
+            -defl_angle, defl_axis
+          )
+        else:
+          tendroid.apply_deformation_with_wave_state(
+            bubble_y, deform_radius, wave_state
+          )
       else:
         # Phase 3 = released, 4 = popped -> wave only
-        tendroid.apply_wave_only_with_state(wave_state)
+        if has_deflection:
+          self._apply_wave_deflection_single(tendroid, wave_state, defl_angle, defl_axis)
+        else:
+          tendroid.apply_wave_only_with_state(wave_state)
+  
+  def _apply_wave_deflection_single(
+    self, tendroid, wave_state: dict, defl_angle: float, defl_axis: tuple
+  ):
+    """Apply wave + deflection to a single tendroid."""
+    import math
+    
+    if wave_state.get('enabled', False):
+      spatial_phase = tendroid.position[0] * 0.003 + tendroid.position[2] * 0.002
+      spatial_factor = 1.0 + math.sin(spatial_phase) * 0.15
+      displacement_value = wave_state['displacement'] * spatial_factor
+      wave_dx = displacement_value * wave_state['amplitude'] * wave_state['dir_x']
+      wave_dz = displacement_value * wave_state['amplitude'] * wave_state['dir_z']
+    else:
+      wave_dx, wave_dz = 0.0, 0.0
+    
+    # Note: negate angle to bend AWAY from creature
+    tendroid.apply_wave_only_with_deflection(
+      wave_dx, wave_dz, -defl_angle, defl_axis
+    )
 
   def _update_visuals_gpu(self, bubble_data: dict):
     """

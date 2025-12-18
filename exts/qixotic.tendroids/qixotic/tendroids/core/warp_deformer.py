@@ -142,6 +142,9 @@ def deform_cylinder_kernel_with_wave_state(
     out_points[tid] = wp.vec3(final_x, vertex_y, final_z)
 
 
+from .warp_deflection_deformer import launch_deflection_deform
+
+
 class V2WarpDeformer:
     """
     Warp-accelerated cylinder deformer with wave composition.
@@ -319,6 +322,78 @@ class V2WarpDeformer:
             tendroid_world_z=tendroid_world_z
         )
     
+    def deform_with_deflection(
+        self,
+        bubble_y: float,
+        bubble_radius: float,
+        wave_dx: float,
+        wave_dz: float,
+        deflection_angle: float,
+        deflection_axis: tuple
+    ) -> list:
+        """
+        Run combined deformation with deflection bending.
+        
+        Applies: base → bend → wave → bubble in single kernel.
+        
+        Args:
+            bubble_y: Bubble center Y position
+            bubble_radius: Current bubble radius
+            wave_dx: Wave displacement X
+            wave_dz: Wave displacement Z
+            deflection_angle: Bend angle in radians
+            deflection_axis: (x, z) bend axis direction
+            
+        Returns:
+            NumPy array of deformed points
+        """
+        launch_deflection_deform(
+            self.base_points_gpu,
+            self.out_points_gpu,
+            self.height_factors_gpu,
+            bubble_y,
+            bubble_radius,
+            self.cylinder_radius,
+            self.cylinder_length,
+            self.max_amplitude,
+            self.bulge_width,
+            wave_dx,
+            wave_dz,
+            deflection_angle,
+            deflection_axis,
+            self.device
+        )
+        
+        return self.out_points_gpu.numpy()
+    
+    def deform_wave_only_with_deflection(
+        self,
+        wave_dx: float,
+        wave_dz: float,
+        deflection_angle: float,
+        deflection_axis: tuple
+    ) -> list:
+        """
+        Apply wave and deflection only (no bubble).
+        
+        Args:
+            wave_dx: Wave displacement X
+            wave_dz: Wave displacement Z
+            deflection_angle: Bend angle in radians
+            deflection_axis: (x, z) bend axis direction
+            
+        Returns:
+            NumPy array of deformed points
+        """
+        return self.deform_with_deflection(
+            bubble_y=0.0,
+            bubble_radius=self.cylinder_radius,  # No deformation
+            wave_dx=wave_dx,
+            wave_dz=wave_dz,
+            deflection_angle=deflection_angle,
+            deflection_axis=deflection_axis
+        )
+
     def destroy(self):
         """Free GPU resources."""
         self.base_points_gpu = None

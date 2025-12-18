@@ -60,7 +60,7 @@ class WaveController:
     def __init__(self, config: WaveConfig = None):
         """Initialize wave controller with phase-based system."""
         self.config = config or WaveConfig()
-        self.enabled = True
+        self.enabled = False  # Disabled by default for testing
         
         # Normalize direction
         dx, dy, dz = self.config.direction

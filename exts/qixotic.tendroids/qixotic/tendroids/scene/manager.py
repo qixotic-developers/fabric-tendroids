@@ -13,6 +13,7 @@ from .animation_controller import V2AnimationController
 from .tendroid_factory import V2TendroidFactory
 from .tendroid_wrapper import V2TendroidWrapper
 from ..bubbles import V2BubbleManager, create_gpu_bubble_system
+from ..contact import ColorEffectController
 from ..core import BatchWarpDeformer, V2WarpDeformer
 from ..debug import EnvelopeVisualizer
 from ..deflection import DeflectionIntegration
@@ -50,6 +51,9 @@ class V2SceneManager:
 
     # Deflection system (creature-tendroid interaction)
     self.deflection_integration = None
+
+    # Contact color effects
+    self.color_effect_controller = None
 
   def _ensure_sea_floor(self, stage):
     """Create sea floor if not present."""
@@ -187,6 +191,22 @@ class V2SceneManager:
       traceback.print_exc()
       self.deflection_integration = None
 
+  def _initialize_color_effects(self, stage):
+    """Initialize color effect controller for contact feedback."""
+    try:
+      self.color_effect_controller = ColorEffectController(
+        stage=stage,
+        material_path="/World/Materials/CreatureBody"
+      )
+      
+      # Pass to animation controller
+      self.animation_controller.set_color_effect_controller(self.color_effect_controller)
+      
+      carb.log_info("[ColorEffect] Contact feedback initialized")
+    except Exception as e:
+      carb.log_error(f"[ColorEffect] Failed to initialize: {e}")
+      self.color_effect_controller = None
+
   def create_tendroids(
     self,
     count: int = None,
@@ -260,6 +280,9 @@ class V2SceneManager:
 
       # Initialize interactive creature (Phase 1)
       self._initialize_creature(stage, self.tendroid_data)
+
+      # Initialize color effects for contact feedback
+      self._initialize_color_effects(stage)
 
       # Initialize deflection system (creature-tendroid bending)
       self._initialize_deflection()
@@ -359,6 +382,7 @@ class V2SceneManager:
           
           self._initialize_batch_deformer()
           self._initialize_creature(stage, self.tendroid_data)
+          self._initialize_color_effects(stage)
           self._initialize_deflection()
           
           return True
@@ -431,6 +455,9 @@ class V2SceneManager:
     if self.deflection_integration:
       self.deflection_integration.destroy()
       self.deflection_integration = None
+
+    # Clean up color effect controller
+    self.color_effect_controller = None
 
     self.tendroids.clear()
     self.tendroid_data.clear()

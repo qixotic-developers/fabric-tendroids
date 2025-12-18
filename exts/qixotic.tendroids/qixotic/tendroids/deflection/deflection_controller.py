@@ -28,6 +28,10 @@ class TendroidDeflectionState:
   deflection_axis: Tuple[float, float, float] = (0.0, 0.0, 1.0)
   last_approach_type: ApproachType = ApproachType.NONE
   is_deflecting: bool = False
+  # Axis latching - prevents flip when creature crosses tendroid
+  axis_latched: bool = False
+  latched_axis: Tuple[float, float, float] = (0.0, 0.0, 1.0)
+  latched_direction: Tuple[float, float, float] = (0.0, 0.0, 0.0)
 
 
 class DeflectionController:
@@ -165,8 +169,16 @@ class DeflectionController:
     state.last_approach_type = approach.approach_type
 
     if deflection.apply_deflection:
-      state.deflection_direction = deflection.deflection_direction
-      state.deflection_axis = deflection.deflection_axis
+      # AXIS LATCHING: Lock direction when deflection starts
+      if not state.axis_latched:
+        # First frame of deflection - latch the axis
+        state.latched_axis = deflection.deflection_axis
+        state.latched_direction = deflection.deflection_direction
+        state.axis_latched = True
+
+      # Always use latched axis while deflecting (prevents flip)
+      state.deflection_direction = state.latched_direction
+      state.deflection_axis = state.latched_axis
       state.is_deflecting = True
 
     # Smooth transition
@@ -178,9 +190,10 @@ class DeflectionController:
       self.config.limits.recovery_rate
     )
 
-    # Check if still deflecting
+    # Check if deflection complete - unlatch when fully recovered
     if state.current_angle < 0.001 and state.target_angle < 0.001:
       state.is_deflecting = False
+      state.axis_latched = False  # Release latch for next deflection
 
   def _is_approach_enabled(self, approach_type: ApproachType) -> bool:
     """Check if approach type is enabled in config."""
@@ -197,6 +210,7 @@ class DeflectionController:
     for state in self._states.values():
       state.target_angle = 0.0
       state.is_deflecting = False
+      state.axis_latched = False
 
   def get_state(self, tendroid_id: int) -> Optional[TendroidDeflectionState]:
     """Get deflection state for a specific tendroid."""

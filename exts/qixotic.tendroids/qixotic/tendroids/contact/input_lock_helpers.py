@@ -20,6 +20,7 @@ class InputLockReason(Enum):
   CONTACT = auto()  # Initial contact with tendroid
   REPELLING = auto()  # Being pushed away by repulsion force
   RECOVERING = auto()  # Fading back to normal
+  TEST = auto()  # Locked during automated test (not actual contact)
 
 
 @dataclass

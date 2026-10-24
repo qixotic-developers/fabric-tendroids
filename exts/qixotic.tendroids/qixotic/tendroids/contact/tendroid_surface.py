@@ -56,6 +56,8 @@ def centerline_point(shape: TendroidShape, height: float) -> Vec3:
     ax, az = (ax / axis_len, az / axis_len) if axis_len > 0.0001 else (1.0, 0.0)
 
     angle = shape.deflection_angle * blend
+    if abs(shape.deflection_angle) <= 0.0001 or abs(angle) <= 0.0001:
+        angle = 0.0
     lateral = -height * math.sin(angle)
 
     bx, by, bz = shape.base

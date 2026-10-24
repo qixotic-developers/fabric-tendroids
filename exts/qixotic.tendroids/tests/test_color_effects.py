@@ -6,6 +6,12 @@ Implements TEND-103: Add unit tests for color effects.
 Updated for TEND-27: Recovery state support.
 """
 
+import sys
+from unittest.mock import MagicMock, patch
+
+# Mock Warp before importing the extension package.
+sys.modules["warp"] = MagicMock()
+
 from qixotic.tendroids.contact.color_effect_helpers import (
     ColorConfig,
     ColorEffectState,
@@ -20,8 +26,10 @@ from qixotic.tendroids.contact.color_effect_helpers import (
     is_normal,
     is_recovering,
 )
+
 from qixotic.tendroids.contact.color_effect_controller import ColorEffectController
 from qixotic.tendroids.contact.color_fade_helpers import FadeConfig, FadeMode
+from qixotic.tendroids.scene.manager import V2SceneManager
 
 
 # =============================================================================
@@ -369,6 +377,24 @@ class TestColorEffectControllerInit:
         """Controller starts in NORMAL state."""
         controller = ColorEffectController()
         assert controller.status.state == ColorEffectState.NORMAL
+
+
+class TestColorEffectSceneIntegration:
+    """Tests color effect integration with the scene animation controller."""
+
+    def test_initialization_connects_color_effect_to_animation_controller(self):
+        """Scene initialization keeps the color-effect controller connected."""
+        manager = V2SceneManager()
+        color_effect_controller = object()
+
+        with patch(
+            "qixotic.tendroids.scene.manager.ColorEffectController",
+            return_value=color_effect_controller,
+        ):
+            manager._initialize_color_effects(stage=object())
+
+        assert manager.color_effect_controller is color_effect_controller
+        assert manager.animation_controller.color_effect_controller is color_effect_controller
 
     def test_initial_shock_count_zero(self):
         """Controller starts with zero shocks."""

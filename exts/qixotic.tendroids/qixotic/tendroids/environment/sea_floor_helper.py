@@ -4,6 +4,8 @@ Sea floor helper functions for height calculations
 Handles Perlin noise generation and height queries with bilinear interpolation.
 """
 
+import math
+
 import carb
 import numpy as np
 from .sea_floor_config import SeaFloorConfig
@@ -14,24 +16,88 @@ _config = None
 _noise_module = None
 
 
+class _FallbackNoiseModule:
+  """Deterministic two-dimensional Perlin noise provider."""
+
+  _GRADIENTS = (
+    (1.0, 0.0),
+    (-1.0, 0.0),
+    (0.0, 1.0),
+    (0.0, -1.0),
+    (0.7071067811865476, 0.7071067811865476),
+    (-0.7071067811865476, 0.7071067811865476),
+    (0.7071067811865476, -0.7071067811865476),
+    (-0.7071067811865476, -0.7071067811865476),
+  )
+
+  @classmethod
+  def pnoise2(cls, x, y, octaves=1, persistence=0.5, lacunarity=2.0,
+              repeatx=1024, repeaty=1024, base=0):
+    """Return deterministic Perlin noise compatible with ``noise.pnoise2``."""
+    value = 0.0
+    amplitude = 1.0
+    max_amplitude = 0.0
+
+    for _ in range(octaves):
+      value += cls._single_noise(x, y, repeatx, repeaty, base) * amplitude
+      max_amplitude += amplitude
+      amplitude *= persistence
+      x *= lacunarity
+      y *= lacunarity
+
+    return value / max_amplitude if max_amplitude else 0.0
+
+  @classmethod
+  def _single_noise(cls, x, y, repeatx, repeaty, base):
+    x_floor = math.floor(x)
+    y_floor = math.floor(y)
+    x_fraction = x - x_floor
+    y_fraction = y - y_floor
+
+    x0 = x_floor % repeatx
+    y0 = y_floor % repeaty
+    x1 = (x0 + 1) % repeatx
+    y1 = (y0 + 1) % repeaty
+
+    bottom_left = cls._gradient_dot(x0, y0, x_fraction, y_fraction, base)
+    bottom_right = cls._gradient_dot(x1, y0, x_fraction - 1.0, y_fraction, base)
+    top_left = cls._gradient_dot(x0, y1, x_fraction, y_fraction - 1.0, base)
+    top_right = cls._gradient_dot(x1, y1, x_fraction - 1.0, y_fraction - 1.0, base)
+
+    x_blend = cls._fade(x_fraction)
+    y_blend = cls._fade(y_fraction)
+    bottom = cls._lerp(bottom_left, bottom_right, x_blend)
+    top = cls._lerp(top_left, top_right, x_blend)
+    return cls._lerp(bottom, top, y_blend)
+
+  @classmethod
+  def _gradient_dot(cls, x, y, offset_x, offset_y, base):
+    gradient_index = (x * 1836311903 ^ y * 2971215073 ^ base * 4807526976) & 7
+    gradient_x, gradient_y = cls._GRADIENTS[gradient_index]
+    return gradient_x * offset_x + gradient_y * offset_y
+
+  @staticmethod
+  def _fade(value):
+    return value * value * value * (value * (value * 6.0 - 15.0) + 10.0)
+
+  @staticmethod
+  def _lerp(start, end, amount):
+    return start + amount * (end - start)
+
+
 def _get_noise_module():
-  """Lazy import of noise module."""
+  """Lazy import of noise module with a built-in fallback."""
   global _noise_module
   if _noise_module is None:
     try:
       import noise
       _noise_module = noise
-    except ImportError:
-      carb.log_error("[SeaFloorHelper] Noise module not installed. Installing...")
-      try:
-        import omni.kit.pipapi
-        omni.kit.pipapi.install("noise>=1.2.2", module="noise")
-        import noise
-        _noise_module = noise
-        carb.log_info("[SeaFloorHelper] Noise module installed successfully")
-      except Exception as e:
-        carb.log_error(f"[SeaFloorHelper] Failed to install noise module: {e}")
-        raise
+    except (ImportError, OSError) as error:
+      carb.log_warn(
+        f"[SeaFloorHelper] Noise module unavailable ({error}); "
+        "using built-in fallback"
+      )
+      _noise_module = _FallbackNoiseModule
   return _noise_module
 
 

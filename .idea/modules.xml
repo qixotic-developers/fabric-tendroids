@@ -2,6 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
+      <module fileurl="file://$PROJECT_DIR$/.idea/exts.iml" filepath="$PROJECT_DIR$/.idea/exts.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/fabric-tendroids-new.iml" filepath="$PROJECT_DIR$/.idea/fabric-tendroids-new.iml" />
     </modules>
   </component>

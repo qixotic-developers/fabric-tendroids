@@ -1858,3 +1858,20 @@ package-lock.json
 .nx/polygraph
 .claude/worktrees
 .claude/settings.local.json
+# Other AI tool configs
+.claude/
+.agents/
+.codex/
+.gemini/
+.junie/
+.opencode/
+opencode.json
+
+# IDE files that are machine-specific
+.idea/exts.iml
+.idea/nx-angular-config.xml
+.idea/pyLspTools.xml
+exts/.idea/
+
+# Enterprise Architect model
+*.qea

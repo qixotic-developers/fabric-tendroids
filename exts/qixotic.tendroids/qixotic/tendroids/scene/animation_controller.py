@@ -33,6 +33,7 @@ class V2AnimationController:
     self.creature_controller = None  # Interactive creature
     self.envelope_visualizer = None  # Debug visualization
     self.deflection_integration = None  # Tendroid bending system
+    self.color_effect_controller = None  # Contact color feedback
     self.update_subscription = None
     self.is_running = False
 
@@ -90,6 +91,12 @@ class V2AnimationController:
     self.deflection_integration = deflection
     if deflection:
       carb.log_info("[Deflection] System connected to animation controller")
+
+  def set_color_effect_controller(self, color_effect_controller):
+    """Set contact color effect controller."""
+    self.color_effect_controller = color_effect_controller
+    if color_effect_controller:
+      carb.log_info("[ColorEffect] Controller connected to animation controller")
 
   def toggle_envelope_debug(self) -> bool:
     """Toggle envelope visualization. Returns new state."""

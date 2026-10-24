@@ -155,7 +155,10 @@ class ColorEffectController:
             )
         
         # Process recovery fade
-        if self._status.state == ColorEffectState.RECOVERING:
+        if (
+            old_state == ColorEffectState.RECOVERING
+            and self._status.state == ColorEffectState.RECOVERING
+        ):
             fade_progress = calculate_fade_progress(
                 self._fade_config,
                 distance=distance_to_tendroid,

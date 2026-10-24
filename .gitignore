@@ -1849,3 +1849,12 @@ __marimo__/
 build/site/
 node_modules/
 package-lock.json
+
+
+
+.nx/cache
+.nx/workspace-data
+.nx/migrate-runs
+.nx/polygraph
+.claude/worktrees
+.claude/settings.local.json

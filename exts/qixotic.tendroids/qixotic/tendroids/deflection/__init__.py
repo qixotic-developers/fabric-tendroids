@@ -68,6 +68,13 @@ from .deflection_integration import (
     DeflectionIntegration,
 )
 
+from .scene_config import (
+    create_scene_unit_zones,
+    create_scene_unit_limits,
+    create_scene_unit_config,
+    SCENE_UNIT_CONFIG,
+)
+
 try:
     from .batch_deflection_manager import (
         BatchDeflectionState,
@@ -127,6 +134,12 @@ __all__ = [
     
     # Integration
     'DeflectionIntegration',
+    
+    # Scene-unit config
+    'create_scene_unit_zones',
+    'create_scene_unit_limits',
+    'create_scene_unit_config',
+    'SCENE_UNIT_CONFIG',
     
     # Batch GPU processing
     'BatchDeflectionState',

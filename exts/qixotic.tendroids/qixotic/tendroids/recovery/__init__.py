@@ -7,6 +7,7 @@ the creature recovery process after contact with tendroids.
 TEND-5: Recovery System epic
 TEND-30: Recalculate absolute coordinates (uses relative distances)
 TEND-32: Re-enable controls after recovery complete
+TEND-130: Integrate recovery system modules into runtime
 """
 
 from .recovery_integration_helpers import (
@@ -40,6 +41,21 @@ from .recovery_state_controller import (
     is_recovery_complete,
     get_pending_conditions,
     get_blocking_condition,
+)
+from .recovery_orchestrator_helpers import (
+    OrchestratorState,
+    create_orchestrator_state,
+    handle_contact_event,
+    update_frame,
+    reset_orchestrator_state,
+    is_active,
+    is_input_blocked,
+    get_current_color,
+    get_status_summary,
+)
+from .recovery_orchestrator import (
+    RecoveryOrchestrator,
+    RecoveryCallback,
 )
 
 __all__ = [
@@ -76,4 +92,17 @@ __all__ = [
     "is_recovery_complete",
     "get_pending_conditions",
     "get_blocking_condition",
+    # Orchestrator State (TEND-130)
+    "OrchestratorState",
+    "create_orchestrator_state",
+    "handle_contact_event",
+    "update_frame",
+    "reset_orchestrator_state",
+    "is_active",
+    "is_input_blocked",
+    "get_current_color",
+    "get_status_summary",
+    # Orchestrator Controller (TEND-130)
+    "RecoveryOrchestrator",
+    "RecoveryCallback",
 ]

@@ -92,6 +92,78 @@ class V2TendroidWrapper:
         if new_points is not None:
             self.points_attr.Set(new_points)
     
+    def apply_deformation_with_deflection(
+        self,
+        bubble_y: float,
+        bubble_radius: float,
+        wave_dx: float,
+        wave_dz: float,
+        deflection_angle: float,
+        deflection_axis: tuple
+    ):
+        """
+        Apply combined deformation with deflection bending.
+        
+        Single-pass: base → bend → wave → bubble.
+        
+        Args:
+            bubble_y: Bubble center Y position (local coords)
+            bubble_radius: Current bubble radius
+            wave_dx: Wave displacement X
+            wave_dz: Wave displacement Z
+            deflection_angle: Bend angle in radians
+            deflection_axis: (x, z) bend axis direction
+        """
+        if not self.deformer or not self.points_attr:
+            return
+        
+        self._bubble_active = True
+        self._last_wave_dx = wave_dx
+        self._last_wave_dz = wave_dz
+        
+        new_points = self.deformer.deform_with_deflection(
+            bubble_y,
+            bubble_radius,
+            wave_dx,
+            wave_dz,
+            deflection_angle,
+            deflection_axis
+        )
+        if new_points is not None:
+            self.points_attr.Set(new_points)
+    
+    def apply_wave_only_with_deflection(
+        self,
+        wave_dx: float,
+        wave_dz: float,
+        deflection_angle: float,
+        deflection_axis: tuple
+    ):
+        """
+        Apply wave and deflection only (no bubble).
+        
+        Args:
+            wave_dx: Wave displacement X
+            wave_dz: Wave displacement Z
+            deflection_angle: Bend angle in radians
+            deflection_axis: (x, z) bend axis direction
+        """
+        if not self.deformer or not self.points_attr:
+            return
+        
+        self._bubble_active = False
+        self._last_wave_dx = wave_dx
+        self._last_wave_dz = wave_dz
+        
+        new_points = self.deformer.deform_wave_only_with_deflection(
+            wave_dx,
+            wave_dz,
+            deflection_angle,
+            deflection_axis
+        )
+        if new_points is not None:
+            self.points_attr.Set(new_points)
+    
     def apply_deformation_with_wave_state(
         self,
         bubble_y: float,

@@ -13,7 +13,9 @@ from .spawn_controls import SpawnControls
 from .wave_controls import WaveControls
 from .bubble_controls import BubbleControls
 from .creature_controls import CreatureControls
+from .debug_controls import DebugControls
 from .action_buttons import ActionButtons
+from .test_panel import TestPanel
 
 
 class V2ControlPanel:
@@ -38,11 +40,13 @@ class V2ControlPanel:
         self.wave_controls = WaveControls()
         self.bubble_controls = BubbleControls()
         self.creature_controls = CreatureControls()
+        self.debug_controls = DebugControls(self.scene_manager)
         self.action_buttons = ActionButtons(
             self.scene_manager,
             self.spawn_controls,
             self.creature_controls
         )
+        self.test_panel = TestPanel()
         
         carb.log_info("[V2ControlPanel] Initialized")
     
@@ -95,6 +99,12 @@ class V2ControlPanel:
                     self._bind_bubble_manager()
                     self.bubble_controls.build()
                     
+                    # Debug visualization
+                    self.debug_controls.build()
+                    
+                    # Test animations
+                    self.test_panel.build()
+                    
                     # Action buttons
                     self.action_buttons.build()
                     
@@ -131,6 +141,22 @@ class V2ControlPanel:
         if self.scene_manager.bubble_manager:
             self.bubble_controls.set_bubble_manager(self.scene_manager.bubble_manager)
     
+    def _bind_test_controller(self):
+        """Bind test controller to scene manager components."""
+        tc = self.test_panel.controller
+        
+        # Bind creature controller
+        if self.scene_manager.creature_controller and not tc._creature_controller:
+            tc.set_creature_controller(self.scene_manager.creature_controller)
+        
+        # Bind deflection integration
+        if self.scene_manager.deflection_integration and not tc._deflection_integration:
+            tc.set_deflection_integration(self.scene_manager.deflection_integration)
+        
+        # Bind color effect controller
+        if self.scene_manager.color_effect_controller and not tc._color_effect_controller:
+            tc.set_color_effect_controller(self.scene_manager.color_effect_controller)
+    
     def update(self, dt: float):
         """Per-frame update."""
         # Rebind if needed after spawning
@@ -141,6 +167,12 @@ class V2ControlPanel:
         if self.scene_manager.bubble_manager:
             if not self.bubble_controls.bubble_manager:
                 self._bind_bubble_manager()
+        
+        # Bind test panel controller references
+        self._bind_test_controller()
+        
+        # Update test animation
+        self.test_panel.update(dt)
     
     def destroy(self):
         """Destroy the window."""

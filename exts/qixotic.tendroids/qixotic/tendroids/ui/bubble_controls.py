@@ -33,7 +33,7 @@ class BubbleControls:
 
   def build(self, parent: ui.VStack = None):
     """Build bubble controls UI."""
-    with ui.CollapsableFrame("Bubble Settings", height=0, collapsed=False):
+    with ui.CollapsableFrame("Bubble Settings", height=0, collapsed=True):
       with ui.VStack(spacing=4, style={"background_color": 0xFF23211F}):
         ui.Spacer(height=4)
         cfg = self._get_config()

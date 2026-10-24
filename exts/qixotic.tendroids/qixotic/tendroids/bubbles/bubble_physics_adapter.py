@@ -176,6 +176,29 @@ class BubblePhysicsAdapter:
             current_y = world_positions[bubble_id][1]
             self.gpu_manager.update_bubble_state(bubble_id, current_y, 4)
     
+    def cancel_bubble(self, tendroid_name: str):
+        """
+        Silently cancel a bubble (no pop effect).
+        
+        Sets bubble to idle state immediately without triggering
+        pop particles or sound effects.
+        
+        Args:
+            tendroid_name: Name of tendroid whose bubble should cancel
+        """
+        if not self.use_gpu or not self.gpu_manager:
+            return
+        
+        bubble_id = self._name_to_id.get(tendroid_name)
+        if bubble_id is None:
+            return
+        
+        phases, world_positions, _ = self.gpu_manager.get_bubble_states()
+        if phases[bubble_id] > 0:  # Only cancel if active
+            # Set phase to 0 (idle) - no pop effect
+            current_y = world_positions[bubble_id][1]
+            self.gpu_manager.update_bubble_state(bubble_id, current_y, 0)
+    
     def spawn_bubble(self, tendroid_name: str, tendroid, config):
         """
         Manually spawn a bubble for a specific tendroid.

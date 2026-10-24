@@ -38,13 +38,13 @@ class WaveControls:
     
     def build(self, parent: ui.VStack = None):
         """Build wave controls UI."""
-        with ui.CollapsableFrame("Wave Motion", height=0, collapsed=False):
+        with ui.CollapsableFrame("Wave Motion", height=0, collapsed=True):
             with ui.VStack(spacing=4, style={"background_color": 0xFF23211F}):
                 ui.Spacer(height=4)
                 # Enable toggle
                 with ui.HStack(height=24, spacing=4):
                     ui.Label("Enable:", width=100, tooltip="Toggle wave motion on/off")
-                    enabled = self.wave_controller.enabled if self.wave_controller else True
+                    enabled = self.wave_controller.enabled if self.wave_controller else False
                     self._enabled_checkbox = ui.CheckBox(
                         width=40,
                         height=20,

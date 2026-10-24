@@ -1,0 +1,194 @@
+= Recovery Orchestrator
+:toc: left
+:toclevels: 3
+:icons: font
+
+== Overview
+
+The Recovery Orchestrator (TEND-130) provides a unified runtime interface for coordinating all recovery subsystems after creature-tendroid contact. It wires together five helper modules into a single coherent system.
+
+== Architecture
+
+[plantuml]
+----
+@startuml
+skinparam componentStyle rectangle
+
+package "Recovery Package" {
+    [RecoveryOrchestrator] as orchestrator
+    [recovery_orchestrator_helpers] as helpers
+    
+    package "Subsystems" {
+        [RecoveryContext] as context
+        [RecoveryCompletionStatus] as completion
+        [ColorEffectStatus] as color
+        [VelocityFadeStatus] as velocity  
+        [InputLockStatus] as input
+    }
+}
+
+orchestrator --> helpers : uses
+helpers --> context
+helpers --> completion
+helpers --> color
+helpers --> velocity
+helpers --> input
+@enduml
+----
+
+== Components
+
+=== OrchestratorState
+
+Combined state container holding all subsystem states:
+
+[source,python]
+----
+@dataclass
+class OrchestratorState:
+    recovery_context: RecoveryContext       # Tracking state
+    completion_status: RecoveryCompletionStatus  # Condition checks
+    color_status: ColorEffectStatus         # Visual feedback
+    velocity_status: VelocityFadeStatus     # Movement control
+    input_lock: InputLockStatus             # Input blocking
+    # Configuration
+    color_config: ColorConfig
+    velocity_config: VelocityFadeConfig
+    approach_params: ApproachParameters
+    # Metrics
+    total_contacts: int
+    total_recoveries: int
+----
+
+=== RecoveryOrchestrator
+
+Main controller class for runtime integration:
+
+[source,python]
+----
+orchestrator = RecoveryOrchestrator(
+    approach_params=ApproachParameters(approach_minimum=15.0),
+    color_config=ColorConfig(shock_color=(1.0, 0.3, 0.1)),
+    velocity_config=VelocityFadeConfig(fade_duration=1.0),
+)
+
+# Start listening for contacts
+orchestrator.start()
+
+# In update loop
+def on_update(dt):
+    displacement = orchestrator.update(creature_pos, surface_pos, dt)
+    if orchestrator.is_input_locked:
+        # Ignore keyboard input
+        pass
+    creature.apply_displacement(displacement)
+    creature.set_color(orchestrator.current_color)
+
+# Cleanup
+orchestrator.stop()
+----
+
+== Recovery Flow
+
+1. **Contact Event**: `handle_contact()` or automatic via ContactHandler
+   - Triggers shock color
+   - Applies repulsion velocity
+   - Locks input
+   - Starts recovery tracking
+
+2. **Frame Updates**: `update()` each frame
+   - Updates recovery distance tracking
+   - Fades color as distance increases
+   - Decays velocity
+   - Returns displacement to apply
+
+3. **Completion**: When all conditions met
+   - Distance beyond approach_minimum
+   - Color returned to normal
+   - Velocity faded to zero
+   - Tendroid at rest position
+   - Unlocks input
+   - Fires callback
+
+== API Reference
+
+=== Helper Functions
+
+|===
+| Function | Description
+
+| `create_orchestrator_state()` | Create initial state
+| `handle_contact_event()` | Process contact event
+| `update_frame()` | Process one frame of recovery
+| `reset_orchestrator_state()` | Reset to initial state
+| `is_active()` | Check if recovery in progress
+| `is_input_blocked()` | Check if input locked
+| `get_current_color()` | Get current creature color
+| `get_status_summary()` | Get debug status string
+|===
+
+=== Controller Methods
+
+|===
+| Method | Description
+
+| `start()` | Start and subscribe to contacts
+| `stop()` | Stop and cleanup
+| `update()` | Process frame, returns displacement
+| `handle_contact()` | Manual contact trigger
+| `reset()` | Reset to initial state
+| `get_status()` | Get debug status
+| `set_recovery_callback()` | Set completion callback
+|===
+
+== Integration Example
+
+[source,python]
+----
+from qixotic.tendroids.recovery import RecoveryOrchestrator
+
+class CreatureController:
+    def __init__(self):
+        self.recovery = RecoveryOrchestrator()
+        self.recovery.set_recovery_callback(self.on_recovery_complete)
+        self.recovery.start()
+    
+    def update(self, dt):
+        # Get displacement from recovery system
+        displacement = self.recovery.update(
+            self.position,
+            self.last_tendroid_surface,
+            dt,
+        )
+        
+        # Apply movement
+        if not self.recovery.is_input_locked:
+            # Normal keyboard movement
+            displacement = self.get_keyboard_movement(dt)
+        
+        self.position += displacement
+        self.mesh.set_color(self.recovery.current_color)
+    
+    def on_recovery_complete(self, total):
+        print(f"Recovery #{total} complete!")
+    
+    def shutdown(self):
+        self.recovery.stop()
+----
+
+== File Summary
+
+|===
+| File | Lines | Purpose
+
+| `recovery_orchestrator_helpers.py` | ~145 | Pure helper functions
+| `recovery_orchestrator.py` | ~170 | Controller class
+| `test_recovery_orchestrator.py` | ~220 | Unit tests (20 tests)
+|===
+
+== Related Tasks
+
+- TEND-5: Recovery System epic
+- TEND-30: Recalculate absolute coordinates
+- TEND-32: Re-enable controls after recovery complete
+- TEND-130: Integrate recovery system modules into runtime

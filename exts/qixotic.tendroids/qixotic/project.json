@@ -1,0 +1,19 @@
+{
+  "name": "qixotic",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "library",
+  "sourceRoot": "exts/qixotic.tendroids/qixotic",
+  "targets": {
+    "lint": {
+      "command": "python -m flake8 .",
+      "options": {
+        "cwd": "exts/qixotic.tendroids/qixotic"
+      },
+      "cache": true,
+      "inputs": [
+        "{projectRoot}/**/*"
+      ]
+    }
+  },
+  "tags": ["scope:python-package", "lang:python"]
+}

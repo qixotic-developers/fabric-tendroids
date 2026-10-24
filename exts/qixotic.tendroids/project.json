@@ -1,0 +1,22 @@
+{
+  "name": "qixotic.tendroids",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "library",
+  "sourceRoot": "exts/qixotic.tendroids/qixotic",
+  "targets": {
+    "test": {
+      "command": "python run_tests.py",
+      "options": {
+        "cwd": "exts/qixotic.tendroids"
+      },
+      "cache": true,
+      "inputs": [
+        "{projectRoot}/qixotic/**/*",
+        "{projectRoot}/tests/**/*",
+        "{projectRoot}/pytest.ini",
+        "{projectRoot}/run_tests.py"
+      ]
+    }
+  },
+  "tags": ["scope:extension", "lang:python"]
+}

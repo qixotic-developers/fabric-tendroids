@@ -4,14 +4,16 @@ Interaction System - Per-frame contact detection against the drawn tendroid surf
 Tests each contact proxy sphere against every tendroid's visible (bent and
 waved) surface. A contact fires only on the transition from not overlapping to
 overlapping, once per tendroid, at the deepest-penetrating sphere. Pure
-geometry: no USD, Warp or Kit imports.
+geometry plus the recovery orchestrator: no USD, Warp or Kit imports.
 """
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Dict, List, Sequence, Set, Tuple
 
 from ..animation.wave_offset import wave_offset
+from ..recovery.recovery_orchestrator import RecoveryOrchestrator
+from .repulsion_helpers import compute_repulsion_force
 from .tendroid_surface import TendroidShape, surface_hit
 
 Vec3 = Tuple[float, float, float]
@@ -64,12 +66,22 @@ def _deepest_contact(name: str, shape: TendroidShape, spheres: Sequence[Sphere])
 
 
 class InteractionSystem:
-    """Resolves contacts between the creature's contact proxy and the tendroids."""
+    """
+    Detects contacts and drives the creature's shock and recovery response.
 
-    def __init__(self):
+    The creature is passed in as an object with get_contact_proxy, get_position,
+    apply_repulsion_force and set_input_lock, so the step needs no scene.
+    """
+
+    def __init__(self, orchestrator: RecoveryOrchestrator = None):
+        self.orchestrator = orchestrator or RecoveryOrchestrator()
         self._overlapping: Set[str] = set()
 
-    def resolve(self, spheres: Sequence[Sphere], shapes: Dict[str, TendroidShape]) -> List[Contact]:
+    def forget_overlaps(self) -> None:
+        """Drop overlap history, e.g. when the tendroids are replaced."""
+        self._overlapping = set()
+
+    def detect(self, spheres: Sequence[Sphere], shapes: Dict[str, TendroidShape]) -> List[Contact]:
         """Return the contacts that began this frame."""
         began = []
         overlapping_now = set()
@@ -82,3 +94,19 @@ class InteractionSystem:
                 began.append(contact)
         self._overlapping = overlapping_now
         return began
+
+    def resolve(self, creature, shapes: Dict[str, TendroidShape], dt: float) -> List[Contact]:
+        """Run one frame: detect contacts, start a shock for each, advance recovery, derive input lock."""
+        contacts = self.detect(creature.get_contact_proxy(), shapes)
+        for contact in contacts:
+            force = compute_repulsion_force(contact.normal, contact.penetration)
+            self.orchestrator.handle_contact(contact.point, contact.normal, creature.get_position(), force)
+            creature.apply_repulsion_force(force)
+
+        # The orchestrator's displacement is not applied: repulsion moves the creature through
+        # its velocity only, so the creature controller stays the sole writer of its position.
+        self.orchestrator.update(creature.get_position(), dt)
+
+        # A copy, so the creature can adjust its own lock without corrupting orchestrator state.
+        creature.set_input_lock(replace(self.orchestrator.state.input_lock))
+        return contacts

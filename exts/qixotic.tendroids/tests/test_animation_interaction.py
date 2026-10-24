@@ -8,19 +8,26 @@ from unittest.mock import MagicMock
 import pytest
 
 from qixotic.tendroids.bubbles.bubble_manager import V2BubbleManager
-from qixotic.tendroids.scene import animation_controller as animation_module
 from qixotic.tendroids.scene.animation_controller import V2AnimationController
 
 
 class FakeCreature:
     def __init__(self, x):
         self.x = x
+        self.repulsions = []
+        self.input_lock = None
 
     def get_contact_proxy(self):
         return [((self.x, 50.0, 0.0), 6.0)]
 
     def get_position(self):
         return (self.x, 50.0, 0.0)
+
+    def apply_repulsion_force(self, force):
+        self.repulsions.append(force)
+
+    def set_input_lock(self, status):
+        self.input_lock = status
 
     def update(self, *args, **kwargs):
         return [], []
@@ -45,38 +52,35 @@ def make_controller(path, creature_x):
     return controller
 
 
-@pytest.fixture
-def carb_mock(monkeypatch):
-    mock = MagicMock()
-    monkeypatch.setattr(animation_module, "carb", mock)
-    return mock
+@pytest.mark.parametrize("path", ["gpu", "cpu", "wave_only"])
+class TestInteractionInEveryPath:
+    def test_touching_the_tendroid_shocks_the_creature_once(self, path):
+        controller = make_controller(path, creature_x=10.0)
+        for _ in range(3):
+            controller._on_update(None)
+        creature = controller.creature_controller
+        assert len(creature.repulsions) == 1
+        assert creature.input_lock.is_locked
+
+    def test_creature_clear_of_the_tendroid_is_left_alone(self, path):
+        controller = make_controller(path, creature_x=60.0)
+        controller._on_update(None)
+        creature = controller.creature_controller
+        assert creature.repulsions == []
+        assert not creature.input_lock.is_locked
 
 
-def contact_logs(carb_mock):
-    return [c.args[0] for c in carb_mock.log_verbose.call_args_list if "Contact with" in c.args[0]]
-
-
-def test_replacing_tendroids_forgets_overlap_history(carb_mock):
+def test_replacing_tendroids_forgets_overlap_history():
     controller = make_controller("wave_only", creature_x=10.0)
     controller._on_update(None)
     controller.set_tendroids(controller.tendroids)  # a rebuilt scene reuses the names
     controller._on_update(None)
-    assert len(contact_logs(carb_mock)) == 2
+    assert len(controller.creature_controller.repulsions) == 2
 
 
-@pytest.mark.parametrize("path", ["gpu", "cpu", "wave_only"])
-class TestInteractionInEveryPath:
-    def test_touching_the_tendroid_logs_one_contact_at_debug_level(self, carb_mock, path):
-        controller = make_controller(path, creature_x=10.0)
-        for _ in range(3):
-            controller._on_update(None)
-        logs = contact_logs(carb_mock)
-        assert len(logs) == 1
-        assert "t0" in logs[0]
-        carb_mock.log_error.assert_not_called()
-
-    def test_creature_clear_of_the_tendroid_logs_nothing(self, carb_mock, path):
-        controller = make_controller(path, creature_x=60.0)
-        controller._on_update(None)
-        assert contact_logs(carb_mock) == []
-        carb_mock.log_error.assert_not_called()
+def test_shock_colour_is_shown_on_the_creature_material():
+    controller = make_controller("wave_only", creature_x=10.0)
+    controller.color_effect_controller = MagicMock()
+    controller._on_update(None)
+    shown = controller.color_effect_controller.apply_status.call_args.args[0]
+    assert shown is controller.interaction_system.orchestrator.state.color_status

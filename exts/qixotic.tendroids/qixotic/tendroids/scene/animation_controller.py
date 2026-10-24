@@ -60,7 +60,7 @@ class V2AnimationController:
     self.tendroids = tendroids
     self.tendroid_data = tendroid_data or []
     # Scene rebuilds reuse tendroid names, so old overlap state would suppress new contacts.
-    self.interaction_system = InteractionSystem()
+    self.interaction_system.forget_overlaps()
 
   def set_bubble_manager(self, bubble_manager):
     """Set bubble manager for animation updates."""
@@ -214,27 +214,23 @@ class V2AnimationController:
 
       # Last, so a failure in the new step cannot skip existing per-frame work.
       if self.creature_controller:
-        self._resolve_interactions(wave_state, deflection_states)
+        self._resolve_interactions(dt, wave_state, deflection_states)
 
     except Exception as e:
       carb.log_error(f"[V2AnimationController] Update error: {e}")
       import traceback
       traceback.print_exc()
 
-  def _resolve_interactions(self, wave_state: dict, deflection_states: dict):
-    """Detect contacts between the creature and the drawn tendroids; logged only for now."""
+  def _resolve_interactions(self, dt: float, wave_state: dict, deflection_states: dict):
+    """Run the shock and recovery response for contacts with the drawn tendroids."""
     shapes = {
       tendroid.name: shape_for(tendroid, deflection_states.get(tendroid.name), wave_state)
       for tendroid in self.tendroids
     }
-    contacts = self.interaction_system.resolve(
-      self.creature_controller.get_contact_proxy(), shapes
-    )
-    for contact in contacts:
-      carb.log_verbose(
-        f"[Interaction] Contact with {contact.tendroid_name} at "
-        f"{tuple(round(c, 2) for c in contact.point)}, "
-        f"penetration {contact.penetration:.2f}"
+    self.interaction_system.resolve(self.creature_controller, shapes, dt)
+    if self.color_effect_controller:
+      self.color_effect_controller.apply_status(
+        self.interaction_system.orchestrator.state.color_status
       )
 
   def _apply_wave_only_with_deflection(self, wave_state: dict, deflection_states: dict):

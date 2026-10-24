@@ -14,6 +14,7 @@ from ..contact.color_effect_helpers import (
     start_recovery as start_color_recovery,
     update_recovery as update_color_recovery,
 )
+from ..contact.approach_tracker_helpers import RecoveryPhase
 from ..contact.velocity_fade_helpers import (
     apply_initial_velocity,
     update_velocity,
@@ -112,7 +113,12 @@ def update_frame(
     Returns:
         Tuple of (updated_state, displacement)
     """
-    if not is_recovery_in_progress(state.recovery_context):
+    # The tracker leaves TRACKING as soon as the threshold is crossed, but the
+    # colour fade, velocity decay and unlock still have to run until COMPLETE.
+    if state.recovery_context.tracker_status.phase not in (
+        RecoveryPhase.TRACKING,
+        RecoveryPhase.THRESHOLD_CROSSED,
+    ):
         return (state, (0.0, 0.0, 0.0))
     
     # Update recovery tracking

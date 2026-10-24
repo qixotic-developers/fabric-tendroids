@@ -27,10 +27,8 @@ from .creature_input_helpers import (
 from ..contact.input_lock_helpers import (
     InputLockStatus,
     InputLockReason,
-    sync_lock_from_color_state,
     is_input_locked,
 )
-from ..contact.color_effect_helpers import ColorEffectStatus
 
 
 class CreatureController:
@@ -98,14 +96,15 @@ class CreatureController:
         """Get current input lock reason."""
         return self._input_lock_status.reason
     
-    def sync_input_lock(self, color_status: ColorEffectStatus) -> None:
-        """Synchronize input lock state from color effect state."""
+    def set_input_lock(self, status: InputLockStatus) -> None:
+        """Take the input lock from the recovery orchestrator."""
+        # An automated test's own lock outranks the recovery lock until the test releases it.
+        if self._input_lock_status.reason == InputLockReason.TEST:
+            return
         old_locked = self._input_lock_status.is_locked
-        self._input_lock_status = sync_lock_from_color_state(
-            self._input_lock_status, color_status
-        )
-        if old_locked != self._input_lock_status.is_locked:
-            state_msg = "LOCKED - repel active" if self._input_lock_status.is_locked else "UNLOCKED"
+        self._input_lock_status = status
+        if old_locked != status.is_locked:
+            state_msg = "LOCKED - repel active" if status.is_locked else "UNLOCKED"
             carb.log_info(f"[CreatureController] Input {state_msg}")
     
     def apply_repulsion_force(self, force_vector: tuple) -> None:

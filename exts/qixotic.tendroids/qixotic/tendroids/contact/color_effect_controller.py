@@ -129,6 +129,13 @@ class ColorEffectController:
             f"[ColorEffectController] Shock triggered, count={self._status.shock_count}"
         )
     
+    def apply_status(self, status: ColorEffectStatus) -> None:
+        """Show a colour state computed elsewhere, e.g. by the recovery orchestrator."""
+        changed = status.current_color != self._status.current_color
+        self._status = status
+        if changed:
+            self._apply_color_to_material()
+
     def update(
         self,
         distance_to_tendroid: float,

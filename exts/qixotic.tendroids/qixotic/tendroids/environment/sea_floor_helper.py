@@ -72,7 +72,10 @@ class _FallbackNoiseModule:
 
   @classmethod
   def _gradient_dot(cls, x, y, offset_x, offset_y, base):
-    gradient_index = (x * 1836311903 ^ y * 2971215073 ^ base * 4807526976) & 7
+    gradient_hash = (x * 1836311903 ^ y * 2971215073 ^ base * 4807526976) & 0xFFFFFFFF
+    gradient_hash = ((gradient_hash ^ (gradient_hash >> 16)) * 0x45D9F3B) & 0xFFFFFFFF
+    gradient_hash = ((gradient_hash ^ (gradient_hash >> 16)) * 0x45D9F3B) & 0xFFFFFFFF
+    gradient_index = (gradient_hash ^ (gradient_hash >> 16)) & 7
     gradient_x, gradient_y = cls._GRADIENTS[gradient_index]
     return gradient_x * offset_x + gradient_y * offset_y
 

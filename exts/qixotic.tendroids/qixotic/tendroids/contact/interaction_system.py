@@ -23,7 +23,7 @@ _MIN_DEFLECTION_ANGLE = 0.001
 
 @dataclass(frozen=True)
 class Contact:
-    """A tendroid touched by the creature's contact proxy."""
+    """A contact between the creature's contact proxy and a tendroid's drawn surface."""
     tendroid_name: str
     point: Vec3
     normal: Vec3

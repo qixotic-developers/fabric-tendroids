@@ -205,13 +205,14 @@ class V2AnimationController:
         if self.creature_controller:
           self.creature_controller.update(dt, wave_state=wave_state)
 
-      if self.creature_controller:
-        self._resolve_interactions(wave_state, deflection_states)
-
       # Update envelope debug visualization
       if self.envelope_visualizer and self.creature_controller:
         creature_pos = self.creature_controller.get_position()
         self.envelope_visualizer.update(creature_pos)
+
+      # Last, so a failure in the new step cannot skip existing per-frame work.
+      if self.creature_controller:
+        self._resolve_interactions(wave_state, deflection_states)
 
     except Exception as e:
       carb.log_error(f"[V2AnimationController] Update error: {e}")

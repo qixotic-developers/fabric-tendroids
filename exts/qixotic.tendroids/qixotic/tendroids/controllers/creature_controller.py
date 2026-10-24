@@ -145,6 +145,10 @@ class CreatureController:
         """Get creature collision radius."""
         return self.creature_radius
     
+    def get_contact_proxy(self):
+        """Get the world-space spheres, as (center, radius), that stand in for the creature in contact tests."""
+        return [(tuple(self.position), self.creature_radius)]
+
     def destroy(self):
         """Cleanup creature resources."""
         if hasattr(self, 'creature_prim_path') and self.stage:

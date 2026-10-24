@@ -11,6 +11,7 @@ import carb
 
 from ..animation import WaveConfig, WaveController
 from ..bubbles import DEFAULT_V2_BUBBLE_CONFIG
+from ..contact.interaction_system import InteractionSystem, shape_for
 from ..debug import EnvelopeVisualizer
 from ..deflection import DeflectionIntegration
 
@@ -41,6 +42,7 @@ class V2AnimationController:
     self._absolute_time = 0.0
 
     self.wave_controller = WaveController(WaveConfig())
+    self.interaction_system = InteractionSystem()
 
     # Fabric GPU path (zero-copy mesh updates)
     self._use_fabric_write = True  # Enable Fabric by default
@@ -57,6 +59,8 @@ class V2AnimationController:
     """Set tendroids to animate."""
     self.tendroids = tendroids
     self.tendroid_data = tendroid_data or []
+    # Scene rebuilds reuse tendroid names, so old overlap state would suppress new contacts.
+    self.interaction_system = InteractionSystem()
 
   def set_bubble_manager(self, bubble_manager):
     """Set bubble manager for animation updates."""
@@ -208,10 +212,30 @@ class V2AnimationController:
         creature_pos = self.creature_controller.get_position()
         self.envelope_visualizer.update(creature_pos)
 
+      # Last, so a failure in the new step cannot skip existing per-frame work.
+      if self.creature_controller:
+        self._resolve_interactions(wave_state, deflection_states)
+
     except Exception as e:
       carb.log_error(f"[V2AnimationController] Update error: {e}")
       import traceback
       traceback.print_exc()
+
+  def _resolve_interactions(self, wave_state: dict, deflection_states: dict):
+    """Detect contacts between the creature and the drawn tendroids; logged only for now."""
+    shapes = {
+      tendroid.name: shape_for(tendroid, deflection_states.get(tendroid.name), wave_state)
+      for tendroid in self.tendroids
+    }
+    contacts = self.interaction_system.resolve(
+      self.creature_controller.get_contact_proxy(), shapes
+    )
+    for contact in contacts:
+      carb.log_verbose(
+        f"[Interaction] Contact with {contact.tendroid_name} at "
+        f"{tuple(round(c, 2) for c in contact.point)}, "
+        f"penetration {contact.penetration:.2f}"
+      )
 
   def _apply_wave_only_with_deflection(self, wave_state: dict, deflection_states: dict):
     """

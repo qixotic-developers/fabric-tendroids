@@ -22,6 +22,10 @@ from .sphere_geometry_helper import create_sphere_mesh
 from .pop_particle import PopParticleManager
 
 
+# Phases in which a bubble is visible in the water and can be popped by the creature.
+_HITTABLE_PHASES = ("rising", "exiting", "released")
+
+
 class V2BubbleManager:
     """
     Manages bubbles across all tendroids.
@@ -71,6 +75,20 @@ class V2BubbleManager:
     
     def get_bubble_count(self) -> int:
         return sum(1 for s in self._bubbles.values() if s.phase != "idle")
+
+    def get_bubble_positions(self) -> dict:
+        """Tendroid name -> world (x, y, z) for each bubble the creature can hit."""
+        return {n: tuple(s.world_pos) for n, s in self._bubbles.items() if s.phase in _HITTABLE_PHASES}
+
+    def get_bubble_radii(self) -> dict:
+        """Tendroid name -> current radius for each bubble the creature can hit."""
+        return {n: s.current_radius for n, s in self._bubbles.items() if s.phase in _HITTABLE_PHASES}
+
+    def pop_bubble(self, tendroid_name: str):
+        """Pop a tendroid's bubble now, if it has one the creature can hit."""
+        state = self._bubbles.get(tendroid_name)
+        if state and state.phase in _HITTABLE_PHASES:
+            state._pop()
     
     def clear_all(self):
         for state in self._bubbles.values():

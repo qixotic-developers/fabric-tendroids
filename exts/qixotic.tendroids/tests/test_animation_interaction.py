@@ -7,6 +7,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from qixotic.tendroids.bubbles.bubble_manager import V2BubbleManager
 from qixotic.tendroids.scene import animation_controller as animation_module
 from qixotic.tendroids.scene.animation_controller import V2AnimationController
 
@@ -37,7 +38,8 @@ def make_controller(path, creature_x):
         controller.gpu_bubble_adapter = MagicMock()
         controller._update_gpu_path = lambda *args, **kwargs: None
     elif path == "cpu":
-        controller.bubble_manager = MagicMock()
+        # Specced on the real manager so a call to a method it lacks fails the test.
+        controller.bubble_manager = MagicMock(spec=V2BubbleManager)
         controller.bubble_manager.get_bubble_positions.return_value = {}
         controller.bubble_manager.get_bubble_radii.return_value = {}
     return controller
@@ -52,6 +54,14 @@ def carb_mock(monkeypatch):
 
 def contact_logs(carb_mock):
     return [c.args[0] for c in carb_mock.log_verbose.call_args_list if "Contact with" in c.args[0]]
+
+
+def test_replacing_tendroids_forgets_overlap_history(carb_mock):
+    controller = make_controller("wave_only", creature_x=10.0)
+    controller._on_update(None)
+    controller.set_tendroids(controller.tendroids)  # a rebuilt scene reuses the names
+    controller._on_update(None)
+    assert len(contact_logs(carb_mock)) == 2
 
 
 @pytest.mark.parametrize("path", ["gpu", "cpu", "wave_only"])

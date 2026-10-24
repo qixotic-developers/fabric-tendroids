@@ -59,6 +59,8 @@ class V2AnimationController:
     """Set tendroids to animate."""
     self.tendroids = tendroids
     self.tendroid_data = tendroid_data or []
+    # Scene rebuilds reuse tendroid names, so old overlap state would suppress new contacts.
+    self.interaction_system = InteractionSystem()
 
   def set_bubble_manager(self, bubble_manager):
     """Set bubble manager for animation updates."""

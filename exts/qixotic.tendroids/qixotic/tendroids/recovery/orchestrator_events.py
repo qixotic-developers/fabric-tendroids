@@ -31,7 +31,6 @@ from .recovery_integration_helpers import (
     start_recovery_tracking,
     update_recovery,
     finalize_recovery,
-    is_recovery_in_progress,
     is_threshold_crossed,
     get_recovery_progress,
 )

@@ -4,7 +4,10 @@ Tendroid Surface - Distance from a point to the tendroid as drawn
 Pure geometry, no USD or Warp imports. Reproduces the centerline of the mesh
 produced by the deformation kernel (bend about the latched axis, then wave
 offset, both scaled by a smoothstep of height over length). Bubble bulging is
-radial about the centerline, so it is ignored.
+ignored by design (parent spec #21). It is exactly radial only for a straight
+tendroid; on a bent one the kernel scales the bent position about the base axis,
+so an active bubble shifts the true centerline sideways by up to
+max_amplitude * lateral bend offset. The parity test runs with the bubble off.
 """
 
 import math

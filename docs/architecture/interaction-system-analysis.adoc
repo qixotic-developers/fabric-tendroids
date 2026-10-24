@@ -1,0 +1,772 @@
+= Creature-Tendroid Interaction System Architecture Analysis
+:author: TEND Project
+:revdate: 2024-12-18
+:toc: left
+:toclevels: 3
+:sectnums:
+:source-highlighter: highlight.js
+
+== Executive Summary
+
+This document analyzes the current architecture of the creature-tendroid interaction system to identify structural issues causing fragile behavior. The goal is to understand the existing data flow before proposing a cleaner design.
+
+=== Key Findings
+
+1. **Multiple disconnected movement paths** - Keyboard and test animation move creatures through completely different code paths
+2. **Contact detection uses static geometry** - Tendroid surface position doesn't account for deflection or wave motion
+3. **Scattered state management** - Position, deflection, contact, and color states managed by different controllers with no single source of truth
+4. **Redundant distance calculations** - At least 3 separate modules compute creature-tendroid proximity
+
+== Current Module Structure
+
+[plantuml, module-structure, svg]
+----
+@startuml
+skinparam backgroundColor white
+skinparam defaultFontColor black
+skinparam defaultFontSize 12
+
+skinparam package {
+  BackgroundColor #e3f2fd
+  BorderColor #1565c0
+  FontColor black
+}
+
+skinparam component {
+  BackgroundColor #ffffff
+  BorderColor #1565c0
+  FontColor black
+}
+
+skinparam note {
+  BackgroundColor #fff9c4
+  BorderColor #f9a825
+  FontColor black
+}
+
+skinparam arrow {
+  Color #2e7d32
+  FontColor black
+}
+
+package "controllers" {
+  [CreatureController] as CC
+  [creature_update_helpers] as CUH
+}
+
+package "deflection" {
+  [DeflectionController] as DC
+  [DeflectionIntegration] as DI
+  [approach_calculators] as AC
+}
+
+package "contact" {
+  [ColorEffectController] as CEC
+  [ContactHandler] as CH
+  [repulsion_helpers] as RH
+  [input_lock_helpers] as ILH
+}
+
+package "scene" {
+  [V2AnimationController] as VAC
+}
+
+package "testing" {
+  [TestController] as TC
+}
+
+package "proximity" {
+  [hash_grid] as HG
+  [state_manager] as SM
+}
+
+VAC --> CC : updates
+VAC --> DI : updates
+CC --> CUH : uses
+DI --> DC : wraps
+DC --> AC : uses
+TC --> CC : teleports position
+CEC --> ILH : syncs state
+
+note right of TC
+  TestController directly sets
+  CC.position, bypassing
+  velocity-based physics
+end note
+
+note right of CUH
+  check_tendroid_interactions()
+  uses tendroid.position
+  (static, unbent)
+end note
+@enduml
+----
+
+== Data Flow Analysis
+
+=== Main Update Loop
+
+[plantuml, update-loop, svg]
+----
+@startuml
+skinparam backgroundColor white
+skinparam defaultFontColor black
+skinparam defaultFontSize 12
+
+skinparam activity {
+  BackgroundColor #ffffff
+  BorderColor #1565c0
+  FontColor black
+  DiamondBackgroundColor #e3f2fd
+  DiamondBorderColor #1565c0
+  DiamondFontColor black
+}
+
+skinparam note {
+  BackgroundColor #fff9c4
+  BorderColor #f9a825
+  FontColor black
+}
+
+skinparam arrow {
+  Color #2e7d32
+  FontColor black
+}
+
+title V2AnimationController._on_update()
+
+start
+
+:Update wave_controller;
+:Get wave_state;
+
+if (deflection_integration exists?) then (yes)
+  :Update deflection system;
+  :Get deflection_states;
+else (no)
+  :deflection_states = {};
+endif
+
+if (gpu_bubble_adapter exists?) then (GPU Path)
+  :_update_gpu_path();
+  note right
+    GPU path does:
+    1. Update bubble physics
+    2. Apply deformations with deflection
+    3. Update creature (uses static tendroid geometry!)
+    4. Handle popped bubbles
+  end note
+elseif (bubble_manager exists?) then (CPU Path)
+  :Update bubble_manager;
+  :creature_controller.update();
+else (No bubbles)
+  :_apply_wave_only_with_deflection();
+  :creature_controller.update();
+endif
+
+:Update envelope_visualizer;
+
+stop
+@enduml
+----
+
+=== Creature Movement Paths
+
+[plantuml, movement-paths, svg]
+----
+@startuml
+skinparam backgroundColor white
+skinparam defaultFontColor black
+skinparam defaultFontSize 12
+
+skinparam activity {
+  BackgroundColor #ffffff
+  BorderColor #1565c0
+  FontColor black
+}
+
+skinparam swimlane {
+  BorderColor #1565c0
+  TitleFontColor black
+}
+
+skinparam note {
+  BackgroundColor #fff9c4
+  BorderColor #f9a825
+  FontColor black
+}
+
+skinparam arrow {
+  Color #2e7d32
+  FontColor black
+}
+
+title Two Disconnected Movement Paths
+
+|Keyboard Path|
+start
+:CreatureController.update(dt);
+:Read keyboard state;
+:Apply input lock filter;
+:Calculate acceleration;
+:Update velocity (physics);
+:velocity += acceleration;
+:velocity *= drag;
+:position += velocity * dt;
+:Apply wave_drift to position;
+:Clamp to bounds;
+:Update USD transform;
+:Check tendroid interactions;
+note right
+  Uses tendroid.position
+  (STATIC geometry)
+end note
+stop
+
+|Test Animation Path|
+start
+:TestController.update(dt);
+:Calculate fraction = elapsed/duration;
+:position = test.get_position_at_fraction();
+:creature_controller.position = position;
+note right
+  Directly overwrites
+  position!
+end note
+:Calculate velocity from delta;
+note right
+  Velocity set AFTER position
+  (reverse of keyboard path)
+end note
+:Update USD transform;
+:Collect metrics;
+note right
+  NO interaction check!
+  Relies on animation loop
+  to call CC.update()
+end note
+stop
+@enduml
+----
+
+=== Contact Detection Flow
+
+[plantuml, contact-detection, svg]
+----
+@startuml
+skinparam backgroundColor white
+skinparam defaultFontColor black
+skinparam defaultFontSize 12
+
+skinparam sequence {
+  ArrowColor #2e7d32
+  ArrowFontColor black
+  ParticipantBackgroundColor #ffffff
+  ParticipantBorderColor #1565c0
+  ParticipantFontColor black
+  LifeLineBorderColor #1565c0
+}
+
+skinparam note {
+  BackgroundColor #ffcdd2
+  BorderColor #c62828
+  FontColor black
+}
+
+title Contact Detection (Current - BROKEN)
+
+participant "CreatureController" as CC
+participant "creature_update_helpers" as CUH
+participant "Tendroid Wrapper" as TW
+participant "DeflectionController" as DC
+
+CC -> CUH : check_tendroid_interactions(position, velocity, tendroids)
+CUH -> TW : tendroid.position
+note right of TW
+  Returns ORIGINAL position
+  (0, 0, 0) for tendroid at origin
+  
+  Does NOT account for:
+  - Deflection bending
+  - Wave motion
+  - Height along tendroid
+end note
+
+TW --> CUH : (0, 0, 0)
+CUH -> CUH : Calculate 3D distance
+note right
+  Uses full 3D distance
+  not XZ horizontal distance
+  at creature's Y height
+end note
+
+CUH -> CUH : Check avoidance_epsilon (30.0)
+CUH -> CUH : Check contact_distance (r1 + r2)
+CUH --> CC : interactions dict
+
+note over CC, DC
+  PROBLEM: DeflectionController computes where tendroid
+  SHOULD be, but contact detection doesn't use it!
+  
+  Deflection might bend tendroid 49 units away,
+  but contact still triggers at original position.
+end note
+@enduml
+----
+
+== State Locations
+
+[cols="2,3,2,3", options="header"]
+|===
+|State |Location |Type |Notes
+
+|Creature Position
+|`CreatureController.position`
+|`Gf.Vec3f`
+|Can be set directly by TestController
+
+|Creature Velocity
+|`CreatureController.velocity`
+|`Gf.Vec3f`
+|TestController calculates from position delta
+
+|Deflection Angle
+|`TendroidDeflectionState.current_angle`
+|`float`
+|Per-tendroid, managed by DeflectionController
+
+|Deflection Axis
+|`TendroidDeflectionState.deflection_axis`
+|`tuple`
+|Latched when deflection starts (new fix)
+
+|Contact State
+|`ColorEffectController._status`
+|`ColorEffectStatus`
+|Triggered externally by animation controller
+
+|Input Lock
+|`CreatureController._input_lock_status`
+|`InputLockStatus`
+|Synced from color effect state
+
+|Tendroid Base Position
+|`TendroidWrapper.position`
+|`tuple`
+|Static, never changes after spawn
+
+|Wave Displacement
+|`WaveController.get_wave_state()`
+|`dict`
+|Global, not per-tendroid
+|===
+
+== Geometry Calculations
+
+=== Where Tendroid Surface is Computed
+
+[plantuml, geometry-sources, svg]
+----
+@startuml
+skinparam backgroundColor white
+skinparam defaultFontColor black
+skinparam defaultFontSize 12
+
+skinparam class {
+  BackgroundColor #ffffff
+  BorderColor #1565c0
+  FontColor black
+  AttributeFontColor black
+  StereotypeFontColor black
+}
+
+skinparam note {
+  BackgroundColor #ffcdd2
+  BorderColor #c62828
+  FontColor black
+}
+
+class "approach_calculators.py" as AC {
+  TendroidGeometry
+  --
+  center_x, center_z (static)
+  base_y, height, radius
+  --
+  Used by: DeflectionController
+}
+
+class "creature_update_helpers.py" as CUH {
+  check_tendroid_interactions()
+  --
+  tendroid.position (static)
+  tendroid.radius
+  --
+  Uses: 3D distance, fixed epsilon
+}
+
+class "TendroidWrapper" as TW {
+  position: tuple
+  radius: float
+  length: float
+  --
+  apply_wave_only_with_deflection()
+  apply_deformation_with_deflection()
+}
+
+class "DeflectionController" as DC {
+  TendroidDeflectionState
+  --
+  current_angle
+  deflection_axis
+  deflection_direction
+}
+
+note "PROBLEM: These three compute\ntendroid surface position\nINDEPENDENTLY" as N1
+N1 .. AC
+N1 .. CUH
+N1 .. DC
+
+note right of TW
+  TendroidWrapper applies
+  deformation to MESH VERTICES
+  but doesn't expose the
+  transformed surface position
+end note
+@enduml
+----
+
+=== Distance Calculation Comparison
+
+[cols="2,2,3,2", options="header"]
+|===
+|Module |What It Computes |How |Problem
+
+|`approach_calculators`
+|Distance for deflection detection
+|XZ horizontal distance at contact_y
+|Doesn't know about existing deflection
+
+|`creature_update_helpers`
+|Distance for contact/shock
+|3D Euclidean distance to tendroid.position
+|Uses unbent static position
+
+|`proximity/hash_grid`
+|Nearest neighbors for GPU
+|Hash grid spatial lookup
+|For batch processing, not interaction
+
+|`contact/approach_tracker`
+|Recovery progress distance
+|Signed distance to surface point
+|Cached from contact event, may be stale
+|===
+
+== Problem Analysis
+
+=== Issue 1: No Single Source of Truth for Tendroid Surface
+
+The actual position of the tendroid surface at a given height depends on:
+
+1. **Base position** - Static, set at spawn
+2. **Deflection angle** - Changes per-frame based on creature proximity
+3. **Deflection axis** - Direction of bend (now latched)
+4. **Wave displacement** - Global sinusoidal motion
+
+Currently, mesh deformation computes this combined transform, but the result is not exposed for collision detection.
+
+[plantuml, surface-calculation, svg]
+----
+@startuml
+skinparam backgroundColor white
+skinparam defaultFontColor black
+skinparam defaultFontSize 12
+
+skinparam rectangle {
+  BackgroundColor #e3f2fd
+  BorderColor #1565c0
+  FontColor black
+}
+
+skinparam usecase {
+  BackgroundColor #ffffff
+  BorderColor #1565c0
+  FontColor black
+}
+
+skinparam note {
+  BackgroundColor #fff9c4
+  BorderColor #f9a825
+  FontColor black
+}
+
+skinparam arrow {
+  Color #2e7d32
+  FontColor black
+}
+
+rectangle "Ideal Surface Query" {
+  (Base Position) --> (Apply Wave) : wave_state
+  (Apply Wave) --> (Apply Deflection) : angle, axis
+  (Apply Deflection) --> (Surface Point) : at height Y
+}
+
+note bottom
+  This calculation happens INSIDE
+  mesh deformation but is not
+  accessible to collision detection
+end note
+@enduml
+----
+
+=== Issue 2: Creature Position Has Multiple Writers
+
+[plantuml, position-writers, svg]
+----
+@startuml
+skinparam backgroundColor white
+skinparam defaultFontColor black
+skinparam defaultFontSize 12
+
+skinparam rectangle {
+  BackgroundColor #ffcdd2
+  BorderColor #c62828
+  FontColor black
+}
+
+skinparam usecase {
+  BackgroundColor #ffffff
+  BorderColor #1565c0
+  FontColor black
+}
+
+skinparam note {
+  BackgroundColor #fff9c4
+  BorderColor #f9a825
+  FontColor black
+}
+
+skinparam arrow {
+  Color #2e7d32
+  FontColor black
+}
+
+rectangle "CreatureController.position" as POS
+
+(Keyboard Physics) --> POS : velocity * dt
+(Wave Drift) --> POS : drift offset
+(Bounds Clamp) --> POS : clamped
+(TestController) --> POS : direct teleport
+(Repulsion) --> POS : impulse via velocity
+
+note right of POS
+  Multiple systems write
+  to the same field with
+  no coordination
+end note
+@enduml
+----
+
+=== Issue 3: Contact Detection Path Mismatch
+
+|===
+|Keyboard Mode |Test Mode
+
+|`CC.update()` called by animation loop
+|`CC.update()` called by animation loop
+
+|Velocity from keyboard → position
+|Position teleported → velocity calculated
+
+|`check_tendroid_interactions()` runs
+|`check_tendroid_interactions()` runs
+
+|Interactions returned to animation loop
+|Interactions returned to animation loop
+
+|Animation loop triggers color effect
+|Animation loop triggers color effect
+|===
+
+**The paths look similar but:**
+
+- Keyboard: Position changes smoothly, velocity is causal
+- Test: Position jumps instantly, velocity is derived (effect not cause)
+
+This means deflection detection (which checks velocity direction) behaves differently.
+
+== Current Code Paths for Key Operations
+
+=== Contact Triggering
+
+[plantuml, contact-trigger-flow, svg]
+----
+@startuml
+skinparam backgroundColor white
+skinparam defaultFontColor black
+skinparam defaultFontSize 12
+
+skinparam activity {
+  BackgroundColor #ffffff
+  BorderColor #1565c0
+  FontColor black
+}
+
+skinparam note {
+  BackgroundColor #fff9c4
+  BorderColor #f9a825
+  FontColor black
+}
+
+skinparam arrow {
+  Color #2e7d32
+  FontColor black
+}
+
+start
+:check_tendroid_interactions;
+#ffcdd2:returns 'shock';
+:animation_controller;
+#bbdefb:has_shock = True;
+:color_effect_controller.on_contact;
+#c8e6c9:trigger_shock;
+:_apply_color_to_material;
+stop
+
+note right
+  This only happens in _update_gpu_path()
+  If using CPU path or no-bubbles path,
+  contact isn't checked consistently.
+end note
+@enduml
+----
+
+=== Repulsion Force Application
+
+[plantuml, repulsion-flow, svg]
+----
+@startuml
+skinparam backgroundColor white
+skinparam defaultFontColor black
+skinparam defaultFontSize 12
+
+skinparam activity {
+  BackgroundColor #ffffff
+  BorderColor #1565c0
+  FontColor black
+}
+
+skinparam swimlane {
+  BorderColor #1565c0
+  TitleFontColor black
+}
+
+skinparam note {
+  BackgroundColor #ffcdd2
+  BorderColor #c62828
+  FontColor black
+}
+
+skinparam arrow {
+  Color #2e7d32
+  FontColor black
+}
+
+|Normal Physics|
+start
+:check_tendroid_interactions;
+:shock detected;
+:new_velocity += shock_dir * impulse;
+:Returns to CC.update;
+:velocity = new_velocity;
+:position += velocity * dt;
+stop
+
+|Test Animation|
+start
+:TestController.update;
+:position teleport;
+note right
+  Overwrites position directly!
+end note
+:next frame;
+:velocity calculated from delta;
+note right
+  Velocity not from physics!
+  Repulsion impulse ignored.
+end note
+stop
+@enduml
+----
+
+== Module Responsibility Overlap
+
+[plantuml, responsibility-overlap, svg]
+----
+@startuml
+skinparam backgroundColor white
+skinparam defaultFontColor black
+skinparam defaultFontSize 12
+
+skinparam component {
+  BackgroundColor #ffffff
+  BorderColor #1565c0
+  FontColor black
+}
+
+skinparam package {
+  BackgroundColor #e3f2fd
+  BorderColor #1565c0
+  FontColor black
+}
+
+skinparam note {
+  BackgroundColor #ffcdd2
+  BorderColor #c62828
+  FontColor black
+}
+
+package "Proximity Detection" {
+  [deflection/approach_calculators] as PAC
+  [creature_update_helpers] as PCUH
+  [proximity/hash_grid] as PHG
+}
+
+package "Distance Calculation" {
+  [deflection/approach_calculators] as DAC
+  [creature_update_helpers] as DCUH
+  [contact/approach_tracker] as DAT
+}
+
+package "Response Triggering" {
+  [deflection/deflection_controller] as RDC
+  [creature_update_helpers] as RCUH
+  [contact/color_effect_controller] as RCEC
+}
+
+note "Same responsibility\nimplemented 3 times" as N1
+N1 .. PAC
+N1 .. PCUH
+N1 .. PHG
+@enduml
+----
+
+== Summary of Architectural Issues
+
+1. **No unified geometry model** - Each system computes tendroid position independently
+2. **Multiple movement interfaces** - Keyboard and test don't share abstraction
+3. **Contact uses wrong geometry** - Static position instead of bent surface
+4. **State scattered across controllers** - No single source of truth
+5. **Code path divergence** - GPU/CPU/no-bubble paths handle interactions differently
+6. **Velocity semantics differ** - Keyboard: cause, Test: effect
+
+== Next Steps
+
+This document maps the current state. The next phase is to design a cleaner architecture with:
+
+1. **Single Tendroid Surface Query** - One function that returns actual surface position accounting for all transforms
+2. **Unified Movement Interface** - Both keyboard and test feed into same physics system
+3. **Centralized Proximity Calculator** - One module for all distance computations
+4. **Response Orchestrator** - Single coordinator for deflection → contact → color → input lock flow
+
+See: `docs/architecture/interaction-system-proposal.adoc` (to be created)

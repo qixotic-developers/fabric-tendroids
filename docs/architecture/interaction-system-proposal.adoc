@@ -1,0 +1,505 @@
+= Creature-Tendroid Interaction System Proposal
+:author: TEND Project
+:revdate: 2026-10-24
+:toc: left
+:toclevels: 3
+:sectnums:
+:source-highlighter: highlight.js
+
+== Executive Summary
+
+This proposal responds to `interaction-system-analysis.adoc` (the _analysis_). It was written after checking the analysis against the code, and that check changed the problem statement.
+
+The analysis says contact detection runs but uses the wrong (static) geometry. The code shows something more basic: *contact detection, shock, repulsion, input lock and recovery never run at runtime, in any mode.* The pieces exist and are unit-tested, but nothing connects them. Fixing the geometry alone would fix nothing the user can see.
+
+The proposal therefore *wires and unifies what already exists* and adds only the pieces that are genuinely missing:
+
+1. `TendroidSurface` - one pure function that answers "where is the bent, waved tendroid at height Y?" (missing today; the only copy of the formula lives inside the Warp kernel).
+2. `InteractionSystem` - one per-frame step, called from every animation path, that turns creature position + tendroid surfaces into contacts.
+3. The existing `RecoveryOrchestrator` becomes the response layer (contact -> colour -> velocity fade -> input lock -> recovery). It is already built and tested.
+4. A single movement write path: `CreatureController.update` is the only code that writes the creature's position; keyboard and test scripts both become `MovementSource` inputs to it.
+
+No new state machines, event bus or service singletons are proposed.
+
+== Verified Current State
+
+Paths are relative to `exts/qixotic.tendroids/qixotic/tendroids/`. Every claim below was read from the code.
+
+=== What actually runs
+
+[plantuml, current-wiring, svg]
+----
+
+@startuml
+skinparam backgroundColor white
+skinparam defaultFontColor black
+skinparam defaultFontSize 12
+skinparam component {
+  BackgroundColor #ffffff
+  BorderColor #1565c0
+  FontColor black
+}
+skinparam note {
+  BackgroundColor #fff9c4
+  BorderColor #f9a825
+  FontColor black
+}
+skinparam arrow {
+  Color #2e7d32
+  FontColor black
+}
+
+title Current wiring (solid = called at runtime, dashed = never called)
+
+[V2AnimationController] as VAC
+[CreatureController] as CC
+[check_tendroid_interactions] as CTI
+[DeflectionIntegration] as DI
+[ColorEffectController] as CEC
+[RecoveryOrchestrator] as RO
+[ContactHandler] as CH
+[TestController] as TC
+
+VAC --> CC : update(dt, ...) without tendroids
+VAC --> DI : update(creature, dt)
+CC --> CTI : tendroids=None
+CTI ..> CC : returns at once ("if not tendroids")
+VAC ..> CEC : stored, never used
+VAC ..> RO : never instantiated
+RO ..> CH
+CC ..> CEC : sync_input_lock never called
+TC --> CC : writes position directly (separate update subscription)
+
+note right of CTI
+  creature_update_helpers.py:127
+  Shock impulse and interactions dict
+  never produced; return value is
+  dropped at all three call sites.
+end note
+@enduml
+----
+
+[cols="3,4", options="header"]
+|===
+|Fact |Evidence
+
+|`tendroids` is never passed to `CreatureController.update`, so `check_tendroid_interactions` returns early
+|`scene/animation_controller.py:195,204,300`; `controllers/creature_update_helpers.py:127`
+
+|Nothing calls `ColorEffectController.on_contact`, `sync_input_lock` or `apply_repulsion_force`
+|repo-wide search; definitions at `contact/color_effect_controller.py:124`, `controllers/creature_controller.py:101,111`
+
+|`RecoveryOrchestrator`, `ContactHandler` and `approach_tracker` are tested but never instantiated by the scene
+|`recovery/recovery_orchestrator.py:35`; no use in `scene/`, `ui/`, `extension.py`
+
+|`TestController` reads `color_effect_controller.is_shocked`, which can never become true
+|`testing/test_controller.py:288`
+
+|Deflection detection runs against the rest cylinder; `update_tendroid_geometry` is never called
+|`deflection/deflection_integration.py:104-110`; `deflection/deflection_controller.py:100`
+
+|The bent-surface formula exists only in the Warp kernel. There is no Python function returning the deflected, waved surface point
+|`core/warp_deflection_deformer.py:16-127`
+
+|The wave offset formula is recomputed in about six places (three in the animation controller, the wrapper, two kernels)
+|`animation_controller.py:230,417,450`; `tendroid_wrapper.py:190,226`; `core/warp_deformer.py:109`; `core/batch_warp_deformer.py:137`
+
+|The CPU bubble path never applies deformation or deflection to the mesh
+|`animation_controller.py:189-198`
+
+|The GPU batch deformer has no deflection support, so one deflecting tendroid forces all tendroids onto the per-tendroid path
+|`animation_controller.py:278-287`; `core/batch_warp_deformer.py:110-170`
+
+|`TestController` runs on a separate update subscription from `V2AnimationController`, teleports position and back-computes velocity, while `CreatureController.update` still runs the same frame
+|`extension.py:65`; `testing/test_controller.py:200-212,252-258`
+
+|`proximity/hash_grid`, `proximity/state_manager`, `scene/interaction_helper.py` and `deflection/wrapper_deflection.py` have no runtime importer
+|import search
+|===
+
+=== Corrections to the analysis
+
+[cols="3,3", options="header"]
+|===
+|Analysis claim |Code reality
+
+|Contact detection runs but uses static geometry (Key Finding 2; "Contact Detection Flow")
+|It does not run. The helper receives no tendroids and returns immediately. Geometry is a secondary problem.
+
+|Animation loop triggers the colour effect (Issue 3 table; State Locations)
+|No such trigger exists.
+
+|Keyboard and test modes differ in how interactions behave (Issue 3)
+|Neither mode performs interaction checks. They differ only in how position and velocity are written.
+
+|Four redundant distance calculators (Key Finding 4)
+|Two (`approach_tracker`, `hash_grid`) are not used at runtime, and the third (`check_tendroid_interactions`) does nothing. Only `approach_calculators` (deflection) is live.
+
+|Wave displacement is global, not per-tendroid
+|The wave _state_ is global but the displacement is per-tendroid through a spatial phase factor.
+
+|Creature position has writers: keyboard, wave drift, bounds clamp, `TestController`, repulsion
+|Confirmed, but repulsion is not applied at runtime, so there are four live writers.
+
+|Axis is now latched
+|Confirmed (`deflection_controller.py:172-182`).
+|===
+
+== Problem Statement
+
+Restated from the verified facts:
+
+. *P1 - Disconnected response chain.* A complete, tested response chain exists (`RecoveryOrchestrator`, colour, velocity fade, input lock) with no producer of contact events.
+. *P2 - No surface query.* Nothing computes the creature's distance to the actual (bent, waved) tendroid. The formula is private to a GPU kernel.
+. *P3 - Frame order and path divergence.* Deflection reads last frame's creature position; in the GPU path the mesh deforms before the creature moves; the CPU path never deforms; the batch path drops deflection.
+. *P4 - Two competing movement writers.* `TestController` and `CreatureController.update` both move the creature each frame, on separate update subscriptions with no defined order.
+. *P5 - Duplicated formulas.* Wave offset and tip/surface geometry are re-derived in several modules.
+. *P6 - Dead code obscures the live design.* Several modules look like part of the interaction system but are not wired.
+
+== Design Principles
+
+. *Wire before you build.* Prefer connecting existing, tested modules to writing new ones.
+. *One owner per fact.* Each piece of state or formula has exactly one home; everything else derives from it.
+. *One tick, every path.* Interaction is resolved by one step in a fixed place in the frame, independent of the bubble path.
+. *Causality.* Position only changes through velocity. Anything that wants to move the creature supplies intent or impulse, never a position.
+
+== Proposed Design
+
+[plantuml, proposed-components, svg]
+----
+@startuml
+skinparam backgroundColor white
+skinparam defaultFontColor black
+skinparam defaultFontSize 12
+skinparam component {
+  BackgroundColor #ffffff
+  BorderColor #1565c0
+  FontColor black
+}
+skinparam package {
+  BackgroundColor #e3f2fd
+  BorderColor #1565c0
+  FontColor black
+}
+skinparam note {
+  BackgroundColor #fff9c4
+  BorderColor #f9a825
+  FontColor black
+}
+skinparam arrow {
+  Color #2e7d32
+  FontColor black
+}
+
+package "New" {
+  [TendroidSurface] as TS
+  [InteractionSystem] as IS
+  [MovementSource] as MS
+}
+package "Existing, now wired" {
+  [V2AnimationController] as VAC
+  [CreatureController] as CC
+  [DeflectionIntegration] as DI
+  [RecoveryOrchestrator] as RO
+  [ColorEffectController] as CEC
+  [TestController] as TC
+}
+
+VAC --> IS : resolve(dt) once per frame
+VAC --> CC : update(dt)
+VAC --> DI : update(creature, dt)
+CC --> MS : desired_acceleration()
+TC ..|> MS : WaypointSource
+IS --> TS : distance / closest point
+IS --> DI : deflection angle + axis
+IS --> RO : handle_contact(...)
+IS --> CC : apply_repulsion_force()
+RO --> CEC : colour state
+IS --> CC : input lock (derived)
+
+note bottom of TS
+  Pure functions. Mirrors the Warp
+  kernel (bend then wave) and is
+  tested against it.
+end note
+@enduml
+----
+
+=== TendroidSurface (single surface query)
+
+A pure module with no USD or Warp imports:
+
+[source,python]
+----
+def centerline_point(geom, angle, axis, wave_offset, y) -> Vec3
+def closest_point(geom, angle, axis, wave_offset, p, samples=16) -> (Vec3, float)   # point on centerline, height
+def surface_hit(geom, angle, axis, wave_offset, p, samples=16) -> SurfaceHit        # distance, contact_point, normal
+----
+
+* It reproduces the kernel's centerline: the bend is a rotation by `angle * smoothstep(y / length)` about the latched axis, and the wave adds `wave_offset * smoothstep(y / length)`. The kernel applies bubble radial scaling between the two; that scaling is radial, so it does not move the centerline and is ignored here.
+* `surface_hit.distance` is centerline distance minus tendroid radius. Closest point is found by sampling the centerline (16 samples is a starting value, to be tuned) and refining the best segment. Distance is measured in 3D to the sampled curve, which removes the analysis's "3D to base point" problem: a creature near the tip is measured against the tip.
+* *Parity test (required):* run `launch_deflection_deform` (Warp runs on CPU) on a small mesh for several angles, axes and wave offsets, and assert the Python centerline matches the mean of the deformed cross-section. This is the guard against the formula drifting from the kernel again.
+* A single `wave_offset(wave_state, position)` helper replaces the six copies in Python. Kernels keep their own copy (GPU), covered by the same parity test.
+
+=== InteractionSystem (one resolve step per frame)
+
+`InteractionSystem.resolve(dt)` is called by `V2AnimationController._on_update` in all three paths. For each tendroid it:
+
+. reads the current deflection angle and axis from `DeflectionIntegration` and the current wave offset;
+. calls `TendroidSurface.surface_hit` for the creature position;
+. if `distance <= creature_radius`, calls `RecoveryOrchestrator.handle_contact(contact_point, surface_normal, creature_pos, repulsion_force)`, where the repulsion force points along the surface normal (away from the _actual_ contact point, not the tendroid centre);
+. applies the returned repulsion force through `CreatureController.apply_repulsion_force` (velocity, never position);
+. calls `RecoveryOrchestrator.update(creature_pos, dt, surface_pos)` and applies its displacement, then derives the input lock from the orchestrator (`is_input_locked`). The lock is _derived_ each frame; `sync_input_lock` becomes unnecessary.
+
+Deflection _detection_ deliberately keeps using the rest cylinder (`approach_calculators`). Deflection is the tendroid's anticipation of an approach; if its trigger depended on its own output, bending away would change the trigger and cause oscillation. Contact, in contrast, is tested against the bent surface because that is what the user sees.
+
+=== Frame order (all paths)
+
+[plantuml, proposed-frame-order, svg]
+----
+@startuml
+skinparam backgroundColor white
+skinparam defaultFontColor black
+skinparam defaultFontSize 12
+skinparam sequence {
+  ArrowColor #2e7d32
+  ParticipantBackgroundColor #ffffff
+  ParticipantBorderColor #1565c0
+  ParticipantFontColor black
+  LifeLineBorderColor #1565c0
+}
+skinparam note {
+  BackgroundColor #fff9c4
+  BorderColor #f9a825
+  FontColor black
+}
+
+title V2AnimationController._on_update() - proposed
+
+participant "Animation\nController" as VAC
+participant "Wave" as W
+participant "Bubbles\n(GPU / CPU / none)" as B
+participant "Creature\nController" as CC
+participant "Deflection\nIntegration" as DI
+participant "Interaction\nSystem" as IS
+participant "Mesh\ndeform" as M
+
+VAC -> W : update(dt)
+VAC -> B : update bubbles (path specific)
+VAC -> CC : update(dt, bubbles, wave_state)
+note right of CC
+  Sole writer of position.
+  Sources -> velocity -> position
+  -> wave drift -> bounds.
+end note
+VAC -> DI : update(creature, dt)
+note right of DI
+  Now sees THIS frame's position
+  (was previous frame).
+end note
+VAC -> IS : resolve(dt)
+IS -> CC : repulsion (velocity), input lock
+VAC -> M : deform ALL tendroids with\nthe same deflection + wave
+note right of M
+  Mesh and contact now use the same
+  deflection state in the same frame.
+  CPU path deforms too (see Open Questions).
+end note
+VAC -> B : pops, particles, visuals
+@enduml
+----
+
+Differences from today:
+
+[cols="3,3", options="header"]
+|===
+|Today |Proposed
+
+|Deflection updates _before_ the creature moves (one frame stale)
+|Deflection updates _after_ the creature moves
+
+|GPU path deforms before the creature moves; CPU path never deforms
+|All paths deform after deflection and interaction; the bubble stage is the only path-specific step
+
+|Interaction is checked (nominally) only inside `CreatureController.update`
+|Interaction is a separate step with its own result, called once
+
+|Repulsion would reach velocity only from inside the creature update
+|Repulsion is applied to velocity after resolve and takes effect on the next integration step (one frame of latency, acceptable)
+|===
+
+=== Single movement write path
+
+[plantuml, movement-sources, svg]
+----
+@startuml
+skinparam backgroundColor white
+skinparam defaultFontColor black
+skinparam defaultFontSize 12
+skinparam activity {
+  BackgroundColor #ffffff
+  BorderColor #1565c0
+  FontColor black
+}
+skinparam note {
+  BackgroundColor #fff9c4
+  BorderColor #f9a825
+  FontColor black
+}
+skinparam arrow {
+  Color #2e7d32
+  FontColor black
+}
+
+title CreatureController.update(dt) - one path for every source
+
+start
+:sources = [KeyboardSource, WaypointSource (when a test is running)];
+:accel = sum of source.desired_acceleration(position, velocity, dt);
+note right
+  KeyboardSource applies the input lock filter.
+  WaypointSource steers toward
+  get_position_at_fraction(elapsed / duration).
+end note
+:velocity += accel, then apply drag and clamp to max_speed;
+:position += velocity * dt;
+:apply wave drift;
+:clamp to bounds;
+:update USD transform;
+:bubble collisions;
+stop
+@enduml
+----
+
+* `MovementSource` is a two-method protocol (`desired_acceleration(position, velocity, dt)`, `is_active()`). It is not an observer/event interface: `CreatureController.update` pulls from active sources once per frame, so there is exactly one place where time advances.
+* `KeyboardSource` wraps the current acceleration code unchanged, including `filter_keyboard_by_lock`.
+* `TestController` stops writing `position`/`velocity`. It exposes a `WaypointSource` and keeps its timing and metrics. Its update is called from the same animation frame, so the test and creature can no longer double-move.
+* Velocity is now causal in both modes, so deflection detection (which reads velocity direction) behaves identically, and repulsion impulses push a scripted creature off its path as they would a keyboard-driven one. The script re-steers afterwards; tests that assert exact positions need a tolerance, and tracking error becomes a reportable metric.
+* The test's `InputLockReason.TEST` lock keeps blocking only the keyboard source.
+
+=== State ownership
+
+[cols="3,3,3", options="header"]
+|===
+|Fact |Owner |Everything else
+
+|Creature position, velocity
+|`CreatureController`
+|Read-only; others apply intent or impulse
+
+|Deflection angle, axis
+|`DeflectionController` (via `DeflectionIntegration`)
+|Surface query and mesh deform read it
+
+|Tendroid surface point/distance
+|`TendroidSurface` (derived, never stored)
+|Contact and (via parity test) the kernel
+
+|Contact, recovery, velocity fade, colour
+|`RecoveryOrchestrator` (owns `ColorEffectStatus` state)
+|`ColorEffectController` renders it
+
+|Input lock
+|Derived from orchestrator status each frame
+|`sync_input_lock` is retired
+
+|Wave state
+|`WaveController`
+|One `wave_offset()` helper
+|===
+
+== Traceability
+
+[cols="3,4,3", options="header"]
+|===
+|Analysis item |Resolution |Status
+
+|Key Finding 1 / Summary 2, 6 - multiple movement paths, velocity semantics
+|`MovementSource` + sole writer in `CreatureController.update`
+|Fixed by design
+
+|Key Finding 2 / Summary 3 - contact uses static geometry
+|`TendroidSurface` + `InteractionSystem` (and the corrected finding that contact never ran)
+|Fixed by design; restated
+
+|Key Finding 3 / Summary 4 - scattered state
+|Ownership table above; input lock derived; `RecoveryOrchestrator` owns contact state
+|Fixed by design
+
+|Key Finding 4 / Summary 1 - redundant distance calculation
+|One surface query for contact; `approach_calculators` stays as the deflection trigger by design; `hash_grid`, `approach_tracker` proximity helpers either removed or reused in the orchestrator (see dead-code list)
+|Fixed by design
+
+|Summary 5 / "Contact Triggering" - path divergence
+|`resolve(dt)` runs in every path; the frame order is path-independent except for the bubble stage
+|Fixed by design; CPU deformation is an open question
+
+|Next Step 1 - single surface query
+|`TendroidSurface`
+|Delivered
+
+|Next Step 2 - unified movement interface
+|`MovementSource`
+|Delivered
+
+|Next Step 3 - centralised proximity calculator
+|`InteractionSystem` for contact; deflection trigger stays in `approach_calculators`
+|Delivered with one deliberate exception
+
+|Next Step 4 - response orchestrator
+|Existing `RecoveryOrchestrator`
+|Delivered by wiring
+
+|Issue 3 table - triggers colour effect from the animation loop
+|Analysis incorrect; nothing triggered it. `InteractionSystem` now does.
+|Corrected
+|===
+
+== Migration Plan
+
+Each step is independently shippable and testable. Run tests with `pnpm nx test qixotic.tendroids`.
+
+. *TendroidSurface and parity test.* Pure module plus the kernel-parity test. No behaviour change. Test it first (TDD): flat case (zero angle, zero wave) equals the cylinder axis; bend and wave cases match the kernel.
+. *InteractionSystem, contact detection only, behind a flag.* Called from `_on_update`; logs contacts, changes nothing. Gives the first runtime evidence that contact now fires.
+. *Wire `RecoveryOrchestrator` and repulsion.* Orchestrator replaces the dead `ColorEffectController` hookup; input lock derived. This is the first user-visible change.
+. *Unify movement.* `MovementSource`; move `TestController` onto `WaypointSource`; remove its direct position writes.
+. *Reorder the frame.* Deflection after creature, deform after interaction, same order for all paths; fix the CPU path.
+. *Remove duplicates and dead code.* Single `wave_offset()` helper; apply the dead-code decisions below.
+
+=== Dead-code decisions (not made by this proposal)
+
+[cols="3,3", options="header"]
+|===
+|Module |Note
+
+|`proximity/hash_grid*`, `proximity_kernel*`, `state_manager`
+|No runtime importer. Keep only if a many-creature or many-tendroid broad phase is planned.
+
+|`scene/interaction_helper.py`
+|Has tip-based repulsion; superseded by this design.
+
+|`deflection/wrapper_deflection.py`
+|Appears unused by the wrapper.
+
+|`deflection/warp_deflection_kernel.py`, `batch_deflection_manager.py`
+|A separate batch detection implementation with different thresholds; callers not traced.
+
+|`DeflectionController.update_tendroid_geometry`
+|Never called; decide whether deflection should ever track the bent shape.
+|===
+
+== Risks
+
+* *Kernel parity.* The Python surface must keep matching the kernel. The parity test is the control; without it the original duplication returns.
+* *Reordering the GPU path.* Moving the creature update ahead of deformation changes when bubble pops and visuals are computed. Needs a check against `_update_gpu_path` (`animation_controller.py:250-327`) during step 5.
+* *First real contacts.* Because this code has never run in the scene, thresholds (`shock_impulse` 25, `max_speed` 50, `avoidance_epsilon` 30) and the recovery tuning have never been exercised together. Expect a tuning pass after step 3.
+* *Test changes.* Tests that assume the teleport model need tolerance-based assertions.
+* *No test coverage today* for `animation_controller`, `creature_update_helpers` or `TestController`; step 2 adds the first.
+
+== Open Questions
+
+. Should the CPU bubble path deform the mesh with deflection? Today it does not, which may be intentional.
+. Is the analytic contact query enough, or is PhysX contact reporting (`ContactHandler`) wanted?
+. If a tendroid deflects away before the creature touches it, should contact still be possible? The design says yes, because contact is tested against the bent surface; confirm that is the intended behaviour.
+. Should the GPU batch deformer gain deflection support, or stay a fast path used only when nothing is deflecting?
+. Are `proximity/hash_grid` and the batch detection kernel planned for later use?

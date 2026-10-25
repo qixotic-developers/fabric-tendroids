@@ -13,6 +13,7 @@ import omni.kit.app
 import omni.kit.window.extensions
 from .scene.manager import V2SceneManager
 from .ui.control_panel import V2ControlPanel
+from .utils.git_version import get_git_version
 
 
 class TendroidsExtension(omni.ext.IExt):
@@ -35,7 +36,9 @@ class TendroidsExtension(omni.ext.IExt):
             self._scene_manager = V2SceneManager()
             
             # Create UI control panel
-            self._control_panel = V2ControlPanel(self._scene_manager)
+            ext_manager = omni.kit.app.get_app().get_extension_manager()
+            version = get_git_version() or ext_manager.get_extension_dict(ext_id)["package"]["version"]
+            self._control_panel = V2ControlPanel(self._scene_manager, version)
             self._control_panel.create_ui()
             
             # Subscribe to update events for UI (stress test controller)

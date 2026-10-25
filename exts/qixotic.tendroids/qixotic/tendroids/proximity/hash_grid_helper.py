@@ -3,6 +3,9 @@ Hash Grid Helper Functions
 
 Utility functions for grid operations, position updates, and neighbor queries.
 
+NOTE: Unused at runtime (only tests import it). Kept with hash_grid.py for a
+possible many-creature or many-tendroid broad phase.
+
 TEND-66: Implement grid rebuild on position updates
 TEND-67: Integrate HashGrid with simulation loop
 """

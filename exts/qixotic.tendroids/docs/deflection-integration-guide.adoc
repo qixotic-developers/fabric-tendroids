@@ -71,39 +71,7 @@ class MyAnimationController:
                 self.apply_bend(wrapper, state)
 ----
 
-=== Pattern 2: Mixin Class
-
-For wrapper subclassing, use `TendroidDeflectionMixin`:
-
-[source,python]
-----
-from qixotic.tendroids.deflection import create_deflectable_tendroid_class
-from qixotic.tendroids.scene import V2TendroidWrapper
-
-# Create enhanced wrapper class
-DeflectableTendroid = create_deflectable_tendroid_class(V2TendroidWrapper)
-
-# Use in factory
-tendroid = DeflectableTendroid(
-    name="tendroid_0",
-    position=(0, 0, 0),
-    radius=0.05,
-    length=1.0,
-    mesh_prim=mesh,
-    deformer=deformer,
-    deform_start_height=0.0
-)
-
-# Update from controller state
-tendroid.update_deflection(controller_state)
-
-# Access transform
-transform = tendroid.deflection_transform
-angle = transform.bend_angle
-axis = transform.bend_axis
-----
-
-=== Pattern 3: Batch GPU Processing
+=== Pattern 2: Batch GPU Processing
 
 For high-performance scenarios with many tendroids:
 
@@ -175,7 +143,7 @@ def _apply_deflections(self, states):
     for tendroid in self.tendroids:
         if tendroid.name in states:
             state = states[tendroid.name]
-            apply_deflection_to_wrapper(tendroid, state)
+            self.apply_bend(tendroid, state)
 ----
 
 == Configuration Reference

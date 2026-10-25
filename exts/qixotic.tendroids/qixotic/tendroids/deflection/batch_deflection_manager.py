@@ -4,6 +4,9 @@ Batch Deflection Manager - GPU-accelerated batch deflection processing
 TEND-88: Create Warp GPU kernel for batch deflection calculation
 
 Provides batch processing of multiple tendroid deflections using Warp GPU.
+
+NOTE: Unused at runtime. Kept with warp_deflection_kernel.py until it is decided
+whether batch detection is still wanted.
 """
 
 import math

@@ -6,7 +6,6 @@ TEND-89: Create integration tests for deflection system
 Tests:
 - DeflectionIntegration with mock creature controller
 - BatchDeflectionManager with multiple tendroids
-- TendroidWrapper with deflection mixin
 - State transitions and recovery
 - Edge cases and performance
 """
@@ -210,61 +209,6 @@ class TestBatchDeflectionManager:
 
     # Should have recovered significantly
     assert angles_recovered[0] < max_defl * 0.5
-
-
-# === Wrapper Deflection Tests ===
-
-class TestWrapperDeflection:
-  """Tests for TendroidDeflectionMixin and utilities."""
-
-  def test_create_deflectable_class(self):
-    """Test creating deflectable tendroid class."""
-    from qixotic.tendroids.deflection import create_deflectable_tendroid_class
-
-    DeflectableTendroid = create_deflectable_tendroid_class(MockTendroidWrapper)
-
-    tendroid = DeflectableTendroid(
-      name="test",
-      position=(0.0, 0.0, 0.0),
-      length=1.0,
-      radius=0.05
-    )
-
-    assert hasattr(tendroid, 'deflection_transform')
-    assert hasattr(tendroid, 'is_deflecting')
-    assert not tendroid.is_deflecting
-
-  def test_apply_deflection_to_wrapper(self, mock_tendroids):
-    """Test applying deflection to existing wrapper."""
-    from qixotic.tendroids.deflection import (
-      apply_deflection_to_wrapper,
-      get_deflection_from_wrapper,
-      TendroidDeflectionState,
-      ApproachType,
-    )
-
-    wrapper = mock_tendroids[0]
-
-    # Create mock state
-    state = TendroidDeflectionState(
-      tendroid_id=0,
-      current_angle=0.2,
-      target_angle=0.3,
-      deflection_direction=(1.0, 0.0, 0.0),
-      deflection_axis=(0.0, 0.0, 1.0),
-      last_approach_type=ApproachType.HEAD_ON,
-      is_deflecting=True
-    )
-
-    transform = apply_deflection_to_wrapper(wrapper, state)
-
-    assert transform.bend_angle == 0.2
-    assert transform.is_deflecting
-
-    # Retrieve transform
-    retrieved = get_deflection_from_wrapper(wrapper)
-    assert retrieved is not None
-    assert retrieved.bend_angle == 0.2
 
 
 # === Edge Cases ===

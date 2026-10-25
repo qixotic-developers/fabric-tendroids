@@ -28,7 +28,6 @@ qixotic/tendroids/deflection/
 ├── deflection_helpers.py        # Deflection calculations
 ├── deflection_controller.py     # Main controller
 ├── deflection_integration.py    # Animation bridge
-├── wrapper_deflection.py        # Wrapper utilities
 ├── batch_deflection_manager.py  # GPU batch processing
 └── tests/
     ├── test_deflection.py       # Unit tests

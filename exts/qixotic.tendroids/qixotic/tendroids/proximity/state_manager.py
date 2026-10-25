@@ -6,6 +6,9 @@ TEND-76: Create event callbacks for state changes
 
 Main controller for tracking creature-tendroid proximity state over time.
 Provides event callbacks for state transitions.
+
+NOTE: Unused at runtime (only tests import it). Kept because it is tested and may
+be needed if proximity state tracking returns with a broad phase.
 """
 
 from dataclasses import dataclass

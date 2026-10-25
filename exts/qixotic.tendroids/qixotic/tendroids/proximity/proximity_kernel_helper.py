@@ -3,6 +3,9 @@ Proximity Kernel Helper Functions
 
 GPU-accelerated Warp kernels for creature-tendroid proximity detection.
 
+NOTE: Unused at runtime (only tests import it). Kept with proximity_kernel.py for a
+possible many-creature or many-tendroid broad phase.
+
 TEND-16: Implement proximity kernel for single tendroid
 TEND-71: Write @wp.kernel for proximity detection
 TEND-72: Implement horizontal distance calculation to tendroid surface

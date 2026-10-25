@@ -4,6 +4,9 @@ Proximity Kernel Controller
 Orchestrates GPU-accelerated proximity detection between creatures and tendroids.
 Manages kernel launches, data transfers, and result retrieval.
 
+NOTE: Unused at runtime (only tests import it). Kept because it is tested and may
+be needed for a many-creature or many-tendroid broad phase.
+
 TEND-16: Implement proximity kernel for single tendroid
 TEND-2: Proximity Detection System (Epic)
 """

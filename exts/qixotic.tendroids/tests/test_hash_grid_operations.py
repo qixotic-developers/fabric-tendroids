@@ -11,7 +11,9 @@ Run with: python -m pytest tests/test_hash_grid_operations.py -v
 
 import sys
 import unittest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 
 # ============================================================================
@@ -86,6 +88,25 @@ class MockWarp:
 # Install mocks
 sys.modules['warp'] = MockWarp
 sys.modules['carb'] = MagicMock()
+
+
+@pytest.fixture(autouse=True)
+def mock_warp():
+  """
+  Reinstall MockWarp for the duration of each test.
+
+  The module-level install above is kept because test_proximity_kernel.py
+  decides at import time whether to skip its GPU tests by inspecting warp. But
+  other test files replace sys.modules['warp'] at import time too, and the
+  proximity modules bind `warp` on first import, so the module-level install is
+  lost by the time these tests run. Dropping the cached proximity modules makes
+  them re-import against MockWarp; patch.dict restores everything afterwards.
+  """
+  with patch.dict(sys.modules):
+    sys.modules['warp'] = MockWarp
+    for name in [m for m in sys.modules if m.startswith('qixotic.tendroids.proximity')]:
+      del sys.modules[name]
+    yield
 
 
 # ============================================================================

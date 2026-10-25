@@ -13,6 +13,7 @@ import omni.kit.app
 import omni.kit.window.extensions
 from .scene.manager import V2SceneManager
 from .ui.control_panel import V2ControlPanel
+from .utils.git_version import get_git_version
 
 
 class TendroidsExtension(omni.ext.IExt):
@@ -35,7 +36,9 @@ class TendroidsExtension(omni.ext.IExt):
             self._scene_manager = V2SceneManager()
             
             # Create UI control panel
-            self._control_panel = V2ControlPanel(self._scene_manager)
+            ext_manager = omni.kit.app.get_app().get_extension_manager()
+            version = get_git_version() or ext_manager.get_extension_dict(ext_id)["package"]["version"]
+            self._control_panel = V2ControlPanel(self._scene_manager, version)
             self._control_panel.create_ui()
             
             # Subscribe to update events for UI (stress test controller)
@@ -47,7 +50,8 @@ class TendroidsExtension(omni.ext.IExt):
             
             # Filter Extensions panel to show qixotic.tendroids
             self._set_extensions_filter("qixotic tendroids")
-            
+            self._install_author_label("QIXOTIC")
+
         except Exception as e:
             carb.log_error(f"[TendroidsExtension] Startup failed: {e}")
             import traceback
@@ -81,10 +85,41 @@ class TendroidsExtension(omni.ext.IExt):
         except Exception:
             # Extensions window API may vary by Kit version - not critical
             pass
-            
+
+    def _install_author_label(self, label: str):
+        """
+        Replace the "COMMUNITY" badge on unverified extensions in the Extensions panel.
+
+        Kit hardcodes the badge text in ExtAuthorGroup.get_ui_name with no setting
+        to change it, so the method is wrapped for the lifetime of this extension.
+        This affects every unverified extension in the session, not just this one.
+
+        Args:
+            label: Badge text to show instead of "COMMUNITY"
+        """
+        try:
+            from omni.kit.window.extensions.common import ExtAuthorGroup
+        except ImportError:
+            carb.log_warn("[TendroidsExtension] ExtAuthorGroup not found; badge left unchanged")
+            return
+
+        original = ExtAuthorGroup.get_ui_name
+
+        def get_ui_name(group):
+            if group == ExtAuthorGroup.COMMUNITY_UNVERIFIED:
+                return label
+            return original(group)
+
+        ExtAuthorGroup.get_ui_name = get_ui_name
+        self._restore_author_label = lambda: setattr(ExtAuthorGroup, "get_ui_name", original)
+
     def on_shutdown(self):
         """Called when extension is unloaded."""
         try:
+            if getattr(self, "_restore_author_label", None):
+                self._restore_author_label()
+                self._restore_author_label = None
+
             # Unsubscribe from updates
             if hasattr(self, '_ui_update_subscription') and self._ui_update_subscription:
                 self._ui_update_subscription.unsubscribe()

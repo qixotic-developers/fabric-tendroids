@@ -25,14 +25,16 @@ class V2ControlPanel:
     Creates a window that tabs with Stage and Render Settings.
     """
     
-    def __init__(self, scene_manager: V2SceneManager = None):
+    def __init__(self, scene_manager: V2SceneManager = None, version: str = ""):
         """
         Initialize control panel.
-        
+
         Args:
             scene_manager: V2SceneManager instance (created if None)
+            version: Extension version shown at the top of the panel
         """
         self.scene_manager = scene_manager or V2SceneManager()
+        self.version = version
         self.window = None
         
         # UI sections
@@ -84,7 +86,12 @@ class V2ControlPanel:
             ):
                 with ui.VStack(spacing=6, style={"background_color": 0xFF23211F}):
                     ui.Spacer(height=4)
-                    
+
+                    # Shown in the panel, not the window title, because the title
+                    # is the workspace-restore key and must not change per version.
+                    if self.version:
+                        ui.Label(f"Omni Tendroids v{self.version}", alignment=ui.Alignment.CENTER)
+
                     # Spawn settings
                     self.spawn_controls.build()
                     

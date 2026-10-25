@@ -11,8 +11,8 @@ from pathlib import Path
 from typing import Optional
 
 MAJOR = 2
-# 27 merge commits existed on main when the scheme began; that state is minor 3.
-MINOR_OFFSET = 24
+# 22 first-parent merges existed on main when the scheme began; that state is minor 3.
+MINOR_OFFSET = 19
 
 _REPO_DIR = Path(__file__).resolve().parent
 
@@ -26,9 +26,14 @@ def _git(*args: str) -> str:
 def get_git_version() -> Optional[str]:
     """Return e.g. '2.3.2 (f80ad00-dirty)', or None when not running from a git checkout."""
     try:
+        # A shallow clone has too little history for the merge count to mean anything.
+        if _git("rev-parse", "--is-shallow-repository") == "true":
+            return None
         for base in ("main", "origin/main"):
             try:
-                merges = int(_git("rev-list", "--count", "--merges", base))
+                # First-parent only: merges of main into a feature branch would
+                # otherwise count as extra PRs.
+                merges = int(_git("rev-list", "--count", "--merges", "--first-parent", base))
                 break
             except subprocess.CalledProcessError:
                 continue

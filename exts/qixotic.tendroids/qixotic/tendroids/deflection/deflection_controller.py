@@ -102,7 +102,12 @@ class DeflectionController:
     tendroid_id: int,
     geometry: TendroidGeometry
   ) -> None:
-    """Update geometry for an existing tendroid."""
+    """
+    Update geometry for an existing tendroid.
+
+    NOTE: Never called. Kept until it is decided whether deflection should
+    track the bent shape.
+    """
     if tendroid_id in self._tendroids:
       self._tendroids[tendroid_id] = geometry
 

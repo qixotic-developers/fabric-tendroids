@@ -5,6 +5,10 @@ TEND-88: Create Warp GPU kernel for batch deflection calculation
 
 Processes all tendroid deflection calculations in a single GPU pass
 for maximum performance with large tendroid counts.
+
+NOTE: Unused at runtime. This is a separate batch detection implementation with
+different thresholds from the live contact path (contact/interaction_system.py).
+Kept until it is decided whether batch detection is still wanted.
 """
 
 import warp as wp

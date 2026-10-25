@@ -84,21 +84,6 @@ except ImportError:
     BatchDeflectionState = None
     BatchDeflectionManager = None
 
-try:
-    from .wrapper_deflection import (
-        DeflectionTransform,
-        TendroidDeflectionMixin,
-        create_deflectable_tendroid_class,
-        apply_deflection_to_wrapper,
-        get_deflection_from_wrapper,
-    )
-except ImportError:
-    DeflectionTransform = None
-    TendroidDeflectionMixin = None
-    create_deflectable_tendroid_class = None
-    apply_deflection_to_wrapper = None
-    get_deflection_from_wrapper = None
-
 
 __all__ = [
     # Config
@@ -144,11 +129,4 @@ __all__ = [
     # Batch GPU processing
     'BatchDeflectionState',
     'BatchDeflectionManager',
-    
-    # Wrapper utilities
-    'DeflectionTransform',
-    'TendroidDeflectionMixin',
-    'create_deflectable_tendroid_class',
-    'apply_deflection_to_wrapper',
-    'get_deflection_from_wrapper',
 ]

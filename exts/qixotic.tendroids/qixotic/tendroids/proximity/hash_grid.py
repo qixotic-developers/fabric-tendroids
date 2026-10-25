@@ -4,6 +4,9 @@ Warp Hash Grid Controller
 GPU-accelerated spatial hashing for O(1) proximity queries.
 Manages grid lifecycle, position updates, and neighbor searches.
 
+NOTE: Unused at runtime (only tests import it). Kept because it is tested and may
+be needed for a many-creature or many-tendroid broad phase.
+
 TEND-15: Set up Warp Hash Grid infrastructure
 TEND-64: Initialize Warp HashGrid with scene dimensions
 TEND-65: Create Warp arrays for position data

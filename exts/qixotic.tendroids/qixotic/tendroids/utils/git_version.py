@@ -2,8 +2,9 @@
 Display version derived from git history.
 
 Format is MAJOR.MINOR.PATCH (short hash): MINOR is the number of PRs merged
-into main (offset so main read 3 when this scheme began), PATCH is the number
-of commits on the current branch that are not yet on main.
+into origin/main (offset so main read 3 when this scheme began), PATCH is the
+number of commits on the current branch that are not yet on origin/main. Local
+main is used only when there is no origin/main.
 """
 
 import subprocess
@@ -29,7 +30,9 @@ def get_git_version() -> Optional[str]:
         # A shallow clone has too little history for the merge count to mean anything.
         if _git("rev-parse", "--is-shallow-repository") == "true":
             return None
-        for base in ("main", "origin/main"):
+        # origin/main advances on any fetch, so it does not go stale just because
+        # local main was not pulled after a merge.
+        for base in ("origin/main", "main"):
             try:
                 # First-parent only: merges of main into a feature branch would
                 # otherwise count as extra PRs.

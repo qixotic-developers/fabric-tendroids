@@ -1875,3 +1875,5 @@ exts/.idea/
 
 # Enterprise Architect model
 *.qea
+/.idea/jsonSchemas.xml
+/exts/uv.lock

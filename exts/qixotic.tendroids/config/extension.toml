@@ -15,6 +15,10 @@ readme = "docs/README.adoc"
 # Extension category for UI organization
 category = "Third Party"
 
+# The Extensions window sorts extensions into the THIRD PARTY tab by trust, not
+# by category. Without this, a local extension is classed as NVIDIA.
+trusted = false
+
 # Categories for UI
 categories = ["Animation", "Warp", "Fabric", "Creatures", "Procedural", "Aquatic"]
 

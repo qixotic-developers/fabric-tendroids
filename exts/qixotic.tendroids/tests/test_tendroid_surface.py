@@ -8,8 +8,8 @@ import ast
 import importlib.util
 import math
 import sys
+import types
 from pathlib import Path
-from unittest.mock import MagicMock
 
 import pytest
 
@@ -120,14 +120,15 @@ class TestBentAwayFromRestShape:
 def kernel():
     """Load the real deflection kernel even if another test module put a mock in sys.modules['warp']."""
     saved = sys.modules.get("warp")
-    if isinstance(saved, MagicMock):
+    # Other test files install MagicMock instances and plain MockWarp classes; only a real module is acceptable.
+    if saved is not None and not isinstance(saved, types.ModuleType):
         del sys.modules["warp"]
     try:
         try:
             import warp
         except ImportError:
             pytest.fail("Real Warp is required for the kernel parity test: pip install warp-lang")
-        if isinstance(warp, MagicMock):
+        if not isinstance(warp, types.ModuleType):
             pytest.fail("Real Warp is required for the kernel parity test, but a mock is installed")
 
         spec = importlib.util.spec_from_file_location("_parity_warp_deflection_deformer", KERNEL_PATH)
